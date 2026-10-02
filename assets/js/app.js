@@ -88,9 +88,22 @@
   /* ---------- Version / build badge ----------
      version.json is committed with "env": "local"; the GitHub Actions deploy
      stamps the commit SHA, build number and date into it before publishing. */
+  function formatDate(d) {
+    const date = new Date(d);
+    if (isNaN(date)) return "";
+    return date.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+
   function loadBuildInfo(el) {
     if (!el) return;
     const onGitHub = /\.github\.io$/.test(location.hostname);
+    // Fallback when no stamped date exists: the page file's own modified time
+    // (file mtime locally, the Last-Modified header when served).
+    const fileDate = formatDate(document.lastModified);
+    const updated = function (d) {
+      return d ? '<span class="updated" title="Last content change">🕒 Last updated: <b>' + d + "</b></span>" : "";
+    };
+
     fetch("version.json", { cache: "no-store" })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (v) {
@@ -98,20 +111,21 @@
         if (v.env === "github-pages" && v.commit && v.commit !== "local") {
           const short = v.commit.slice(0, 7);
           const base = "https://github.com/" + v.repo;
-          const when = v.date ? new Date(v.date).toLocaleString() : "";
-          el.innerHTML = ver + ' <span class="dot live"></span> Deployed build #' + v.build +
+          const deployed = v.date ? formatDate(v.date) : "";
+          el.innerHTML = updated(formatDate(v.updated) || deployed) + ver +
+            ' <span class="dot live"></span> Deployed build #' + v.build +
             ' · <a href="' + base + "/commit/" + v.commit + '" title="Commit that is live">' + short + "</a>" +
-            (when ? " · " + when : "") +
+            (deployed ? ' · <span title="When this build went live">deployed ' + deployed + "</span>" : "") +
             ' · <a href="' + base + "/compare/" + v.commit + '...main" title="Commits on main that are not deployed yet">changes since this deploy</a>';
         } else if (onGitHub) {
-          el.innerHTML = ver + ' <span class="dot warn"></span> Deployed from branch (no build info — set Pages source to GitHub Actions)';
+          el.innerHTML = updated(fileDate) + ver + ' <span class="dot warn"></span> Deployed from branch (no build info — set Pages source to GitHub Actions)';
         } else {
-          el.innerHTML = ver + ' <span class="dot local"></span> Local preview — not deployed';
+          el.innerHTML = updated(fileDate) + ver + ' <span class="dot local"></span> Local preview — not deployed';
         }
       })
       .catch(function () {
         // file:// pages cannot fetch JSON; this is always a local copy
-        el.innerHTML = '<span class="dot local"></span> Local file preview — not deployed';
+        el.innerHTML = updated(fileDate) + '<span class="dot local"></span> Local file preview — not deployed';
       });
   }
 

@@ -31,7 +31,8 @@ jobs:
              --arg build "$GITHUB_RUN_NUMBER" \
              --arg repo "$GITHUB_REPOSITORY" \
              --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-             '.commit=$sha | .build=$build | .repo=$repo | .date=$date | .env="github-pages"' \
+             --arg updated "$(git log -1 --format=%cI)" \
+             '.commit=$sha | .build=$build | .repo=$repo | .date=$date | .updated=$updated | .env="github-pages"' \
              version.json > version.tmp && mv version.tmp version.json
           cat version.json
       - uses: actions/upload-pages-artifact@v3

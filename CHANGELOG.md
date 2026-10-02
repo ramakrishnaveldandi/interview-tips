@@ -3,6 +3,9 @@
 Bump `"version"` in `version.json` and add an entry here whenever you publish a change.
 The live site's footer shows this version plus the exact commit that is deployed.
 
+## 1.3.0 — 2026-10-02
+- Footer shows "Last updated" with the date of the latest content commit.
+
 ## 1.2.0 — 2026-10-02
 - Footer shows the version, deploy build number, live commit and a "changes since this deploy" link.
 

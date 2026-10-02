@@ -274,3 +274,5 @@ tbody tr:hover { background: var(--surface); }
 .build-info .dot.live { background: var(--easy); box-shadow: 0 0 8px var(--easy); }
 .build-info .dot.warn { background: var(--medium); }
 .build-info .dot.local { background: var(--muted); }
+.build-info .updated { flex-basis: 100%; color: var(--text); }
+.build-info .updated b { font-weight: 600; }

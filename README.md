@@ -67,11 +67,14 @@ built from the `<h2>` of each `qa-group`. Put code inside a plain-text script ta
 
 ## Versioning: what is deployed?
 
-Every page footer shows a build badge:
+Every page footer shows **🕒 Last updated: &lt;date&gt;** and a build badge.
+On the live site, "Last updated" is the date of the latest commit that is deployed.
+Locally (or when deployed from a branch), it is the page file's modified time.
+
 
 | Badge | Meaning |
 |---|---|
-| 🟢 `v1.2.0 · Deployed build #7 · a1b2c3d · date` | Live on GitHub Pages; the hash links to the deployed commit |
+| 🟢 `v1.3.0 · Deployed build #7 · a1b2c3d · deployed <date>` | Live on GitHub Pages; the hash links to the deployed commit |
 | 🟠 `Deployed from branch (no build info)` | Pages source is "Deploy from a branch"; switch it to **GitHub Actions** to get build info |
 | ⚪ `Local preview — not deployed` | You're viewing your local copy |
 

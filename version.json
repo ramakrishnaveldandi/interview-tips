@@ -1,8 +1,9 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "commit": "local",
   "build": null,
   "date": null,
+  "updated": null,
   "repo": "ramakrishnaveldandi/interview-tips",
   "env": "local"
 }
