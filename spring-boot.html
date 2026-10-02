@@ -667,6 +667,371 @@
             </div>
           </details>
         </section>
+
+        <section class="qa-group">
+          <h2>Coding questions</h2>
+          <p class="group-intro">Hands-on tasks interviewers ask you to write live or as a take-home. Imports are omitted for brevity; code targets Spring Boot 3.4+ / 4.x.</p>
+
+          <details class="qa" data-level="medium">
+            <summary>Build a CRUD REST API for <code>Product</code> with validation (controller → service → repository).</summary>
+            <div class="answer">
+              <p>Keep the layers thin and clear: records as DTOs, the entity never leaves the service, <code>201 Created</code> with a <code>Location</code> header on create.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @Entity
+                public class Product {
+                    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
+                    private String name;
+                    private BigDecimal price;
+                    protected Product() {}
+                    public Product(String name, BigDecimal price) { this.name = name; this.price = price; }
+                    // getters + setters
+                }
+
+                public record ProductRequest(@NotBlank String name, @NotNull @Positive BigDecimal price) {}
+                public record ProductResponse(Long id, String name, BigDecimal price) {
+                    static ProductResponse from(Product p) { return new ProductResponse(p.getId(), p.getName(), p.getPrice()); }
+                }
+
+                public interface ProductRepository extends JpaRepository<Product, Long> {}
+
+                @Service
+                @Transactional(readOnly = true)
+                public class ProductService {
+                    private final ProductRepository repo;
+                    public ProductService(ProductRepository repo) { this.repo = repo; }
+
+                    public ProductResponse get(Long id) {
+                        return repo.findById(id).map(ProductResponse::from)
+                                   .orElseThrow(() -> new ProductNotFoundException(id));
+                    }
+
+                    @Transactional
+                    public ProductResponse create(ProductRequest req) {
+                        return ProductResponse.from(repo.save(new Product(req.name(), req.price())));
+                    }
+
+                    @Transactional
+                    public ProductResponse update(Long id, ProductRequest req) {
+                        Product p = repo.findById(id).orElseThrow(() -> new ProductNotFoundException(id));
+                        p.setName(req.name());
+                        p.setPrice(req.price());          // dirty checking: no explicit save() needed
+                        return ProductResponse.from(p);
+                    }
+
+                    @Transactional
+                    public void delete(Long id) {
+                        if (!repo.existsById(id)) throw new ProductNotFoundException(id);
+                        repo.deleteById(id);
+                    }
+                }
+
+                @RestController
+                @RequestMapping("/api/products")
+                public class ProductController {
+                    private final ProductService service;
+                    public ProductController(ProductService service) { this.service = service; }
+
+                    @GetMapping("/{id}")
+                    public ProductResponse get(@PathVariable Long id) { return service.get(id); }
+
+                    @PostMapping
+                    public ResponseEntity<ProductResponse> create(@Valid @RequestBody ProductRequest req) {
+                        ProductResponse created = service.create(req);
+                        URI location = URI.create("/api/products/" + created.id());
+                        return ResponseEntity.created(location).body(created);
+                    }
+
+                    @PutMapping("/{id}")
+                    public ProductResponse update(@PathVariable Long id, @Valid @RequestBody ProductRequest req) {
+                        return service.update(id, req);
+                    }
+
+                    @DeleteMapping("/{id}")
+                    @ResponseStatus(HttpStatus.NO_CONTENT)
+                    public void delete(@PathVariable Long id) { service.delete(id); }
+                }
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Write a global exception handler that returns RFC 9457 <code>ProblemDetail</code> responses, including validation errors.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                public class ProductNotFoundException extends RuntimeException {
+                    public ProductNotFoundException(Long id) { super("Product " + id + " not found"); }
+                }
+
+                @RestControllerAdvice
+                public class GlobalExceptionHandler {
+
+                    @ExceptionHandler(ProductNotFoundException.class)
+                    public ProblemDetail notFound(ProductNotFoundException ex) {
+                        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+                        pd.setTitle("Resource not found");
+                        return pd;
+                    }
+
+                    @ExceptionHandler(MethodArgumentNotValidException.class)
+                    public ProblemDetail invalid(MethodArgumentNotValidException ex) {
+                        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Validation failed");
+                        Map<String, String> errors = new LinkedHashMap<>();
+                        ex.getBindingResult().getFieldErrors()
+                          .forEach(fe -> errors.put(fe.getField(), fe.getDefaultMessage()));
+                        pd.setProperty("errors", errors);
+                        return pd;
+                    }
+
+                    @ExceptionHandler(Exception.class)
+                    public ProblemDetail fallback(Exception ex) {
+                        // log the full exception, but never leak stack traces to the client
+                        return ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error");
+                    }
+                }
+              </script>
+              <script type="text/plain" class="code" data-lang="json">
+                {
+                  "type": "about:blank",
+                  "title": "Bad Request",
+                  "status": 400,
+                  "detail": "Validation failed",
+                  "instance": "/api/products",
+                  "errors": { "price": "must be greater than 0" }
+                }
+              </script>
+              <div class="tip">Alternatively extend <code>ResponseEntityExceptionHandler</code>, or set <code>spring.mvc.problemdetails.enabled=true</code> so Spring's built-in exceptions use ProblemDetail too.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Create a custom validation annotation, e.g. <code>@ValidPan</code> for an Indian PAN number.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.RECORD_COMPONENT})
+                @Retention(RetentionPolicy.RUNTIME)
+                @Constraint(validatedBy = PanValidator.class)
+                public @interface ValidPan {
+                    String message() default "invalid PAN format";
+                    Class<?>[] groups() default {};
+                    Class<? extends Payload>[] payload() default {};
+                }
+
+                public class PanValidator implements ConstraintValidator<ValidPan, String> {
+                    private static final Pattern PAN = Pattern.compile("[A-Z]{5}[0-9]{4}[A-Z]");
+
+                    @Override
+                    public boolean isValid(String value, ConstraintValidatorContext ctx) {
+                        return value == null || PAN.matcher(value).matches();   // let @NotNull handle nulls
+                    }
+                }
+
+                public record CustomerRequest(@NotBlank String name, @NotNull @ValidPan String pan) {}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Add pagination, sorting and filtering to a list endpoint.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                public interface ProductRepository extends JpaRepository<Product, Long> {
+                    Page<Product> findByNameContainingIgnoreCase(String name, Pageable pageable);
+                }
+
+                @GetMapping
+                public Page<ProductResponse> list(
+                        @RequestParam(defaultValue = "") String name,
+                        @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+                    return repo.findByNameContainingIgnoreCase(name, pageable).map(ProductResponse::from);
+                }
+
+                // GET /api/products?name=phone&page=0&size=10&sort=price,desc
+              </script>
+              <div class="note">Returning <code>Page</code> directly serialises internal structure; on Boot 3.3+ prefer <code>@EnableSpringDataWebSupport(pageSerializationMode = VIA_DTO)</code> or map to your own page DTO. For very large tables use keyset pagination (see the Database page).</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Write an AOP aspect that logs the execution time of methods annotated with <code>@LogExecutionTime</code>.</summary>
+            <div class="answer">
+              <p>Requires the AOP starter (<code>spring-boot-starter-aop</code>; renamed <code>spring-boot-starter-aspectj</code> in Boot 4).</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @Target(ElementType.METHOD)
+                @Retention(RetentionPolicy.RUNTIME)
+                public @interface LogExecutionTime {}
+
+                @Aspect
+                @Component
+                public class TimingAspect {
+                    private static final Logger log = LoggerFactory.getLogger(TimingAspect.class);
+
+                    @Around("@annotation(com.example.LogExecutionTime)")
+                    public Object time(ProceedingJoinPoint pjp) throws Throwable {
+                        long start = System.nanoTime();
+                        try {
+                            return pjp.proceed();
+                        } finally {
+                            log.info("{} took {} ms", pjp.getSignature().toShortString(),
+                                     (System.nanoTime() - start) / 1_000_000);
+                        }
+                    }
+                }
+
+                @Service
+                public class ReportService {
+                    @LogExecutionTime
+                    public Report generate() { /* ... */ }
+                }
+              </script>
+              <div class="note">Classic follow-up: calling <code>generate()</code> from another method <i>in the same class</i> is not intercepted, because Spring AOP is proxy-based (same pitfall as <code>@Transactional</code> self-invocation).</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Write a controller slice test with MockMvc.</summary>
+            <div class="answer">
+              <p>Since Boot 3.4, <code>@MockitoBean</code> replaces the deprecated <code>@MockBean</code> (removed in Boot 4).</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @WebMvcTest(ProductController.class)
+                class ProductControllerTest {
+
+                    @Autowired MockMvc mvc;
+                    @MockitoBean ProductService service;
+
+                    @Test
+                    void returnsProduct() throws Exception {
+                        when(service.get(1L)).thenReturn(new ProductResponse(1L, "Phone", new BigDecimal("499.00")));
+
+                        mvc.perform(get("/api/products/1"))
+                           .andExpect(status().isOk())
+                           .andExpect(jsonPath("$.name").value("Phone"));
+                    }
+
+                    @Test
+                    void rejectsInvalidRequest() throws Exception {
+                        mvc.perform(post("/api/products")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                    {"name": "", "price": -1}
+                                    """))
+                           .andExpect(status().isBadRequest())
+                           .andExpect(jsonPath("$.errors.price").exists());
+                    }
+
+                    @Test
+                    void returns404WhenMissing() throws Exception {
+                        when(service.get(99L)).thenThrow(new ProductNotFoundException(99L));
+                        mvc.perform(get("/api/products/99")).andExpect(status().isNotFound());
+                    }
+                }
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Call another microservice with <code>RestClient</code>, including timeouts and error handling.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                @Configuration
+                public class ClientConfig {
+                    @Bean
+                    RestClient inventoryClient(RestClient.Builder builder) {
+                        var factory = new SimpleClientHttpRequestFactory();
+                        factory.setConnectTimeout(Duration.ofSeconds(2));
+                        factory.setReadTimeout(Duration.ofSeconds(5));
+                        return builder
+                            .baseUrl("http://inventory-service")
+                            .requestFactory(factory)
+                            .build();
+                    }
+                }
+
+                @Service
+                public class InventoryGateway {
+                    private final RestClient client;
+                    public InventoryGateway(RestClient inventoryClient) { this.client = inventoryClient; }
+
+                    public StockResponse stock(String sku) {
+                        return client.get()
+                            .uri("/api/stock/{sku}", sku)
+                            .retrieve()
+                            .onStatus(status -> status.value() == 404,
+                                      (req, res) -> { throw new SkuNotFoundException(sku); })
+                            .body(StockResponse.class);
+                    }
+                }
+              </script>
+              <div class="tip">Inject <code>RestClient.Builder</code> (not <code>RestClient.create()</code>) so Boot's observability/tracing and message converters are applied. Wrap the call with a Resilience4j <code>@CircuitBreaker</code> + <code>@Retry</code> for resilience.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Cache a slow lookup with <code>@Cacheable</code> and evict it on update.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                @SpringBootApplication
+                @EnableCaching
+                public class App { }
+
+                @Service
+                public class CountryService {
+                    @Cacheable(cacheNames = "countries", key = "#code")
+                    public Country find(String code) {           // runs only on cache miss
+                        return slowRepository.load(code);
+                    }
+
+                    @CachePut(cacheNames = "countries", key = "#country.code()")
+                    public Country update(Country country) { return slowRepository.save(country); }
+
+                    @CacheEvict(cacheNames = "countries", allEntries = true)
+                    public void refreshAll() { }
+                }
+              </script>
+              <script type="text/plain" class="code" data-lang="yaml">
+                spring:
+                  cache:
+                    type: caffeine            # or redis for a distributed cache
+                    caffeine:
+                      spec: maximumSize=1000,expireAfterWrite=10m
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>Publish a domain event after an order is saved, and send an email only if the transaction commits.</summary>
+            <div class="answer">
+              <p><code>@TransactionalEventListener(phase = AFTER_COMMIT)</code> guarantees the listener does not run if the transaction rolls back; add <code>@Async</code> so the email does not slow down the request.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public record OrderPlaced(Long orderId, String email) {}
+
+                @Service
+                public class OrderService {
+                    private final OrderRepository repo;
+                    private final ApplicationEventPublisher events;
+                    // constructor ...
+
+                    @Transactional
+                    public Order place(OrderRequest req) {
+                        Order order = repo.save(Order.from(req));
+                        events.publishEvent(new OrderPlaced(order.getId(), req.email()));
+                        return order;
+                    }
+                }
+
+                @Component
+                public class OrderNotifications {
+                    @Async
+                    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+                    public void onOrderPlaced(OrderPlaced event) {
+                        mailService.sendConfirmation(event.email(), event.orderId());
+                    }
+                }
+                // Enable with @EnableAsync on a @Configuration class
+              </script>
+              <div class="note">For guaranteed delivery across services (e.g. Kafka), use the <b>transactional outbox</b> pattern instead — an in-memory event is lost if the app crashes after commit.</div>
+            </div>
+          </details>
+        </section>
       </div>
     </div>
   </main>

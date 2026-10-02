@@ -469,6 +469,322 @@
             </div>
           </details>
         </section>
+
+        <section class="qa-group">
+          <h2>Coding questions</h2>
+          <p class="group-intro">Classic live-coding problems. Try writing the solution yourself before expanding — then compare complexity and edge cases.</p>
+
+          <details class="qa" data-level="easy">
+            <summary>Reverse a string and check whether it is a palindrome (without <code>StringBuilder.reverse()</code>).</summary>
+            <div class="answer">
+              <p>Use two pointers moving towards the centre — O(n) time, O(1) extra space for the check.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                static String reverse(String s) {
+                    char[] c = s.toCharArray();
+                    for (int i = 0, j = c.length - 1; i < j; i++, j--) {
+                        char t = c[i]; c[i] = c[j]; c[j] = t;
+                    }
+                    return new String(c);
+                }
+
+                // Ignores case and non-alphanumeric chars: "A man, a plan, a canal: Panama" -> true
+                static boolean isPalindrome(String s) {
+                    int i = 0, j = s.length() - 1;
+                    while (i < j) {
+                        if (!Character.isLetterOrDigit(s.charAt(i))) { i++; continue; }
+                        if (!Character.isLetterOrDigit(s.charAt(j))) { j--; continue; }
+                        if (Character.toLowerCase(s.charAt(i++)) != Character.toLowerCase(s.charAt(j--))) return false;
+                    }
+                    return true;
+                }
+              </script>
+              <div class="tip">Follow-up: mention <code>null</code>/empty input, and that surrogate pairs (emoji) break naive char reversal — use <code>s.codePoints()</code> if that matters.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Find the first non-repeating character in a string.</summary>
+            <div class="answer">
+              <p>A <code>LinkedHashMap</code> keeps insertion order, so the first entry with count 1 is the answer. O(n).</p>
+              <script type="text/plain" class="code" data-lang="java">
+                static Optional<Character> firstUnique(String s) {
+                    Map<Character, Long> counts = s.chars()
+                        .mapToObj(c -> (char) c)
+                        .collect(Collectors.groupingBy(Function.identity(), LinkedHashMap::new, Collectors.counting()));
+
+                    return counts.entrySet().stream()
+                        .filter(e -> e.getValue() == 1)
+                        .map(Map.Entry::getKey)
+                        .findFirst();
+                }
+
+                firstUnique("swiss");   // Optional[w]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Count word frequency and find duplicate elements using streams.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                String text = "java spring java angular spring java";
+
+                Map<String, Long> freq = Arrays.stream(text.split("\\s+"))
+                    .collect(Collectors.groupingBy(Function.identity(), TreeMap::new, Collectors.counting()));
+                // {angular=1, java=3, spring=2}
+
+                List<Integer> nums = List.of(4, 1, 4, 7, 1, 9);
+                Set<Integer> seen = new HashSet<>();
+                Set<Integer> duplicates = nums.stream()
+                    .filter(n -> !seen.add(n))          // add() returns false if already present
+                    .collect(Collectors.toSet());       // [1, 4]
+              </script>
+              <div class="note">The <code>seen.add</code> trick uses a stateful lambda — fine for sequential streams, but not safe with <code>parallelStream()</code>. The groupingBy + <code>filter(count &gt; 1)</code> version is safe in both.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Check if two strings are anagrams.</summary>
+            <div class="answer">
+              <p>Count characters with an array — O(n) time, O(1) space for a fixed alphabet. Sorting both strings works too but is O(n log n).</p>
+              <script type="text/plain" class="code" data-lang="java">
+                static boolean isAnagram(String a, String b) {
+                    if (a.length() != b.length()) return false;
+                    int[] count = new int[26];
+                    for (int i = 0; i < a.length(); i++) {
+                        count[a.charAt(i) - 'a']++;
+                        count[b.charAt(i) - 'a']--;
+                    }
+                    for (int c : count) if (c != 0) return false;
+                    return true;
+                }
+
+                isAnagram("listen", "silent");  // true
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Two Sum: return the indices of two numbers that add up to a target.</summary>
+            <div class="answer">
+              <p>Store each value's index in a <code>HashMap</code>; for each element check whether <code>target - x</code> was already seen. O(n) time instead of the O(n²) brute force.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                static int[] twoSum(int[] nums, int target) {
+                    Map<Integer, Integer> indexOf = new HashMap<>();
+                    for (int i = 0; i < nums.length; i++) {
+                        Integer j = indexOf.get(target - nums[i]);
+                        if (j != null) return new int[]{j, i};
+                        indexOf.put(nums[i], i);
+                    }
+                    throw new IllegalArgumentException("No solution");
+                }
+
+                twoSum(new int[]{2, 7, 11, 15}, 9);   // [0, 1]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Employee stream problems: group by department, highest salary per department, average salary, second-highest salary.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                record Employee(String name, String dept, double salary) {}
+
+                List<Employee> emps = List.of(
+                    new Employee("Asha", "IT", 120_000), new Employee("Ravi", "IT", 95_000),
+                    new Employee("Meena", "HR", 70_000), new Employee("John", "HR", 82_000),
+                    new Employee("Kiran", "Sales", 60_000));
+
+                // 1. Names grouped by department
+                Map<String, List<String>> byDept = emps.stream()
+                    .collect(Collectors.groupingBy(Employee::dept,
+                             Collectors.mapping(Employee::name, Collectors.toList())));
+
+                // 2. Highest-paid employee per department
+                Map<String, Optional<Employee>> topPaid = emps.stream()
+                    .collect(Collectors.groupingBy(Employee::dept,
+                             Collectors.maxBy(Comparator.comparingDouble(Employee::salary))));
+
+                // 3. Average salary per department
+                Map<String, Double> avg = emps.stream()
+                    .collect(Collectors.groupingBy(Employee::dept, Collectors.averagingDouble(Employee::salary)));
+
+                // 4. Second-highest distinct salary overall
+                Optional<Double> second = emps.stream()
+                    .map(Employee::salary).distinct()
+                    .sorted(Comparator.reverseOrder())
+                    .skip(1).findFirst();                 // Optional[95000.0]
+
+                // 5. Partition: earning more than 80k?
+                Map<Boolean, List<Employee>> split = emps.stream()
+                    .collect(Collectors.partitioningBy(e -> e.salary() > 80_000));
+              </script>
+              <div class="tip">These are the most-asked Java 8 stream questions in service-company interviews — practise them until you can write them without an IDE.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Implement an LRU cache.</summary>
+            <div class="answer">
+              <p><code>LinkedHashMap</code> with <code>accessOrder = true</code> moves an entry to the end on every <code>get</code>; override <code>removeEldestEntry</code> to evict. O(1) get and put.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                class LruCache<K, V> extends LinkedHashMap<K, V> {
+                    private final int capacity;
+
+                    LruCache(int capacity) {
+                        super(capacity, 0.75f, true);    // true = access order
+                        this.capacity = capacity;
+                    }
+
+                    @Override
+                    protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+                        return size() > capacity;
+                    }
+                }
+
+                var cache = new LruCache<Integer, String>(2);
+                cache.put(1, "a"); cache.put(2, "b");
+                cache.get(1);        // 1 becomes most recent
+                cache.put(3, "c");   // evicts 2
+              </script>
+              <div class="note">If the interviewer says "without LinkedHashMap", build it with a <code>HashMap&lt;K, Node&gt;</code> plus a doubly linked list (head = most recent, tail = eviction candidate). For thread safety, wrap with locks or use Caffeine in real projects.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Write a thread-safe Singleton. Which implementation is best?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                // 1. Double-checked locking — volatile is mandatory to prevent seeing a half-constructed object
+                public final class Config {
+                    private static volatile Config instance;
+                    private Config() {}
+                    public static Config getInstance() {
+                        Config local = instance;
+                        if (local == null) {
+                            synchronized (Config.class) {
+                                local = instance;
+                                if (local == null) instance = local = new Config();
+                            }
+                        }
+                        return local;
+                    }
+                }
+
+                // 2. Initialization-on-demand holder — lazy, thread-safe, no locking (JVM class-init guarantees)
+                public final class Registry {
+                    private Registry() {}
+                    private static class Holder { static final Registry INSTANCE = new Registry(); }
+                    public static Registry getInstance() { return Holder.INSTANCE; }
+                }
+
+                // 3. Enum — also safe against reflection and serialization attacks (Effective Java's recommendation)
+                public enum IdGenerator {
+                    INSTANCE;
+                    private final AtomicLong next = new AtomicLong();
+                    public long nextId() { return next.incrementAndGet(); }
+                }
+              </script>
+              <div class="tip">In Spring apps you rarely write this yourself — beans are singletons per container by default.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>Print numbers 1–10 alternately using two threads (one odd, one even).</summary>
+            <div class="answer">
+              <p>Share a monitor; each thread waits while it is not its turn. Always call <code>wait()</code> in a <b>loop</b> to handle spurious wake-ups.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public class OddEvenPrinter {
+                    private static final int MAX = 10;
+                    private int current = 1;
+
+                    private synchronized void print(boolean odd) throws InterruptedException {
+                        while (current <= MAX) {
+                            while (current <= MAX && (current % 2 == 1) != odd) wait();
+                            if (current <= MAX) {
+                                System.out.println(Thread.currentThread().getName() + " -> " + current++);
+                            }
+                            notifyAll();
+                        }
+                    }
+
+                    public static void main(String[] args) {
+                        var p = new OddEvenPrinter();
+                        Runnable odd = () -> { try { p.print(true); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } };
+                        Runnable even = () -> { try { p.print(false); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } };
+                        new Thread(odd, "odd").start();
+                        new Thread(even, "even").start();
+                    }
+                }
+              </script>
+              <div class="note">Alternatives worth mentioning: two <code>Semaphore</code>s, or <code>ReentrantLock</code> with two <code>Condition</code>s.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>Implement producer–consumer.</summary>
+            <div class="answer">
+              <p><code>BlockingQueue</code> handles all the waiting and signalling: <code>put()</code> blocks when full, <code>take()</code> blocks when empty. Use a "poison pill" to stop the consumer.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public class ProducerConsumer {
+                    private static final int POISON = -1;
+
+                    public static void main(String[] args) throws Exception {
+                        BlockingQueue<Integer> queue = new ArrayBlockingQueue<>(5);
+
+                        Thread producer = new Thread(() -> {
+                            try {
+                                for (int i = 1; i <= 20; i++) queue.put(i);
+                                queue.put(POISON);
+                            } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                        });
+
+                        Thread consumer = new Thread(() -> {
+                            try {
+                                while (true) {
+                                    int item = queue.take();
+                                    if (item == POISON) break;
+                                    System.out.println("Consumed " + item);
+                                }
+                            } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                        });
+
+                        producer.start(); consumer.start();
+                        producer.join(); consumer.join();
+                    }
+                }
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Write an immutable class that contains a mutable field (e.g. a <code>List</code> or <code>Date</code>).</summary>
+            <div class="answer">
+              <p>Make the class and fields <code>final</code>, no setters, and <b>defensively copy</b> mutable inputs and outputs.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public final class Order {
+                    private final String id;
+                    private final List<String> items;
+                    private final Date createdAt;
+
+                    public Order(String id, List<String> items, Date createdAt) {
+                        this.id = id;
+                        this.items = List.copyOf(items);                      // unmodifiable copy
+                        this.createdAt = new Date(createdAt.getTime());        // defensive copy
+                    }
+                    public String id()        { return id; }
+                    public List<String> items() { return items; }              // already unmodifiable
+                    public Date createdAt()   { return new Date(createdAt.getTime()); }
+                }
+
+                // Modern alternative: a record with java.time (immutable) types
+                public record OrderV2(String id, List<String> items, Instant createdAt) {
+                    public OrderV2 { items = List.copyOf(items); }
+                }
+              </script>
+            </div>
+          </details>
+        </section>
       </div>
     </div>
   </main>
