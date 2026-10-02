@@ -75,6 +75,15 @@
                 LEFT JOIN department d ON d.id = e.dept_id
                 WHERE d.id IS NULL;
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>LEFT JOIN</code> keeps every employee; when no department matches, the <code>d.*</code> columns are filled with <code>NULL</code>.</li>
+                  <li>Example: Asha (dept 1, exists) and Ravi (dept_id NULL) → Asha's row has <code>d.id = 1</code>, Ravi's has <code>d.id = NULL</code>.</li>
+                  <li><code>WHERE</code> runs after the join, so <code>d.id IS NULL</code> keeps only the unmatched rows → <code>Ravi</code>.</li>
+                  <li>Putting <code>d.id IS NULL</code> in the <code>ON</code> clause instead would not filter anything — the outer join would still keep all employees. <code>NOT EXISTS</code> is an equivalent, often equally fast, alternative.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -90,6 +99,15 @@
                 HAVING AVG(salary) > 50000
                 ORDER BY avg_sal DESC;
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Logical order: <code>FROM employee</code> → <code>WHERE active = true</code> drops inactive rows <em>before</em> grouping → <code>GROUP BY dept_id</code> forms one group per department.</li>
+                  <li><code>HAVING</code> filters groups after aggregation, so it can use <code>AVG(salary)</code>; <code>WHERE</code> cannot, because aggregates don't exist yet at that stage.</li>
+                  <li>Example: dept 1 salaries 40k, 70k (avg 55k) is kept; dept 2 with 30k, 40k (avg 35k) is dropped.</li>
+                  <li><code>SELECT</code> computes <code>avg_sal</code>, then <code>ORDER BY</code> runs last, which is why it can use the alias <code>avg_sal</code> while <code>WHERE</code>/<code>HAVING</code> generally cannot (MySQL allows aliases in HAVING as an extension).</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -139,6 +157,17 @@
                 SELECT DISTINCT e1.salary FROM employee e1
                 WHERE 1 = (SELECT COUNT(DISTINCT e2.salary) FROM employee e2 WHERE e2.salary > e1.salary);
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Example data: salaries 900, 900, 800, 700. The correct "2nd highest" is 800.</li>
+                  <li>#1: the inner query finds the max (900); the outer query takes the max of everything below it → 800. Simple, but awkward for the Nth value.</li>
+                  <li>#2: <code>DISTINCT</code> collapses to 900, 800, 700; <code>ORDER BY ... DESC</code> then <code>OFFSET 1</code> skips one row and <code>LIMIT 1</code> takes 800. Without <code>DISTINCT</code> it would wrongly return 900.</li>
+                  <li>#3: <code>DENSE_RANK</code> assigns 1, 1, 2, 3 (no gaps after ties), so <code>rnk = 2</code> is 800. <code>RANK</code> would give 1, 1, 3 (no rank 2), and <code>ROW_NUMBER</code> 1, 2, 3 (returns 900). The window function needs a subquery because <code>WHERE</code> runs before window functions.</li>
+                  <li>#4: for each salary, count distinct salaries greater than it; for 800 that count is 1 (only 900), so it matches. Generalise with <code>N - 1 =</code>; it is O(n²) without an index.</li>
+                  <li>All of these return nothing when there is no 2nd distinct salary (#1 returns a single NULL row).</li>
+                </ol>
+              </div>
               <div class="tip">Ask whether ties count — <code>DENSE_RANK</code> treats equal salaries as one rank, which is usually what's expected.</div>
             </div>
           </details>
@@ -165,6 +194,16 @@
                 DELETE u1 FROM users u1
                 JOIN users u2 ON u1.email = u2.email AND u1.id > u2.id;
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The first query groups rows by <code>email</code> and <code>HAVING COUNT(*) &gt; 1</code> keeps only emails that appear more than once.</li>
+                  <li><code>ROW_NUMBER() OVER (PARTITION BY email ORDER BY id)</code> numbers rows within each email: ids 3, 8, 12 for <code>a@x.com</code> get 1, 2, 3.</li>
+                  <li><code>rn &gt; 1</code> selects ids 8 and 12 for deletion, keeping the lowest id 3.</li>
+                  <li>The extra derived table <code>t</code> matters in MySQL: it does not allow a subquery to read the same table being deleted from (error 1093), but a materialized derived table works.</li>
+                  <li>The MySQL self-join form deletes any <code>u1</code> that has a duplicate <code>u2</code> with a smaller id — same result. PostgreSQL would use <code>DELETE ... USING</code> instead.</li>
+                </ol>
+              </div>
               <div class="note">The extra derived table is needed in MySQL, which doesn't allow selecting from the table being deleted in a direct subquery. Afterwards, add a <code>UNIQUE</code> constraint to prevent recurrence.</div>
             </div>
           </details>
@@ -177,6 +216,14 @@
                 JOIN employee m ON e.manager_id = m.id
                 WHERE e.salary > m.salary;
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>A self-join uses the same table twice with different aliases: <code>e</code> is the employee row, <code>m</code> is the manager row.</li>
+                  <li><code>ON e.manager_id = m.id</code> pairs each employee with their manager; an <code>INNER JOIN</code> drops employees with no manager (like the CEO).</li>
+                  <li>Example: Ravi (60k, manager Asha) + Asha (50k) form one joined row; <code>WHERE e.salary &gt; m.salary</code> keeps it because 60k &gt; 50k.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -200,6 +247,16 @@
                 -- Department average next to each employee
                 SELECT name, salary, AVG(salary) OVER (PARTITION BY dept_id) AS dept_avg FROM employee;
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Window functions run after <code>WHERE</code>/<code>GROUP BY</code> but before <code>ORDER BY</code>, and unlike <code>GROUP BY</code> they keep every row.</li>
+                  <li><code>PARTITION BY dept_id</code> restarts ranking in each department; with salaries 900, 900, 800, 700 the ranks are 1, 1, 2, 3, so <code>rnk &lt;= 3</code> returns all four rows (top 3 <em>distinct</em> salaries). The CTE is needed because <code>WHERE</code> cannot reference a window result directly.</li>
+                  <li>Running total: the frame <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> sums from the first row to the current one: amounts 100, 50, 30 → 100, 150, 180.</li>
+                  <li>Writing <code>ROWS</code> explicitly avoids the default <code>RANGE</code> frame, which would add up all rows with the same <code>order_date</code> together.</li>
+                  <li><code>AVG(salary) OVER (PARTITION BY dept_id)</code> with no <code>ORDER BY</code> uses the whole partition, so every employee row shows its department's average.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -226,6 +283,14 @@
                        revenue - LAG(revenue) OVER (ORDER BY month) AS change
                 FROM monthly_revenue;
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>LAG(revenue)</code> returns the value from the previous row in the window order (<code>ORDER BY month</code>).</li>
+                  <li>Example: Jan 100, Feb 120, Mar 90 → change = NULL, 20, -30. The first row has no previous row, so <code>LAG</code> returns NULL and the subtraction is NULL.</li>
+                  <li>Use <code>LAG(revenue, 1, 0)</code> to default to 0, and <code>LEAD</code> to look at the next row instead. Percentage growth: divide by the previous value (guard against 0 with <code>NULLIF</code>).</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -244,6 +309,15 @@
                 )
                 SELECT * FROM org ORDER BY level, name;
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The anchor query runs once and returns the root rows: employees with <code>manager_id IS NULL</code> (the CEO), with <code>level = 1</code>.</li>
+                  <li>The recursive part joins <code>employee</code> to the rows produced in the <em>previous</em> iteration (<code>org</code>), finding their direct reports at <code>level + 1</code>.</li>
+                  <li>It repeats until an iteration returns no rows: CEO (1) → VPs (2) → managers (3) → …; <code>UNION ALL</code> appends each level.</li>
+                  <li><code>ORDER BY level, name</code> then sorts the full result. A cycle in the data (A manages B, B manages A) would loop forever; PostgreSQL 14+ offers a <code>CYCLE</code> clause, or you can track visited ids / cap the level.</li>
+                </ol>
+              </div>
               <div class="tip">Supported in PostgreSQL and MySQL 8+. SQL Server/Oracle omit the <code>RECURSIVE</code> keyword.</div>
             </div>
           </details>
@@ -284,6 +358,15 @@
                   salary     NUMERIC(12,2) CHECK (salary >= 0)
                 );
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>GENERATED ALWAYS AS IDENTITY</code> is the SQL-standard auto-increment in PostgreSQL; MySQL uses <code>AUTO_INCREMENT</code>. <code>PRIMARY KEY</code> implies NOT NULL + unique and creates an index.</li>
+                  <li><code>UNIQUE</code> on <code>email</code> creates a unique index, so a second insert with the same email fails.</li>
+                  <li><code>ON DELETE SET NULL</code>: deleting a department sets its employees' <code>dept_id</code> to NULL instead of blocking the delete. <code>manager_id</code> references the same table (self-referencing FK).</li>
+                  <li><code>CHECK (salary &gt;= 0)</code> rejects negative salaries (MySQL enforces CHECK from 8.0.16). Note: MySQL 8 silently ignores inline column-level <code>REFERENCES</code> — declare <code>FOREIGN KEY (...) REFERENCES ...</code> as a table constraint there.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -311,6 +394,15 @@
                 CREATE TRIGGER trg_salary AFTER UPDATE OF salary ON employee
                 FOR EACH ROW EXECUTE FUNCTION audit_salary();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>A view stores only the query: <code>SELECT * FROM high_earners</code> runs the underlying <code>SELECT</code> each time, so it always reflects current data.</li>
+                  <li>The trigger function uses the special records <code>OLD</code> (row before the update) and <code>NEW</code> (row after) to write an audit row.</li>
+                  <li><code>AFTER UPDATE OF salary ... FOR EACH ROW</code> fires once per updated row, and only when <code>salary</code> is in the <code>SET</code> list. An <code>UPDATE</code> touching 3 rows writes 3 audit rows.</li>
+                  <li>The audit insert runs in the same transaction, so if the update rolls back, so does the audit. <code>$$</code> is PostgreSQL dollar-quoting for the function body; <code>EXECUTE FUNCTION</code> is PostgreSQL 11+ syntax.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -343,12 +435,30 @@
                 WHERE status = 'ACTIVE'
                 WHERE salary > 50000
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>A B-tree on <code>(dept_id, status, salary)</code> is sorted by <code>dept_id</code> first, then <code>status</code> within it, then <code>salary</code> — like a phone book sorted by last name, then first name.</li>
+                  <li>Filters on a leftmost prefix can jump directly to the matching range: <code>dept_id = 10</code>; <code>dept_id = 10 AND status = 'ACTIVE'</code>; plus a range on <code>salary</code> at the end.</li>
+                  <li><code>status = 'ACTIVE'</code> alone cannot seek, because active rows are scattered across every <code>dept_id</code> — just as you cannot find all "Ravi"s quickly in a book sorted by last name.</li>
+                  <li>Put equality columns first and range columns last. Some optimizers can still use such an index via a full index scan or skip scan (MySQL 8.0.13+), but it is far less efficient than a prefix seek.</li>
+                </ol>
+              </div>
               <p>Order columns by: equality filters first, then range filters, then sort columns. A <b>covering index</b> contains every column the query needs, enabling an <i>index-only scan</i> without touching the table.</p>
               <script type="text/plain" class="code" data-lang="sql">
                 -- PostgreSQL: INCLUDE extra payload columns
                 CREATE INDEX idx_orders_cust ON orders (customer_id, created_at) INCLUDE (total);
                 SELECT created_at, total FROM orders WHERE customer_id = 42 ORDER BY created_at DESC;
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The key <code>(customer_id, created_at)</code> lets PostgreSQL find all rows for customer 42 and read them already sorted by <code>created_at</code> — scanned backward for <code>DESC</code>, so no sort step is needed.</li>
+                  <li><code>INCLUDE (total)</code> stores <code>total</code> in the index leaf pages without making it part of the key.</li>
+                  <li>Since every column the query needs is in the index, the planner can use an <em>Index Only Scan</em> and skip reading the table, provided the visibility map is up to date (VACUUM).</li>
+                  <li>MySQL InnoDB has no <code>INCLUDE</code>; you would add <code>total</code> as a trailing key column to get a covering index.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -371,6 +481,14 @@
                 EXPLAIN ANALYZE
                 SELECT * FROM orders WHERE customer_id = 42 AND status = 'PAID';
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>EXPLAIN</code> shows the planner's chosen plan with estimates; adding <code>ANALYZE</code> actually <em>executes</em> the query and reports real times and row counts.</li>
+                  <li>Because it runs the statement, wrap <code>EXPLAIN ANALYZE</code> of an <code>UPDATE</code>/<code>DELETE</code> in <code>BEGIN ... ROLLBACK</code>.</li>
+                  <li>MySQL 8.0.18+ also supports <code>EXPLAIN ANALYZE</code>, printing a tree with actual times.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="plaintext">
                 Index Scan using idx_orders_cust on orders  (cost=0.43..8.45 rows=3 width=64)
                                                             (actual time=0.021..0.030 rows=2 loops=1)
@@ -379,6 +497,15 @@
                   Rows Removed by Filter: 1
                 Execution Time: 0.052 ms
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Index Scan using idx_orders_cust</code>: the index on <code>customer_id</code> was used to find matching rows, then the table rows were fetched.</li>
+                  <li><code>cost=0.43..8.45</code> is startup..total cost in planner units (not ms); <code>rows=3</code> is the estimate, <code>actual ... rows=2</code> the real count. Large gaps between estimate and actual hint at stale statistics (<code>ANALYZE</code>).</li>
+                  <li><code>Index Cond</code> is applied inside the index; <code>Filter: status = 'PAID'</code> is checked afterwards on each fetched row, and <code>Rows Removed by Filter: 1</code> shows 3 were read and 1 discarded.</li>
+                  <li>If a filter removes many rows, add the column to the index, e.g. <code>(customer_id, status)</code>.</li>
+                </ol>
+              </div>
               <ul>
                 <li><b>Seq Scan</b> on a large table → missing or unusable index.</li>
                 <li><b>Index Scan / Index Only Scan / Bitmap Heap Scan</b> → index used.</li>
@@ -392,7 +519,7 @@
 
         <section class="qa-group">
           <h2>Transactions &amp; Concurrency</h2>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>What does ACID mean?</summary>
             <div class="answer">
               <ul>
@@ -407,6 +534,15 @@
                 UPDATE account SET balance = balance + 500 WHERE id = 2;
                 COMMIT;   -- or ROLLBACK on error
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>BEGIN</code> starts a transaction; both <code>UPDATE</code>s are applied as one atomic unit.</li>
+                  <li>If the second update fails (or the app crashes) before <code>COMMIT</code>, a <code>ROLLBACK</code> undoes the first one, so money is never debited without being credited.</li>
+                  <li>Each <code>UPDATE</code> takes a row lock on its account until commit, so a concurrent transfer on the same row waits. <code>balance = balance - 500</code> computes from the current row value, avoiding lost updates from a read-then-write in app code.</li>
+                  <li>After <code>COMMIT</code> the change is durable (written to the WAL / redo log) and visible to other transactions.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -465,6 +601,15 @@
                 UPDATE product SET stock = stock - 1 WHERE id = 7;
                 COMMIT;
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Optimistic: the <code>WHERE version = 3</code> clause makes the update succeed only if nobody changed the row since you read version 3; it then bumps the version to 4.</li>
+                  <li>If another user updated first (version is now 4), the statement matches 0 rows; the app sees the affected-row count is 0 and retries or reports a conflict (JPA <code>@Version</code> throws <code>OptimisticLockException</code>).</li>
+                  <li>Pessimistic: <code>SELECT ... FOR UPDATE</code> locks the row; any other transaction trying to lock or update it waits until this <code>COMMIT</code>, so stock cannot be oversold.</li>
+                  <li><code>SKIP LOCKED</code> (PostgreSQL and MySQL 8) skips rows locked by others instead of waiting — ideal for workers pulling jobs from a queue table.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -497,6 +642,14 @@
                 JOIN customer c ON c.id = o.customer_id;
                 -- or batch: SELECT * FROM customer WHERE id IN (1, 2, 3, ...);
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>N+1: one query fetches 100 orders, then the code issues one customer query per order → 101 round trips; latency adds up quickly.</li>
+                  <li>The <code>JOIN</code> fetches orders and their customer names in a single query, matching on <code>c.id = o.customer_id</code>.</li>
+                  <li>The batch alternative collects distinct customer ids and loads them with one <code>IN (...)</code> query → 2 queries total. In JPA this maps to <code>JOIN FETCH</code>, entity graphs or batch fetching.</li>
+                </ol>
+              </div>
               <p>In JPA/Hibernate use <code>JOIN FETCH</code>, <code>@EntityGraph</code> or <code>@BatchSize</code>.</p>
             </div>
           </details>
@@ -514,6 +667,15 @@
                       max-lifetime: 1800000        # below DB/proxy idle timeout
                       leak-detection-threshold: 20000
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>maximum-pool-size: 10</code> caps open DB connections; beyond the DB's CPU/disk capacity, more connections add contention rather than throughput.</li>
+                  <li><code>minimum-idle</code> equal to max gives a fixed-size pool (Hikari's recommended setup), avoiding connection churn under spikes.</li>
+                  <li><code>connection-timeout: 30000</code>: a request waits up to 30 s for a free connection, then throws — a sign of a too-small pool or connections held too long.</li>
+                  <li><code>max-lifetime</code> retires connections before the DB or a firewall drops them; <code>leak-detection-threshold</code> logs a stack trace when a connection is held longer than 20 s, pointing to the leaking code.</li>
+                </ol>
+              </div>
               <div class="tip">A common starting formula: <code>connections = (CPU cores × 2) + effective spindles</code>. Remember total = pool size × number of app instances — it must fit within the DB's <code>max_connections</code>.</div>
             </div>
           </details>
@@ -531,6 +693,15 @@
                 ORDER BY created_at DESC, id DESC
                 LIMIT 20;
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Offset: the database must still read and discard the first 1000 rows to return rows 1001–1020, so page 5000 gets slower and slower. Rows inserted meanwhile can also shift items between pages.</li>
+                  <li>Keyset: the client sends the last row's <code>(created_at, id)</code>; the row comparison <code>(created_at, id) &lt; (x, y)</code> means "earlier date, or same date with smaller id".</li>
+                  <li>With an index on <code>(created_at, id)</code>, the database seeks straight to that position and reads 20 rows, so every page costs the same.</li>
+                  <li><code>id</code> is included as a tie-breaker so rows with identical <code>created_at</code> are neither skipped nor repeated. The trade-off: no direct "jump to page 50".</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -546,6 +717,15 @@
                 CREATE TABLE orders (id BIGINT, created_at DATE, total NUMERIC) PARTITION BY RANGE (created_at);
                 CREATE TABLE orders_2026_q3 PARTITION OF orders FOR VALUES FROM ('2026-07-01') TO ('2026-10-01');
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>PARTITION BY RANGE (created_at)</code> makes <code>orders</code> a parent table that stores no rows itself; rows are routed to child partitions by date.</li>
+                  <li>Range bounds are inclusive at <code>FROM</code> and exclusive at <code>TO</code>, so <code>2026-10-01</code> belongs to the next partition, not Q3.</li>
+                  <li>A query with <code>WHERE created_at &gt;= '2026-08-01'</code> lets the planner prune partitions and scan only the relevant ones.</li>
+                  <li>Inserting a date with no matching partition fails unless a <code>DEFAULT</code> partition exists; dropping an old partition is an instant way to purge data.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -591,6 +771,15 @@
                 @CacheEvict(value = "products", key = "#p.id")
                 public Product update(Product p) { return repo.save(p); }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@Cacheable</code> runs through a Spring proxy: on <code>findById(5)</code> it first looks up key <code>5</code> in cache <code>products</code>; on a hit the method body (and DB query) is skipped.</li>
+                  <li>On a miss, the method runs and its return value is stored under that key, so the next call is served from cache.</li>
+                  <li><code>@CacheEvict(key = "#p.id")</code> removes the entry for the updated product (after the method succeeds by default), so the next read fetches fresh data.</li>
+                  <li>Because it is proxy-based, calling these methods from another method in the same class bypasses caching; caching also needs <code>@EnableCaching</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>

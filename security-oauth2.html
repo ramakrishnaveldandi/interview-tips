@@ -39,7 +39,7 @@
 
         <section class="qa-group">
           <h2>Spring Security fundamentals</h2>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>What is the difference between authentication and authorization?</summary>
             <div class="answer">
               <ul>
@@ -49,7 +49,7 @@
               <p>Failures map to different HTTP codes: <b>401 Unauthorized</b> (not authenticated) vs <b>403 Forbidden</b> (authenticated but not permitted).</p>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>Explain the Spring Security filter chain: DelegatingFilterProxy, FilterChainProxy and SecurityFilterChain.</summary>
             <div class="answer">
               <ol>
@@ -65,10 +65,20 @@
                                       └─ SecurityFilterChain #2  (/**)      ─▶ ... ▶ OAuth2Login ▶ ...
                                  ─▶ DispatcherServlet ─▶ @Controller
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The servlet container only knows plain <code>Filter</code>s, so it calls <code>DelegatingFilterProxy</code>, which looks up the Spring bean <code>springSecurityFilterChain</code> and hands the request to it.</li>
+                  <li>That bean is <code>FilterChainProxy</code>. It checks each <code>SecurityFilterChain</code>'s matcher in order and runs <b>only the first</b> that matches: <code>/api/**</code> goes to chain #1, and anything else falls through to the catch-all chain #2.</li>
+                  <li>Inside a chain the filters run in a fixed order. <code>CorsFilter</code> answers preflights, <code>CsrfFilter</code> checks tokens, <code>BearerTokenAuthenticationFilter</code> turns a JWT into an <code>Authentication</code>, and <code>AuthorizationFilter</code> makes the access decision.</li>
+                  <li><code>ExceptionTranslationFilter</code> sits just before <code>AuthorizationFilter</code> and turns its exceptions into responses: an anonymous user gets the entry point (401 or a login redirect), and an authenticated user who lacks permission gets 403.</li>
+                  <li>Only when every filter calls <code>chain.doFilter()</code> does the request reach <code>DispatcherServlet</code> and your <code>@Controller</code>.</li>
+                </ol>
+              </div>
               <div class="tip">Enable <code>logging.level.org.springframework.security=TRACE</code> to see which filters run for each request.</div>
             </div>
           </details>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>How do you configure security in Spring Boot 3+ now that WebSecurityConfigurerAdapter is gone?</summary>
             <div class="answer">
               <p>Declare a <code>SecurityFilterChain</code> <code>@Bean</code> using the lambda DSL. <code>antMatchers</code>/<code>mvcMatchers</code> were replaced by <code>requestMatchers</code>, and <code>authorizeRequests</code> by <code>authorizeHttpRequests</code>.</p>
@@ -91,10 +101,20 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@EnableWebSecurity</code> plus the <code>SecurityFilterChain</code> bean replaces the old <code>WebSecurityConfigurerAdapter</code>. <code>http.build()</code> creates the ordered filter list.</li>
+                  <li><code>AuthorizationFilter</code> checks the rules top to bottom and the first match wins. <code>/public/**</code> and health are open to everyone. A <code>DELETE</code> on <code>/api/**</code> needs <code>ROLE_ADMIN</code>, because <code>hasRole("ADMIN")</code> adds the <code>ROLE_</code> prefix for you.</li>
+                  <li>Other <code>/api/**</code> calls need USER or ADMIN, and <code>anyRequest().authenticated()</code> is the deny-by-default safety net for everything else.</li>
+                  <li><code>httpBasic</code> reads an <code>Authorization: Basic</code> header, and <code>formLogin</code> serves <code>/login</code> and processes the form POST. Both send the credentials to the <code>AuthenticationManager</code>.</li>
+                  <li>Not logged in: a browser is redirected (302) to <code>/login</code>, while a non-browser client gets <b>401</b> with <code>WWW-Authenticate: Basic</code>. Logged in but with the wrong role: <b>403</b>.</li>
+                </ol>
+              </div>
               <div class="note">Rule order matters — the first matching rule wins, so put specific matchers before general ones.</div>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>What are UserDetailsService and PasswordEncoder? Why use DelegatingPasswordEncoder?</summary>
             <div class="answer">
               <p><code>UserDetailsService.loadUserByUsername()</code> loads a user (username, hashed password, authorities) from your store. <code>DaoAuthenticationProvider</code> uses it together with a <code>PasswordEncoder</code> to verify credentials.</p>
@@ -115,10 +135,20 @@
                     return PasswordEncoderFactories.createDelegatingPasswordEncoder();
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>On login, <code>DaoAuthenticationProvider</code> calls your lambda <code>loadUserByUsername(username)</code>, which here looks the user up by email.</li>
+                  <li>If the user is found, it is turned into a Spring <code>User</code> with the stored <b>hash</b> and roles. <code>.roles()</code> adds the <code>ROLE_</code> prefix to each one.</li>
+                  <li>If nobody matches, it throws <code>UsernameNotFoundException</code>. Spring reports that as a generic <code>BadCredentialsException</code>, so attackers can't tell "unknown user" from "wrong password".</li>
+                  <li>The provider then calls <code>passwordEncoder.matches(raw, stored)</code>. <code>DelegatingPasswordEncoder</code> reads the <code>{id}</code> prefix (for example <code>{bcrypt}</code>) and sends the check to that algorithm, so old and new hash formats can live side by side.</li>
+                  <li>New passwords are always encoded with the default (BCrypt). You can re-hash a user with a stronger algorithm the next time they log in.</li>
+                </ol>
+              </div>
               <p><b>DelegatingPasswordEncoder</b> prefixes the hash with an algorithm id, so you can migrate to a stronger algorithm (e.g. Argon2) without invalidating existing hashes. Never store plain or reversibly-encrypted passwords; BCrypt/Argon2/scrypt are slow by design, which defeats brute force.</p>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>How does method-level security work? Explain @EnableMethodSecurity and @PreAuthorize.</summary>
             <div class="answer">
               <p><code>@EnableMethodSecurity</code> (replaces the old <code>@EnableGlobalMethodSecurity</code>) enables <code>@PreAuthorize</code>/<code>@PostAuthorize</code>/<code>@PreFilter</code>/<code>@PostFilter</code> by default. Checks run in an AOP proxy, using SpEL.</p>
@@ -139,10 +169,20 @@
                     public Order create(OrderRequest r) { ... }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@EnableMethodSecurity</code> wraps beans that have these annotations in an AOP proxy. Every call through the proxy is checked before or after the real method runs.</li>
+                  <li><code>@PreAuthorize</code> runs its SpEL <b>before</b> the method. <code>#userId</code> is the method argument and <code>authentication.name</code> is the logged-in principal, so users can read only their own orders unless they are ADMIN.</li>
+                  <li><code>@PostAuthorize</code> runs <b>after</b> the method and checks <code>returnObject</code>. That is useful when ownership is known only once the entity has been loaded, but the method still runs, so avoid side effects in it.</li>
+                  <li><code>hasAuthority('SCOPE_orders.write')</code> checks an OAuth2 scope exactly as written, with no <code>ROLE_</code> prefix added.</li>
+                  <li>A failed check throws <code>AccessDeniedException</code>, and <code>ExceptionTranslationFilter</code> turns it into <b>403</b> (or 401 if the user is anonymous).</li>
+                </ol>
+              </div>
               <div class="note">Because it is proxy-based, calling a secured method from <b>another method in the same class</b> (self-invocation) bypasses the check.</div>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>What is CSRF, how does Spring protect against it, and when is it safe to disable?</summary>
             <div class="answer">
               <p><b>Cross-Site Request Forgery</b> tricks a logged-in browser into sending a state-changing request to your site, because the browser attaches cookies automatically. Spring's <code>CsrfFilter</code> requires a secret token (header or form field) on unsafe methods (POST, PUT, DELETE, PATCH).</p>
@@ -159,9 +199,19 @@
                 // Pure bearer-token API
                 http.csrf(AbstractHttpConfigurer::disable);
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The attack: a malicious site submits a hidden form to your API. The browser attaches your session cookie automatically, so without a CSRF check the request would succeed.</li>
+                  <li><code>CsrfFilter</code> requires a secret token on POST/PUT/PATCH/DELETE that the attacker's page cannot read, because the same-origin policy blocks it. A missing or wrong token gives <b>403</b>.</li>
+                  <li><code>csrf.spa()</code> (Spring Security 7) stores the token in an <code>XSRF-TOKEN</code> cookie that JavaScript can read. Angular copies it into the <code>X-XSRF-TOKEN</code> header, and the filter compares the two.</li>
+                  <li>The 6.x lines do the same by hand: <code>CookieCsrfTokenRepository.withHttpOnlyFalse()</code> creates the readable cookie, and a custom request handler accepts the raw header value.</li>
+                  <li>For pure bearer-token APIs, CSRF can be disabled. Browsers never add an <code>Authorization</code> header on their own, so a forged cross-site request carries no credentials.</li>
+                </ol>
+              </div>
             </div>
           </details>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>How do you configure CORS in Spring Security?</summary>
             <div class="answer">
               <p>CORS must be handled <b>before</b> authentication, otherwise browser preflight <code>OPTIONS</code> requests get a 401. Enable <code>http.cors()</code> and provide a <code>CorsConfigurationSource</code>.</p>
@@ -181,9 +231,19 @@
                 // in the filter chain
                 http.cors(Customizer.withDefaults());
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Before a cross-origin call with an <code>Authorization</code> header, the browser sends a preflight <code>OPTIONS</code> request. That request carries no credentials.</li>
+                  <li><code>http.cors(withDefaults())</code> adds <code>CorsFilter</code> early in the chain and uses your <code>CorsConfigurationSource</code> bean. A valid preflight is answered right away, before authentication can reject it with 401.</li>
+                  <li>Only <code>https://app.example.com</code> gets <code>Access-Control-Allow-Origin</code>. Other origins get no CORS headers (a preflight from them is rejected with 403), so the browser hides the response from their scripts.</li>
+                  <li><code>setAllowCredentials(true)</code> lets cookies or auth headers flow. The spec forbids pairing it with the <code>*</code> origin, which is why the origin is listed explicitly.</li>
+                  <li>The config is registered only for <code>/api/**</code>. CORS is a browser rule, not authentication: tools like curl ignore it, so the API still needs its own auth.</li>
+                </ol>
+              </div>
             </div>
           </details>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>How do you make a REST API stateless?</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -192,6 +252,15 @@
                     .csrf(AbstractHttpConfigurer::disable)
                     .oauth2ResourceServer(o -> o.jwt(Customizer.withDefaults()));
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>SessionCreationPolicy.STATELESS</code> tells Spring Security never to create an <code>HttpSession</code> and never to read the <code>SecurityContext</code> from one. Each request starts out anonymous.</li>
+                  <li>With no session cookie there is nothing for CSRF to abuse, so <code>csrf</code> is disabled.</li>
+                  <li><code>oauth2ResourceServer().jwt()</code> adds <code>BearerTokenAuthenticationFilter</code>, which re-authenticates every request from its <code>Authorization: Bearer</code> JWT.</li>
+                  <li>No header on a protected URL gives <b>401</b> with <code>WWW-Authenticate: Bearer</code>. A bad or expired token gives 401 with <code>error="invalid_token"</code>. A valid token without enough scope gives <b>403</b>.</li>
+                </ol>
+              </div>
               <p><code>STATELESS</code> means Spring never creates an <code>HttpSession</code>; every request must carry its own credentials (usually a JWT). Benefits: horizontal scaling without sticky sessions or a session store.</p>
             </div>
           </details>
@@ -199,7 +268,7 @@
 
         <section class="qa-group">
           <h2>JWT</h2>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>What is the structure of a JWT?</summary>
             <div class="answer">
               <p>Three Base64URL-encoded parts separated by dots: <code>header.payload.signature</code>.</p>
@@ -213,7 +282,154 @@
                 // Signature
                 RSASSA-PKCS1-v1_5-SHA256( base64url(header) + "." + base64url(payload), privateKey )
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The <b>header</b> says how the token was signed (<code>RS256</code>). <code>kid</code> tells the verifier which public key in the issuer's JWKS to use.</li>
+                  <li>The <b>payload</b> holds the claims. <code>iss</code> is who issued the token, <code>sub</code> is the user, and <code>aud</code> is the API it is meant for. <code>exp</code>/<code>iat</code> are Unix timestamps for expiry and issue time, and <code>scope</code> becomes <code>SCOPE_*</code> authorities in Spring.</li>
+                  <li>The <b>signature</b> is computed over the exact <code>base64url(header).base64url(payload)</code> bytes with the issuer's private key. Changing even one character of the payload breaks it.</li>
+                  <li>The verifier recomputes the check with the public key, rejects the token if it doesn't match, and then checks <code>exp</code>, <code>iss</code> and <code>aud</code>. Base64URL is only encoding, so anyone can read the claims.</li>
+                </ol>
+              </div>
               <div class="note">A signed JWT (JWS) is <b>encoded, not encrypted</b> — anyone can read the payload. Never put secrets or sensitive PII in it. Use JWE if confidentiality is needed.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="hard" data-tag="interview">
+            <summary>Implement JWT authentication end to end in Spring Boot (login endpoint, JWT filter, role-based access).</summary>
+            <div class="answer">
+              <p>This is the "self-issued JWT" approach many projects use (for a separate identity provider, use the OAuth2 resource-server configuration above instead). The flow:</p>
+              <script type="text/plain" class="code" data-lang="plaintext">
+                1. POST /auth/login {username, password}
+                2. AuthenticationManager → UserDetailsService loads the user → PasswordEncoder checks the BCrypt hash
+                3. Server signs a JWT {sub, roles, iat, exp} and returns it
+                4. Client sends   Authorization: Bearer <token>   on every request
+                5. JwtAuthFilter (OncePerRequestFilter) validates signature + expiry, puts an Authentication in the SecurityContext
+                6. authorizeHttpRequests / @PreAuthorize check roles → 200, 401 (no/invalid token) or 403 (wrong role)
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Steps 1–2: the login endpoint passes the username and password to <code>AuthenticationManager</code>. <code>DaoAuthenticationProvider</code> loads the user and checks the BCrypt hash. Wrong credentials throw <code>BadCredentialsException</code>.</li>
+                  <li>Step 3: on success the server signs a short-lived JWT. From now on the server keeps no session, and the token itself is the proof.</li>
+                  <li>Step 4: the client stores the token and sends it in the <code>Authorization</code> header on every call.</li>
+                  <li>Step 5: the custom filter verifies the signature and expiry and builds an <code>Authentication</code> from the <code>roles</code> claim for this request only.</li>
+                  <li>Step 6: <code>AuthorizationFilter</code> and <code>@PreAuthorize</code> compare those authorities with the rules. A good token and the right role gives 200. A missing or invalid token leaves the user anonymous (the 401 path). The wrong role gives 403.</li>
+                </ol>
+              </div>
+              <script type="text/plain" class="code" data-lang="java">
+                // Token service (io.jsonwebtoken:jjwt 0.12.x API)
+                @Component
+                public class JwtService {
+                    private final SecretKey key;
+                    private final Duration ttl = Duration.ofMinutes(15);
+
+                    public JwtService(@Value("${app.jwt.secret}") String base64Secret) {   // 256-bit+ secret from env/Vault
+                        this.key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(base64Secret));
+                    }
+
+                    public String generate(UserDetails user) {
+                        Instant now = Instant.now();
+                        return Jwts.builder()
+                            .subject(user.getUsername())
+                            .claim("roles", user.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList())
+                            .issuedAt(Date.from(now))
+                            .expiration(Date.from(now.plus(ttl)))
+                            .signWith(key)
+                            .compact();
+                    }
+
+                    public Claims parse(String token) {      // throws JwtException if tampered or expired
+                        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+                    }
+                }
+
+                // Filter: runs once per request, before Spring's username/password filter
+                @Component
+                public class JwtAuthFilter extends OncePerRequestFilter {
+                    private final JwtService jwt;
+                    public JwtAuthFilter(JwtService jwt) { this.jwt = jwt; }
+
+                    @Override
+                    protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
+                            throws ServletException, IOException {
+                        String header = req.getHeader(HttpHeaders.AUTHORIZATION);
+                        if (header != null && header.startsWith("Bearer ")) {
+                            try {
+                                Claims claims = jwt.parse(header.substring(7));
+                                List<SimpleGrantedAuthority> authorities = claims.get("roles", List.class).stream()
+                                    .map(r -> new SimpleGrantedAuthority(r.toString())).toList();
+                                var auth = new UsernamePasswordAuthenticationToken(claims.getSubject(), null, authorities);
+                                SecurityContextHolder.getContext().setAuthentication(auth);
+                            } catch (JwtException e) {
+                                SecurityContextHolder.clearContext();   // invalid token → stays anonymous → 401 later
+                            }
+                        }
+                        chain.doFilter(req, res);
+                    }
+                }
+
+                @Configuration
+                @EnableMethodSecurity
+                public class SecurityConfig {
+                    @Bean
+                    SecurityFilterChain api(HttpSecurity http, JwtAuthFilter jwtFilter) throws Exception {
+                        return http
+                            .csrf(AbstractHttpConfigurer::disable)                       // stateless bearer-token API
+                            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                            .authorizeHttpRequests(a -> a
+                                .requestMatchers("/auth/login", "/actuator/health").permitAll()
+                                .requestMatchers(HttpMethod.DELETE, "/api/**").hasRole("ADMIN")
+                                .requestMatchers("/api/reports/**").hasAnyRole("ADMIN", "MANAGER")
+                                .anyRequest().authenticated())
+                            .exceptionHandling(e -> e.authenticationEntryPoint(
+                                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))      // missing/invalid token → 401 (default would be 403)
+                            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                            .build();
+                    }
+
+                    @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+
+                    @Bean
+                    AuthenticationManager authenticationManager(AuthenticationConfiguration cfg) throws Exception {
+                        return cfg.getAuthenticationManager();
+                    }
+                }
+
+                @RestController
+                @RequestMapping("/auth")
+                public class AuthController {
+                    private final AuthenticationManager authManager;
+                    private final JwtService jwt;
+                    // constructor ...
+
+                    @PostMapping("/login")
+                    public Map<String, String> login(@Valid @RequestBody LoginRequest req) {
+                        Authentication auth = authManager.authenticate(
+                            new UsernamePasswordAuthenticationToken(req.username(), req.password()));   // BadCredentials → 401
+                        return Map.of("accessToken", jwt.generate((UserDetails) auth.getPrincipal()), "tokenType", "Bearer");
+                    }
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>JwtService</code> builds an HMAC key from a base64 secret, which must be at least 256 bits for HS256. <code>signWith(key)</code> picks the HS algorithm from the key size. <code>parseSignedClaims</code> checks the signature and <code>exp</code> and throws <code>JwtException</code> on tampering, expiry or an unsigned (<code>alg: none</code>) token.</li>
+                  <li><code>JwtAuthFilter</code> (a <code>OncePerRequestFilter</code>, added <b>before</b> <code>UsernamePasswordAuthenticationFilter</code>) strips the <code>Bearer </code> prefix and parses the token. It turns the <code>roles</code> claim (for example <code>ROLE_ADMIN</code>) into authorities and puts an authenticated token in the <code>SecurityContextHolder</code> for this request.</li>
+                  <li>If the token is invalid, the context is cleared and the request continues as anonymous. <code>AuthorizationFilter</code> then denies any protected URL. With no <code>httpBasic</code>/<code>formLogin</code> configured, Spring's default entry point would answer <b>403</b> — that's why the config sets <code>authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))</code>, so a missing or invalid token gets a proper <b>401</b>.</li>
+                  <li>Rules: <code>/auth/login</code> is open, <code>DELETE /api/**</code> needs ADMIN, reports need ADMIN or MANAGER, and everything else just needs a valid token. An authenticated user with the wrong role gets <b>403</b>.</li>
+                  <li><code>/auth/login</code> calls <code>authManager.authenticate()</code>, which uses <code>UserDetailsService</code> and BCrypt. On success it returns a fresh token. On failure it throws <code>BadCredentialsException</code>, so map that to 401 in your error handling.</li>
+                  <li>CSRF is off and sessions are <code>STATELESS</code> because the only credential is a header that browsers never send automatically.</li>
+                </ol>
+              </div>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Role</th><th>Can do (example)</th></tr></thead>
+                <tbody>
+                  <tr><td><code>ROLE_ADMIN</code></td><td>Everything, including DELETE</td></tr>
+                  <tr><td><code>ROLE_MANAGER</code></td><td>Read and update, reports</td></tr>
+                  <tr><td><code>ROLE_USER</code></td><td>Read-only on their own data</td></tr>
+                </tbody>
+              </table></div>
+              <div class="note">Store roles with the <code>ROLE_</code> prefix so <code>hasRole("ADMIN")</code> matches. Keep access tokens short-lived (5–15 min) with refresh tokens, sign with a strong secret or RS256 keys, always use HTTPS, and never put sensitive data in the payload — it's only Base64-encoded, not encrypted.</div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -250,6 +466,15 @@
                     return decoder;
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>JwtDecoders.fromIssuerLocation()</code> reads the issuer's metadata (<code>/.well-known/openid-configuration</code>) to find its <code>jwks_uri</code>. <code>NimbusJwtDecoder</code> then fetches and caches the public keys and picks one by <code>kid</code>.</li>
+                  <li><code>setJwtValidator</code> <b>replaces</b> the default validators. That is why <code>JwtValidators.createDefaultWithIssuer()</code> is added back: it checks <code>exp</code>/<code>nbf</code> (60s clock skew) and requires <code>iss</code> to match exactly.</li>
+                  <li>The extra <code>JwtClaimValidator</code> requires <code>aud</code> to contain <code>orders-api</code>. Without it, a token the same issuer minted for a different API would be accepted here (token confusion).</li>
+                  <li><code>DelegatingOAuth2TokenValidator</code> runs all validators, and any one failing rejects the token. <code>BearerTokenAuthenticationFilter</code> then answers <b>401</b> with <code>error="invalid_token"</code>.</li>
+                </ol>
+              </div>
               <div class="tip">Spring Boot 3.2+ can do the audience check with just <code>spring.security.oauth2.resourceserver.jwt.audiences</code>.</div>
             </div>
           </details>
@@ -263,6 +488,15 @@
 
                 grant_type=refresh_token&refresh_token=8xLOxBtZp8&client_id=spa-client
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The client calls the authorization server's <code>/oauth2/token</code> endpoint directly, never the API. The body is form-encoded, as the OAuth2 spec requires.</li>
+                  <li><code>grant_type=refresh_token</code> tells the server which grant to use. It looks up the refresh token, checks it isn't expired or revoked, and checks it belongs to <code>client_id</code>. A confidential client would also authenticate, for example with HTTP Basic and its secret.</li>
+                  <li>On success it returns a new short-lived access token, and with rotation also a <b>new</b> refresh token while the old one is invalidated.</li>
+                  <li>If the refresh token is invalid or revoked, the response is <code>400 invalid_grant</code>. The user has to log in again.</li>
+                </ol>
+              </div>
               <p>Best practice: <b>refresh token rotation</b> — each use issues a new refresh token and invalidates the old one; reuse of an old token signals theft and revokes the whole family.</p>
             </div>
           </details>
@@ -354,6 +588,17 @@
                       |                        |                                  |  10. validate JWT via JWKS |
                       |                        |<--------------------------------------------------------------|
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Steps 1–2: the client creates a random <code>code_verifier</code> and keeps it secret. It sends only its SHA-256 hash, the <code>code_challenge</code>.</li>
+                  <li>Step 3: the browser is redirected to <code>/authorize</code>. <code>state</code> is a random value the client remembers (CSRF protection), and the challenge is attached to the authorization request.</li>
+                  <li>Steps 4–5: the user logs in and consents at the authorization server, which redirects back to the <b>pre-registered</b> <code>redirect_uri</code> with a one-time <code>code</code> and the same <code>state</code>.</li>
+                  <li>Steps 6–7: the client checks <code>state</code>, then POSTs the code plus the original <code>code_verifier</code>. The server hashes the verifier and compares it with the stored challenge. An attacker who stole only the code has no verifier, so the exchange fails with <code>invalid_grant</code>.</li>
+                  <li>Step 8: the server returns the tokens. With <code>openid</code> scope this includes an ID token, whose <code>nonce</code> the client validates.</li>
+                  <li>Steps 9–10: the API receives the access token as a bearer token and checks it locally with the JWKS public keys. Its signature, <code>iss</code>, <code>aud</code> and <code>exp</code> decide between 200, 401 and 403.</li>
+                </ol>
+              </div>
               <ul>
                 <li><code>state</code> protects against CSRF on the redirect; <code>nonce</code> (OIDC) protects against ID-token replay.</li>
                 <li>Always use <code>S256</code>, never <code>plain</code>.</li>
@@ -398,6 +643,15 @@
                           issuer-uri: https://auth.example.com/realms/shop
                           audiences: orders-api
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Adding <code>spring-boot-starter-oauth2-resource-server</code> with <code>jwt.issuer-uri</code> makes Boot auto-configure a <code>JwtDecoder</code> and a filter chain that requires a bearer token.</li>
+                  <li>From the issuer URI, Boot discovers the <code>jwks_uri</code> (signing keys) and validates that each token's <code>iss</code> matches exactly. For Keycloak that means the realm URL.</li>
+                  <li><code>audiences</code> (Boot 3.2+) adds an <code>aud</code> check, so tokens issued for other APIs are rejected with 401.</li>
+                  <li>This config affects only <b>incoming</b> requests to your API. It does nothing for logging users in or calling other services.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="java">
                 @Bean
                 SecurityFilterChain api(HttpSecurity http) throws Exception {
@@ -420,6 +674,15 @@
                     return converter;
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>.oauth2ResourceServer(o -&gt; o.jwt(...))</code> adds <code>BearerTokenAuthenticationFilter</code>. It decodes and validates the JWT, then calls your converter to build a <code>JwtAuthenticationToken</code>.</li>
+                  <li>By default the converter reads <code>scope</code>/<code>scp</code> and adds <code>SCOPE_</code>. Here <code>setAuthoritiesClaimName("roles")</code> + <code>setAuthorityPrefix("ROLE_")</code> turns <code>"roles": ["ADMIN"]</code> into <code>ROLE_ADMIN</code>, so <code>hasRole("ADMIN")</code> matches.</li>
+                  <li><code>setPrincipalClaimName("preferred_username")</code> makes <code>authentication.getName()</code> return the username instead of the <code>sub</code> UUID.</li>
+                  <li>Result: no token or a bad token on <code>/api/admin/**</code> gives <b>401</b>. A valid token without <code>ROLE_ADMIN</code> gives <b>403</b>. Any valid token passes everywhere else.</li>
+                </ol>
+              </div>
               <div class="tip">Keycloak puts realm roles under the nested claim <code>realm_access.roles</code> — write a custom <code>Converter&lt;Jwt, Collection&lt;GrantedAuthority&gt;&gt;</code> for that.</div>
             </div>
           </details>
@@ -446,10 +709,28 @@
                           keycloak:
                             issuer-uri: https://sso.example.com/realms/shop
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Each entry under <code>registration</code> is one login option, and its key (<code>google</code>, <code>keycloak</code>) becomes the <code>{registrationId}</code>.</li>
+                  <li>Google is a built-in provider (<code>CommonOAuth2Provider</code>), so only the client id and secret are needed. Keycloak needs a <code>provider</code> entry, and its <code>issuer-uri</code> lets Spring discover the authorize, token, userinfo and JWKS endpoints.</li>
+                  <li><code>scope: openid</code> turns the flow into OIDC, so the token response contains an ID token that Spring validates (signature, <code>iss</code>, <code>aud</code>, <code>exp</code>, <code>nonce</code>).</li>
+                  <li><code>redirect-uri</code> is where the IdP sends the user back: <code>/login/oauth2/code/keycloak</code>. It must exactly match the URI registered in the IdP, or login fails with <code>invalid redirect_uri</code>.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="java">
                 http.authorizeHttpRequests(a -> a.anyRequest().authenticated())
                     .oauth2Login(Customizer.withDefaults());   // login page lists every registration
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>An unauthenticated browser request is redirected to a login page. With two registrations, Spring's default page links to <code>/oauth2/authorization/google</code> and <code>/oauth2/authorization/keycloak</code>. With only one, it would redirect to that IdP directly.</li>
+                  <li><code>OAuth2AuthorizationRequestRedirectFilter</code> handles <code>/oauth2/authorization/{id}</code>. It saves <code>state</code>/<code>nonce</code> (and PKCE if used) in the session, then sends a 302 to the IdP.</li>
+                  <li>On return, <code>OAuth2LoginAuthenticationFilter</code> at <code>/login/oauth2/code/{id}</code> checks <code>state</code>, swaps the code for tokens, validates the ID token, and loads the user into an <code>OidcUser</code>.</li>
+                  <li>The authenticated user is stored in the HTTP session (session ID rotated to prevent fixation). Later requests use the session cookie and never go back to the IdP until the session ends.</li>
+                </ol>
+              </div>
               <p>The <code>spring-boot-starter-oauth2-client</code> handles the redirect, code exchange, state/nonce and PKCE (enabled automatically for public clients, configurable for confidential ones).</p>
             </div>
           </details>
@@ -472,6 +753,15 @@
                           keycloak:
                             issuer-uri: https://sso.example.com/realms/shop
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>This is the <b>client</b> side: <code>orders-service</code> identifies itself, and no user is involved.</li>
+                  <li><code>authorization-grant-type: client_credentials</code> means Spring POSTs <code>grant_type=client_credentials</code> with the id and secret straight to Keycloak's token endpoint, which <code>issuer-uri</code> discovers.</li>
+                  <li><code>scope: inventory.read</code> asks for just the permission needed. The inventory API can enforce it with <code>hasAuthority('SCOPE_inventory.read')</code>.</li>
+                  <li>Keep the secret in an environment variable or vault (<code>${ORDERS_SECRET}</code>), never in git.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="java">
                 @Bean
                 RestClient inventoryClient(OAuth2AuthorizedClientManager manager) {
@@ -483,6 +773,15 @@
                         .build();
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>OAuth2ClientHttpRequestInterceptor</code> runs before each outgoing request. The resolver says to use the <code>inventory</code> registration from the YAML.</li>
+                  <li>It asks the <code>OAuth2AuthorizedClientManager</code> for a token. If a cached token is still valid, it is reused. If not, the manager fetches a new one from the token endpoint with the client credentials grant.</li>
+                  <li>The interceptor adds <code>Authorization: Bearer &lt;token&gt;</code>, and the inventory service validates it as a normal resource server.</li>
+                  <li>Your business code just calls <code>inventoryClient.get()...</code> with no token handling, and the token endpoint is hit only about once per token lifetime.</li>
+                </ol>
+              </div>
               <p>The <code>OAuth2AuthorizedClientManager</code> caches the token until it expires, so you don't hit the token endpoint on every call. In WebFlux use <code>ServerOAuth2AuthorizedClientExchangeFilterFunction</code> with <code>WebClient</code>.</p>
             </div>
           </details>
@@ -521,6 +820,16 @@
                               scopes: openid, profile, orders.read
                             require-proof-key: true                         # PKCE
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>issuer</code> becomes the <code>iss</code> claim in every token and the base of the discovery document. Resource servers must be configured with exactly this URL.</li>
+                  <li><code>angular-spa</code> is registered as a <b>public</b> client (<code>client-authentication-methods: none</code>), because a browser app cannot keep a secret.</li>
+                  <li>It may use only the authorization code and refresh token grants, and only the exact <code>redirect-uris</code> listed. Any other redirect is refused, which stops codes leaking to an attacker's URL.</li>
+                  <li><code>require-proof-key: true</code> forces PKCE. A <code>/oauth2/authorize</code> request without a <code>code_challenge</code> is rejected, so a stolen code alone can't be exchanged.</li>
+                  <li><code>scopes</code> limits what the client can request. <code>openid</code> enables ID tokens and the OIDC endpoints.</li>
+                </ol>
+              </div>
               <p>For production, store clients with <code>JdbcRegisteredClientRepository</code>, persist authorizations, and supply a stable RSA <code>JWKSource</code> instead of a generated key.</p>
             </div>
           </details>
@@ -533,6 +842,15 @@
                                      │
                                      └──auth code + PKCE──▶ Authorization server
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Angular → BFF: the browser sends only an <code>HttpOnly</code> session cookie, so no token ever reaches JavaScript.</li>
+                  <li>BFF ↔ authorization server: the BFF runs <code>oauth2Login</code> as a confidential client (code + PKCE + client secret) and stores the tokens in its server-side session.</li>
+                  <li>BFF → resource servers: <code>TokenRelay</code> looks up the session's access token, refreshes it if needed, and adds <code>Authorization: Bearer</code> to the proxied call.</li>
+                  <li>Resource servers validate the JWT as usual. Because the browser uses cookie auth with the BFF, the BFF needs CSRF protection.</li>
+                </ol>
+              </div>
               <ul>
                 <li>Tokens are never exposed to JavaScript → XSS can't steal them.</li>
                 <li>Client secret can be used (confidential client) and refresh tokens stay server-side.</li>
@@ -563,6 +881,15 @@
                     .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; frame-ancestors 'none'"))
                     .httpStrictTransportSecurity(hsts -> hsts.maxAgeInSeconds(31536000).includeSubDomains(true)));
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Content-Security-Policy: default-src 'self'</code> tells the browser to load scripts, styles and other resources only from your own origin. An injected <code>&lt;script src=evil&gt;</code> or inline script is blocked, which limits XSS damage.</li>
+                  <li><code>frame-ancestors 'none'</code> stops other sites from embedding your page in an iframe, which prevents clickjacking.</li>
+                  <li><code>Strict-Transport-Security</code> with one year + <code>includeSubDomains</code> makes the browser use HTTPS only for the domain and its subdomains, blocking SSL-stripping downgrades. Spring writes this header only on HTTPS responses.</li>
+                  <li>These headers are added to every response by <code>HeaderWriterFilter</code>. They make the browser enforce the rules, and work alongside server-side fixes rather than replacing them.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -580,6 +907,14 @@
                   server:
                     port: 8081                                # separate, internal-only port
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>exposure.include</code> limits which actuator endpoints are available over HTTP. Everything else (<code>env</code>, <code>heapdump</code>, <code>loggers</code>) is not mapped at all, so requests for it get 404.</li>
+                  <li><code>show-details: when-authorized</code> means anonymous callers see only <code>{"status":"UP"}</code>, while authenticated users also see component details such as DB and disk.</li>
+                  <li><code>management.server.port: 8081</code> runs actuator on a separate port that you can keep off the public load balancer or ingress.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="java">
                 @Bean
                 @Order(1)
@@ -592,6 +927,15 @@
                     return http.build();
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>securityMatcher(EndpointRequest.toAnyEndpoint())</code> limits this chain to actuator URLs, and <code>@Order(1)</code> puts it ahead of your app chain. <code>FilterChainProxy</code> picks it first for <code>/actuator/**</code>.</li>
+                  <li>Health and info are <code>permitAll()</code> so load balancers and Kubernetes probes work without credentials.</li>
+                  <li>Every other exposed endpoint needs <code>ROLE_OPS</code>. With <code>httpBasic</code>, a missing or wrong password gives <b>401</b> + <code>WWW-Authenticate: Basic</code>, and the right password without OPS gives <b>403</b>.</li>
+                  <li>Requests that don't match actuator skip this chain and go to the next one.</li>
+                </ol>
+              </div>
               <div class="note">Never expose <code>/actuator/env</code>, <code>/heapdump</code> or <code>/loggers</code> publicly — they can leak secrets or allow runtime changes.</div>
             </div>
           </details>
@@ -645,6 +989,15 @@
                 @PreAuthorize("hasRole('ADMIN') or @orderSecurity.isOwner(#id, authentication)")
                 public Order getOrder(Long id) { ... }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The attack: user A calls <code>GET /api/orders/123</code>, sees their own order, then tries <code>124</code>, <code>125</code> and so on. The vulnerable code loads <b>any</b> row by ID, so authentication passes and other users' data leaks.</li>
+                  <li>The fix adds the owner to the query: <code>findByIdAndOwnerId(id, jwt.getSubject())</code> becomes <code>WHERE id = ? AND owner_id = ?</code>. The owner comes from the <b>validated token</b>, which the user can't forge, not from the request.</li>
+                  <li>Someone else's order simply isn't found, so the code returns <b>404</b> and doesn't reveal that the ID exists. A 403 would confirm it.</li>
+                  <li>The <code>@PreAuthorize</code> version calls a bean (<code>@orderSecurity.isOwner</code>) before the method runs. A false result throws <code>AccessDeniedException</code> and gives <b>403</b>.</li>
+                </ol>
+              </div>
               <ul>
                 <li>Enforce authorization <b>on the server</b> for every request — hiding a button in Angular is not access control.</li>
                 <li>Deny by default: <code>.anyRequest().authenticated()</code> or <code>denyAll()</code> as the last rule.</li>
@@ -678,6 +1031,15 @@
                     return restClient.get().uri(uri).retrieve().body(String.class);   // and disable redirects in the client
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The attack: the server fetches whatever URL it is given, from <b>inside</b> your network. Sending <code>http://169.254.169.254/...</code> (cloud metadata) or <code>http://localhost:8081/actuator/env</code> makes the server read internal data and return it.</li>
+                  <li>The fix requires <code>https</code> and an exact host allow-list, so arbitrary hosts, IP literals and odd schemes like <code>file:</code> are rejected before any connection is made.</li>
+                  <li>It then resolves the hostname and rejects loopback, private (10/172.16/192.168), link-local (169.254) and wildcard addresses, in case an allowed name points at an internal IP.</li>
+                  <li>Remaining gaps: DNS can change between the check and the fetch, and a redirect could bounce to an internal URL. So disable redirects in the HTTP client and add egress firewall rules as a second layer.</li>
+                </ol>
+              </div>
               <div class="note">Also enforce at the network level (egress firewall), and use IMDSv2 on AWS, which requires a session token the attacker cannot easily obtain.</div>
             </div>
           </details>
@@ -711,12 +1073,30 @@
                     console:
                       enabled: false
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>exposure.include</code> keeps actuator to the minimum. Never use <code>*</code>, because it would publish <code>env</code> (secrets) and <code>heapdump</code> (memory with tokens).</li>
+                  <li><code>show-details: when-authorized</code> hides internal component info from anonymous callers.</li>
+                  <li><code>server.error.include-stacktrace: never</code> and <code>include-message: never</code> keep exception details out of Boot's error JSON, so attackers can't learn class names, SQL or library versions.</li>
+                  <li><code>spring.h2.console.enabled: false</code> makes sure the H2 web console, a database UI, is never reachable in production.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="java">
                 http.headers(h -> h
                     .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; frame-ancestors 'none'"))
                     .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
                     .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)));
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The CSP header restricts where scripts and other resources can load from and blocks framing (<code>frame-ancestors 'none'</code>), which limits XSS and clickjacking.</li>
+                  <li>HSTS makes browsers use HTTPS only for one year, including subdomains, preventing protocol downgrade attacks. It is sent only over HTTPS.</li>
+                  <li><code>Referrer-Policy: strict-origin-when-cross-origin</code> sends only the origin (not the full path and query) to other sites, so IDs or tokens in URLs don't leak through the <code>Referer</code> header.</li>
+                  <li><code>HeaderWriterFilter</code> adds all of these to every response. Spring already sends sensible defaults like <code>X-Content-Type-Options: nosniff</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -740,10 +1120,26 @@
                   </configuration>
                 </plugin>
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The OWASP Dependency-Check Maven plugin lists every direct and transitive dependency and matches each one against public vulnerability databases (CVEs from the NVD).</li>
+                  <li><code>failBuildOnCVSS 7</code> fails the build if any dependency has a vulnerability scoring 7.0 or higher (high/critical), so a Log4Shell-type library can't ship silently.</li>
+                  <li>You run it with <code>mvn dependency-check:check</code>, or by binding the <code>check</code> goal in an <code>&lt;executions&gt;</code> block (not shown) so CI runs it on every build. An NVD API key makes updates much faster.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="yaml">
                 # GitHub Actions: pin third-party actions to a full commit SHA, not a moving tag
                 - uses: actions/checkout@<full-40-char-commit-sha>   # v4.x — copy the SHA from the release page
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>A tag like <code>@v4</code> can be moved. If the action's repository or a maintainer account is compromised, the attacker can point the tag at malicious code, and your pipeline runs it with your secrets.</li>
+                  <li>A full 40-character commit SHA can't be changed, so the code you reviewed is exactly the code that runs.</li>
+                  <li>The trailing comment keeps the human-readable version. Tools like Dependabot can raise PRs that update the SHA when a new release comes out.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -770,6 +1166,16 @@
                 new SecureRandom().nextBytes(bytes);
                 String resetToken2 = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>MD5 is fast and unsalted. GPUs try billions of guesses per second, identical passwords give identical hashes, and precomputed tables crack common ones instantly.</li>
+                  <li><code>new Random().nextInt(999999)</code> has two flaws. There are under a million possible values, so it can be brute-forced. And <code>java.util.Random</code> is a predictable generator, so its next outputs can be predicted from past ones.</li>
+                  <li>The fix uses <code>DelegatingPasswordEncoder</code>, which stores <code>{bcrypt}$2a$10$&lt;salt&gt;&lt;hash&gt;</code>. Each password gets a random salt, and the work factor makes each guess deliberately slow.</li>
+                  <li><code>matches(raw, stored)</code> reads the algorithm, salt and cost from the stored string, re-hashes the input and compares, so you never decrypt anything.</li>
+                  <li><code>SecureRandom</code> with 32 bytes gives 256 bits of unpredictable entropy. URL-safe Base64 makes it safe to put in a reset link.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -796,6 +1202,16 @@
                 // Command injection: never pass user input to a shell
                 new ProcessBuilder("convert", inputFile.toString(), outputFile.toString()).start();  // args, no "sh -c"
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The attack: with <code>name = x' OR '1'='1</code>, string concatenation builds <code>WHERE name = 'x' OR '1'='1'</code>. The quote ends the string literal early, the <code>OR</code> becomes SQL code, and the always-true condition returns every user. JPQL concatenation has the same problem.</li>
+                  <li>The fix uses <code>?</code> / <code>:name</code> placeholders. The SQL text is compiled first and the value is sent separately as data, so the database treats quotes in it as ordinary characters, never as syntax.</li>
+                  <li>Spring Data <code>@Query</code> with <code>:name</code> and derived queries always bind parameters, so they are safe by default unless you build the query string yourself.</li>
+                  <li>Column names in <code>ORDER BY</code> can't be bound as parameters, so the code allow-lists them. Anything not in <code>SORTABLE</code> is rejected before it reaches SQL.</li>
+                  <li><code>ProcessBuilder</code> with separate arguments runs the program directly with no shell, so <code>;</code>, <code>&amp;&amp;</code> or <code>|</code> in a filename stay part of the argument and are never run as commands.</li>
+                </ol>
+              </div>
               <div class="note">Also covers LDAP, NoSQL, expression-language (SpEL) and log injection. Validate input with Bean Validation (<code>@Pattern</code>, <code>@Size</code>), but parameterisation is the real fix.</div>
             </div>
           </details>
@@ -817,6 +1233,15 @@
                 // <div [innerHTML]="comment.body"></div>   → scripts and event handlers stripped
                 // <p>{{ comment.body }}</p>                → fully escaped
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The attack: a stored comment such as <code>&lt;img src=x onerror=...&gt;</code> is rendered as HTML. Its event handler runs in other users' browsers with their session, so it can steal data or act as them.</li>
+                  <li><code>bypassSecurityTrustHtml()</code> tells Angular "this HTML is safe", which turns off its built-in sanitizer for that value. That is why it is the vulnerable line.</li>
+                  <li><code>[innerHTML]</code> without the bypass still renders HTML, but Angular strips <code>&lt;script&gt;</code>, <code>on*</code> handlers and <code>javascript:</code> URLs first.</li>
+                  <li><code>{{ }}</code> interpolation inserts the value as a text node, so <code>&lt;</code> shows up as a literal character and nothing runs. This is the safest option for user content.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -839,6 +1264,15 @@
                     return orderService.create(userId, req.items(), total);
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The design flaw: if the request carried a <code>price</code> field, an attacker could change it to 0.01 in DevTools or a proxy. Validation can't help, because the value is well-formed but untrustworthy.</li>
+                  <li>The fixed design takes only the SKU and quantity from the client and looks up the price on the server from <code>catalog.priceOf(sku)</code>.</li>
+                  <li>The total is computed with <code>BigDecimal</code> (no floating-point rounding errors), and the user ID comes from the authenticated principal, not the body.</li>
+                  <li>Also validate that <code>qty</code> is positive and capped. A negative quantity is another way to manipulate the total.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -862,6 +1296,15 @@
                     return decoder;
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>fromIssuerLocation()</code> discovers the IdP's JWKS URL, so only tokens signed by the IdP's published keys are accepted. Unsigned tokens (<code>alg: none</code>) or ones signed with an unexpected key fail.</li>
+                  <li><code>createDefaultWithIssuer()</code> rejects expired or not-yet-valid tokens (<code>exp</code>/<code>nbf</code>) and tokens from any other issuer or realm.</li>
+                  <li>The audience validator rejects tokens issued for a different API, even from the same IdP, so a token leaked from another service can't be replayed here.</li>
+                  <li>Every rejected token makes <code>BearerTokenAuthenticationFilter</code> return <b>401</b> before your controller runs.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -882,6 +1325,15 @@
                 ObjectInputStream in = new ObjectInputStream(stream);
                 in.setObjectInputFilter(filter);
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The attack: <code>readObject()</code> creates objects of <b>whatever class the byte stream names</b>, as long as it is on the classpath. It also runs their deserialization hooks. Attackers chain such classes from common libraries ("gadget chains") to execute code, and this happens before your cast is even checked.</li>
+                  <li>The fix uses Jackson to bind JSON to one fixed class, <code>OrderRequest</code>. The input can supply only field values, never class names, so no unexpected code runs.</li>
+                  <li><code>activateDefaultTyping</code> lets JSON include class names, which brings back the same class-choosing problem. Keep it off for untrusted input.</li>
+                  <li>If you must use Java serialization, <code>ObjectInputFilter</code> checks every class before it is created. <code>com.acme.dto.*;java.base/*;!*</code> allows your DTOs and core JDK types and rejects everything else (<code>!*</code>).</li>
+                </ol>
+              </div>
               <div class="tip">Verify signatures of anything you load (JWTs with strong algorithms, signed releases), and use Subresource Integrity (<code>integrity="sha384-..."</code>) for CDN scripts.</div>
             </div>
           </details>
@@ -914,6 +1366,15 @@
                     private static String sanitize(String s) { return s.replaceAll("[\r\n]", "_"); }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Spring Boot publishes authentication events. Whenever the <code>AuthenticationManager</code> succeeds or fails, an <code>AuthenticationSuccessEvent</code> or <code>AbstractAuthenticationFailureEvent</code> is fired.</li>
+                  <li>The <code>@EventListener</code> methods receive them and write to a dedicated <code>AUDIT</code> logger, which you can send to a SIEM and alert on (for example, many failures from one user).</li>
+                  <li>Only the username and the exception <b>type</b> (for example <code>BadCredentialsException</code>) are logged, never the password, token or full exception message.</li>
+                  <li>The attack <code>sanitize()</code> blocks is log injection. A username containing a newline followed by <code>login_success user=admin</code> would create a fake log line. Replacing CR/LF keeps each event on exactly one line.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -948,6 +1409,15 @@
                     accounts.credit(to, amount);
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The vulnerable version returns <code>true</code> on <b>any</b> exception. If an attacker can make the permission service time out or fail (overload, malformed input), every delete is allowed.</li>
+                  <li>The fixed version fails <b>closed</b>: the error is logged with context for alerting, and the answer is "no". An outage then causes denied requests (403 or 503) rather than a security breach.</li>
+                  <li><code>@Transactional</code> wraps <code>transfer</code> in one database transaction. If <code>credit</code> throws a runtime exception after <code>debit</code>, Spring rolls back both, so money can't vanish halfway.</li>
+                  <li>Note that by default only unchecked exceptions trigger rollback (use <code>rollbackFor</code> for checked ones), and the method must be called through the Spring proxy, not from inside the same class.</li>
+                </ol>
+              </div>
               <ul>
                 <li>A global <code>@RestControllerAdvice</code> returning generic <code>ProblemDetail</code> messages (no stack traces).</li>
                 <li>Handle nulls, timeouts, resource exhaustion and unexpected input explicitly; set timeouts on every remote call.</li>
@@ -1006,6 +1476,16 @@
                     return new UserView(u.getPublicId(), u.getDisplayName(), u.getEmail());
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The attack: Jackson copies <b>every</b> JSON property onto the <code>User</code> entity, including fields the UI never shows. Sending <code>"role":"ADMIN"</code> or another user's <code>id</code> lets <code>save()</code> grant privileges or overwrite someone else's row.</li>
+                  <li>Returning the entity also serializes <code>passwordHash</code> and internal flags (excessive data exposure).</li>
+                  <li>The fix uses <code>UpdateProfileRequest</code>, which has only <code>displayName</code> and <code>email</code>. Extra fields have nowhere to go: they are ignored by default, or rejected if you enable fail-on-unknown. <code>@Valid</code> returns <b>400</b> on bad input.</li>
+                  <li>The user to update comes from <code>jwt.getSubject()</code>, not from an ID in the body, and only the two allowed fields are copied.</li>
+                  <li><code>UserView</code> sets exactly what goes out, so new sensitive entity fields can't leak by accident.</li>
+                </ol>
+              </div>
               <div class="tip">Set <code>spring.jackson.deserialization.fail-on-unknown-properties=true</code> to reject unexpected fields instead of silently ignoring them.</div>
             </div>
           </details>
@@ -1033,12 +1513,29 @@
                   tomcat:
                     max-swallow-size: 2MB
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>max-page-size: 100</code> caps Spring Data <code>Pageable</code> requests, so <code>?size=1000000</code> is silently reduced to 100 rows instead of loading the whole table into memory.</li>
+                  <li><code>multipart.max-file-size</code> / <code>max-request-size</code> reject oversized uploads early with an error (<code>MaxUploadSizeExceededException</code>) before they fill the disk or heap.</li>
+                  <li><code>server.tomcat.max-swallow-size</code> limits how many bytes of an aborted upload Tomcat will keep reading. Beyond that it closes the connection instead of reading a huge body for nothing.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="java">
                 RateLimiter limiter = RateLimiter.of("login", RateLimiterConfig.custom()
                     .limitForPeriod(5).limitRefreshPeriod(Duration.ofMinutes(1)).timeoutDuration(Duration.ZERO).build());
 
                 if (!limiter.acquirePermission()) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS);
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The limiter allows 5 permits per 1-minute window (<code>limitForPeriod</code> + <code>limitRefreshPeriod</code>), and the permits reset at the start of each window.</li>
+                  <li><code>timeoutDuration(ZERO)</code> means a caller never waits for a permit. <code>acquirePermission()</code> returns <code>false</code> immediately once the 5 are used.</li>
+                  <li>The code then throws <code>ResponseStatusException(TOO_MANY_REQUESTS)</code>, which gives HTTP <b>429</b>, so brute-forcing login is limited to 5 tries per minute.</li>
+                  <li>As written there is one shared limiter for everyone. In practice, keep one limiter per user or IP (for example in a <code>RateLimiterRegistry</code> keyed by the client) so one attacker can't lock out all users.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1058,6 +1555,15 @@
                         .build();
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Rules are checked top to bottom. <code>GET /api/products/**</code> is public, but the matcher is limited to GET, so <code>DELETE /api/products/1</code> skips that rule.</li>
+                  <li><code>/api/admin/**</code> needs <code>ROLE_ADMIN</code> whatever the method, which closes the "guess the admin URL" attack.</li>
+                  <li><code>DELETE /api/**</code> needs ADMIN, so switching a request from GET to DELETE doesn't get around authorization.</li>
+                  <li><code>anyRequest().authenticated()</code> is the deny-by-default catch-all. A missing or invalid JWT gives <b>401</b>, and a valid JWT without the role gives <b>403</b>.</li>
+                </ol>
+              </div>
               <p>Attackers guess endpoints (<code>/api/v1/users</code> → <code>/api/v1/admin/users</code>) or switch HTTP methods (<code>GET</code> → <code>DELETE</code>). Check roles per method and path, and back it up with <code>@PreAuthorize</code> on service methods.</p>
             </div>
           </details>
@@ -1077,6 +1583,15 @@
                 if (!violations.isEmpty() || rate.value().compareTo(BigDecimal.ZERO) <= 0)
                     throw new IllegalStateException("Invalid partner response");
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The partner's JSON is bound to a typed record (<code>PartnerRate</code>) instead of being passed through as-is, so unexpected fields don't spread into your system.</li>
+                  <li><code>validator.validate()</code> runs the Bean Validation rules on the record (for example <code>@NotNull</code>, <code>@Size</code>), just as it would for user input.</li>
+                  <li>A business check (rate must be &gt; 0) catches values that are well-formed but wrong. An <code>IllegalStateException</code> stops the bad data before it is used in pricing.</li>
+                  <li>Combine this with timeouts, response-size limits and a circuit breaker on <code>partnerClient</code>, so a slow or compromised partner can't take your service down.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1106,6 +1621,15 @@
                        .andExpect(status().isForbidden());
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>jwt()</code> from <code>spring-security-test</code> puts a ready-made <code>JwtAuthenticationToken</code> on the MockMvc request. It skips real token decoding, so the test checks only your <b>authorization</b> logic.</li>
+                  <li>Test 1 authenticates as <code>user-B</code> and asks for order 42, which belongs to someone else. The owner-scoped query finds nothing, so the expected result is <b>404</b>. If it returns 200, you have an IDOR bug.</li>
+                  <li>Test 2 gives the caller only <code>ROLE_USER</code> and sends a DELETE. The <code>hasRole("ADMIN")</code> rule denies it, so the expected result is <b>403</b>.</li>
+                  <li>Make sure the test fails for the right reason. If CSRF is enabled for this chain, a missing CSRF token also gives 403, which could hide a missing role rule. Add <code>.with(csrf())</code> or disable CSRF for the stateless API.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>

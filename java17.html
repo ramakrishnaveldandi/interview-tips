@@ -83,6 +83,16 @@
                 System.out.println(e.name());   // Asha
                 System.out.println(e);          // Employee[name=Asha, dept=IT, salary=95000.0]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The single line <code>record Employee(String name, String dept, double salary)</code> makes the compiler generate three <code>private final</code> fields, a canonical constructor taking all three in declaration order, accessors <code>name()</code>, <code>dept()</code>, <code>salary()</code>, plus <code>equals()</code>, <code>hashCode()</code> and <code>toString()</code> based on all components.</li>
+                  <li><code>new Employee("Asha", "IT", 95_000)</code> calls that canonical constructor; the <code>int</code> literal <code>95_000</code> (underscores are just digit separators) is widened to <code>double</code>.</li>
+                  <li><code>e.name()</code> is the generated accessor, so it prints <code>Asha</code> &mdash; note there is no <code>get</code> prefix.</li>
+                  <li>Printing <code>e</code> uses the generated <code>toString()</code>, format <code>Employee[name=Asha, dept=IT, salary=95000.0]</code>; the salary shows <code>95000.0</code> because the component is a <code>double</code>.</li>
+                  <li>Records were finalized in Java 16 (JEP 395), so they are fully available on Java 17.</li>
+                </ol>
+              </div>
               <div class="tip">Records are implicitly <code>final</code>, extend <code>java.lang.Record</code>, and cannot declare extra instance fields.</div>
             </div>
           </details>
@@ -100,6 +110,16 @@
                     public static Money inr(long v) { return new Money(BigDecimal.valueOf(v), "INR"); }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>public Money { ... }</code> has no parameter list: it is a compact form of the canonical constructor, and its parameters <code>amount</code> and <code>currency</code> are implicitly declared.</li>
+                  <li>The body runs first; <code>Objects.requireNonNull</code> and the <code>signum() &lt; 0</code> check reject invalid input before any object state exists.</li>
+                  <li><code>currency = currency.toUpperCase()</code> reassigns the <em>parameter</em>. You may not write <code>this.currency = ...</code> in a compact constructor.</li>
+                  <li>After the body ends, the compiler inserts the field assignments (<code>this.amount = amount; this.currency = currency;</code>), so the normalised, uppercase value is what gets stored.</li>
+                  <li>The static factory <code>inr(long)</code> just calls the canonical constructor, so every <code>Money</code> goes through the same validation.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -130,6 +150,15 @@
                 public record Upi(String vpa) implements Payment {}
                 public non-sealed class NetBanking implements Payment {}   // open for extension again
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>sealed interface Payment permits Card, Upi, NetBanking</code> tells the compiler these three are the <em>only</em> allowed direct subtypes; any other class trying to implement <code>Payment</code> fails to compile.</li>
+                  <li>Every permitted subtype must declare how it continues the hierarchy: <code>final</code>, <code>sealed</code> or <code>non-sealed</code>. <code>Card</code> and <code>Upi</code> are records, which are implicitly <code>final</code>, so they need no modifier.</li>
+                  <li><code>NetBanking</code> is <code>non-sealed</code>, which re-opens that branch: anyone may subclass <code>NetBanking</code>, but the top level stays closed to exactly three cases.</li>
+                  <li>Permitted subclasses must be in the same module (or the same package, if the code is in the unnamed module). Sealed classes are final in Java 17 (JEP 409).</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -154,6 +183,16 @@
                     };
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>fee</code> uses only Java 17 final features: each <code>instanceof Card c</code> tests the type and binds a typed variable, so <code>c.number()</code> works without a cast.</li>
+                  <li>The final <code>else</code> silently covers <code>NetBanking</code> and anything else. If someone adds a new permitted type, this code still compiles and returns <code>5.0</code> for it &mdash; a hidden bug.</li>
+                  <li><code>fee21</code> uses pattern matching for <code>switch</code> (final in Java 21, JEP 441). Because <code>Payment</code> is sealed, the compiler knows the full list of subtypes and checks the switch covers all of them, so no <code>default</code> is needed.</li>
+                  <li>If a fourth type is added to <code>permits</code>, <code>fee21</code> stops compiling until a case is added &mdash; this compile-time exhaustiveness check is the main payoff of sealed hierarchies.</li>
+                  <li><code>case NetBanking n</code> also matches any subclass of the <code>non-sealed</code> <code>NetBanking</code>, so the switch stays exhaustive.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -170,6 +209,15 @@
                 // Java 16+
                 if (obj instanceof String s && !s.isBlank()) { System.out.println(s.length()); }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The "before" form repeats the type three times: test with <code>instanceof String</code>, then declare and cast with <code>(String) obj</code>.</li>
+                  <li>In <code>obj instanceof String s</code>, the compiler does the test and the cast together and introduces the binding variable <code>s</code>.</li>
+                  <li><code>s</code> is in scope only where the match is definitely true (flow scoping). That is why <code>!s.isBlank()</code> can use it on the right of <code>&amp;&amp;</code>: it only runs if the test passed. With <code>||</code> it would not compile.</li>
+                  <li>If <code>obj</code> is <code>null</code>, <code>instanceof</code> is simply <code>false</code>, so no NPE. Final in Java 16 (JEP 394).</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -186,6 +234,16 @@
                     }
                 };
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The whole <code>switch</code> is an expression whose value is assigned to <code>days</code>, so each branch must produce an <code>int</code>.</li>
+                  <li>Arrow labels (<code>-&gt;</code>) never fall through, so no <code>break</code> is needed. <code>case FEB -&gt; leap ? 29 : 28</code> evaluates a single expression.</li>
+                  <li><code>case APR, JUN, SEP, NOV</code> lists several constants on one label instead of stacking fall-through cases.</li>
+                  <li>The <code>default</code> branch is a block, so it uses <code>yield 31</code> to return its value (<code>return</code> would exit the enclosing method instead).</li>
+                  <li>A switch expression must be exhaustive; here <code>default</code> guarantees that. Switch expressions are final since Java 14 (JEP 361).</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -203,6 +261,16 @@
                     {"name": "%s", "active": %b}
                     """.formatted(name, active);
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>A text block starts with <code>"""</code> followed by a line break; the content begins on the next line.</li>
+                  <li>The compiler strips <em>incidental</em> indentation: it finds the smallest common leading whitespace across content lines (and the closing <code>"""</code> line) and removes it, so <code>SELECT</code> starts at column 0 in the resulting string.</li>
+                  <li>Because the closing <code>"""</code> sits on its own line, each string ends with a trailing newline <code>\n</code>.</li>
+                  <li><code>.formatted(name, active)</code> (an instance method added in Java 15) works like <code>String.format</code>: <code>%s</code> takes <code>name</code> and <code>%b</code> takes the boolean. Double quotes inside the JSON need no escaping.</li>
+                  <li>Text blocks are final since Java 15 (JEP 378) and produce an ordinary <code>String</code> at compile time, with no runtime cost.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -214,6 +282,15 @@
                   Cannot invoke "String.toLowerCase()" because the return value of
                   "com.app.User.getAddress().getCity()" is null
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>This is not code but a sample JVM error message. When an NPE happens, the JVM analyses the bytecode at the failing instruction to work out which value was <code>null</code>.</li>
+                  <li>"Cannot invoke <code>String.toLowerCase()</code>" names the action that failed; "because the return value of <code>...getCity()</code> is null" names the exact culprit in a chained call.</li>
+                  <li>Before Java 14 you only got a line number, which is ambiguous for chains like <code>user.getAddress().getCity().toLowerCase()</code>.</li>
+                  <li>Introduced by JEP 358 in Java 14 and on by default since 15. Local variable names appear only if the class was compiled with <code>-g</code>; otherwise you see placeholders like <code>&lt;local1&gt;</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -235,6 +312,16 @@
                 var stats = nums.stream().collect(Collectors.teeing(      // 12
                     Collectors.counting(), Collectors.summingInt(i -> i), (c, s) -> s / (double) c));
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>List.of</code> / <code>Map.of</code> (Java 9) create immutable collections: <code>add</code>/<code>put</code> throw <code>UnsupportedOperationException</code> and <code>null</code> elements are rejected.</li>
+                  <li><code>Optional.ifPresentOrElse</code> (Java 9) runs one action when a value exists and another when it is empty. <code>var</code> (Java 10) infers <code>ArrayList&lt;String&gt;</code> from the right-hand side; it works only for local variables.</li>
+                  <li>Java 11 string helpers: <code>strip()</code> is Unicode-aware (unlike <code>trim()</code>), <code>isBlank()</code> is true for empty or whitespace-only strings, and <code>"ab".repeat(3)</code> gives <code>"ababab"</code>. <code>Files.readString</code> reads a whole file as UTF-8, and <code>HttpClient</code> (<code>java.net.http</code>) replaces <code>HttpURLConnection</code>.</li>
+                  <li><code>stream.toList()</code> (Java 16) returns an unmodifiable list, a shorter alternative to <code>collect(Collectors.toList())</code>.</li>
+                  <li><code>Collectors.teeing</code> (Java 12) feeds every element to two collectors (<code>counting()</code> and <code>summingInt</code>) and then merges their results with the lambda &mdash; here sum / count, i.e. the average, in a single pass.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">

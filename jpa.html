@@ -39,7 +39,7 @@
 
         <section class="qa-group">
           <h2>Fundamentals</h2>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>What is the difference between JPA, Hibernate and Spring Data JPA?</summary>
             <div class="answer">
               <div class="table-wrap"><table>
@@ -53,7 +53,7 @@
               <div class="tip">Code against JPA annotations/interfaces; reach for Hibernate-specific APIs only when needed.</div>
             </div>
           </details>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>What are the requirements for a class to be an entity?</summary>
             <div class="answer">
               <ul>
@@ -86,6 +86,16 @@
                     public Employee(String name, String email) { this.name = name; this.email = email; }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@Entity</code> tells the provider to map the class to a table; <code>@Table</code> renames it to <code>employees</code> and, when the schema is generated, creates a unique index on <code>email</code>.</li>
+                  <li><code>SEQUENCE</code> + <code>allocationSize = 50</code>: Hibernate calls <code>nextval('emp_seq')</code> once and hands out the next 50 ids from memory (pooled optimizer), so the DB sequence must be defined with <code>INCREMENT BY 50</code>. Ids are known before the INSERT, which keeps JDBC batching possible.</li>
+                  <li><code>@Column(nullable = false, length = 100)</code> mainly affects generated DDL (<code>name varchar(100) not null</code>); the database constraint is what actually enforces it.</li>
+                  <li><code>@Enumerated(EnumType.STRING)</code> stores the enum name (<code>'ACTIVE'</code>) instead of its position, so adding or reordering constants never changes the meaning of existing rows.</li>
+                  <li>The protected no-arg constructor is what Hibernate calls via reflection when it turns a result-set row back into an <code>Employee</code> (and when it creates lazy proxy subclasses).</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -120,6 +130,17 @@
                 Employee m = em.merge(e);                         // m is managed copy; e stays detached
                 em.remove(m);                                     // removed
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>new Employee(...)</code> is just a Java object — the persistence context knows nothing about it, so no SQL is possible yet.</li>
+                  <li><code>persist(e)</code> makes it managed and assigns an id. With <code>SEQUENCE</code> the INSERT is queued until flush/commit; with <code>IDENTITY</code> it runs immediately to obtain the id.</li>
+                  <li><code>setName()</code> on a managed entity needs no save call: at flush Hibernate compares the entity with its snapshot (dirty checking) and generates the INSERT/UPDATE for you.</li>
+                  <li><code>detach(e)</code> stops tracking — further changes, and any not-yet-flushed changes for that entity, are not synchronized.</li>
+                  <li><code>merge(e)</code> loads (SELECT) or reuses the managed instance with that id, copies <code>e</code>'s state onto it and returns that managed copy <code>m</code>; <code>e</code> itself stays detached, which is why you must use the return value.</li>
+                  <li><code>remove(m)</code> only works on a managed instance; it schedules a <code>DELETE FROM employees WHERE id = ?</code> that executes at flush/commit.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -152,13 +173,22 @@
                 em.persist(o);
                 // Spring Data equivalent: repository.getReferenceById(customerId)
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>getReference(Customer.class, customerId)</code> returns an uninitialized proxy that only knows its id — no SELECT is executed.</li>
+                  <li>Setting it on <code>o</code> is all the owning <code>@ManyToOne</code> needs: at flush Hibernate writes <code>INSERT INTO orders (..., customer_id) VALUES (..., ?)</code> using the proxy's id.</li>
+                  <li>Compared with <code>find()</code>, this saves one SELECT per association you set — handy when you only have an id from a request.</li>
+                  <li>If the id doesn't exist, the proxy throws <code>EntityNotFoundException</code> only when you touch a non-id property; otherwise the foreign-key constraint fails at INSERT time.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
 
         <section class="qa-group">
           <h2>Relationships</h2>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>Explain owning side and <code>mappedBy</code> in a bidirectional <code>@OneToMany</code>.</summary>
             <div class="answer">
               <p>The <b>owning side</b> holds the foreign key and controls the DB column — in one-to-many it is always the <code>@ManyToOne</code> side. The inverse side declares <code>mappedBy</code> and is ignored for writes, so keep both sides in sync with helper methods.</p>
@@ -183,10 +213,20 @@
                     private Department department;
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Employee.department</code> (the <code>@ManyToOne</code>) is the owning side: its value is what Hibernate writes into the <code>employees.department_id</code> column.</li>
+                  <li><code>mappedBy = "department"</code> marks <code>Department.employees</code> as the inverse side — Hibernate ignores this list when deciding the FK. Adding to the list without calling <code>e.setDepartment(this)</code> would save the employee with <code>department_id = NULL</code>.</li>
+                  <li>The helper <code>addEmployee</code> keeps both sides in sync in memory and in the DB. Persisting the department with <code>CascadeType.ALL</code> issues <code>INSERT INTO department</code> followed by one <code>INSERT INTO employee (..., department_id)</code> per child.</li>
+                  <li><code>removeEmployee</code> + <code>orphanRemoval = true</code>: the dereferenced employee gets a <code>DELETE</code> at flush rather than just having its FK nulled.</li>
+                  <li><code>FetchType.LAZY</code> on the <code>@ManyToOne</code> means loading an employee gives a department proxy; the department SELECT runs only when you access it.</li>
+                </ol>
+              </div>
               <div class="note">A unidirectional <code>@OneToMany</code> without <code>@JoinColumn</code> creates an extra join table — usually not what you want.</div>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>How do you map <code>@ManyToMany</code>? When should you use an explicit join entity?</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -205,6 +245,15 @@
                     private Set<Student> students = new HashSet<>();
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Student.courses</code> is the owning side: <code>@JoinTable</code> defines a <code>student_course(student_id, course_id)</code> table, and adding a course to this set causes <code>INSERT INTO student_course</code> at flush.</li>
+                  <li><code>Course.students</code> uses <code>mappedBy</code>, so changes made only to that set write nothing — update both sides (helper methods) to keep memory and DB consistent.</li>
+                  <li>Why <code>Set</code>: for a <code>List</code> (a "bag") Hibernate can't identify an individual row, so removing one element deletes all of the student's join rows and re-inserts the rest. With a <code>Set</code> it issues a single <code>DELETE ... WHERE student_id = ? AND course_id = ?</code>.</li>
+                  <li>Both collections are LAZY by default; reading <code>student.getCourses()</code> fires one SELECT joining <code>student_course</code> and <code>course</code>.</li>
+                </ol>
+              </div>
               <p>As soon as the link needs its own data (enrolled date, grade), replace it with an entity <code>Enrollment</code> having two <code>@ManyToOne</code>s. Never use <code>CascadeType.REMOVE</code> on many-to-many.</p>
             </div>
           </details>
@@ -261,9 +310,19 @@
                 em.createNativeQuery("select * from employees where salary > ?1", Employee.class)
                   .setParameter(1, 100_000).getResultList();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>JPQL is written against entity and field names (<code>Employee</code>, <code>e.salary</code>); Hibernate translates it into SQL against the mapped table and columns, e.g. <code>SELECT ... FROM employees e WHERE e.salary &gt; ? ORDER BY e.salary DESC</code>.</li>
+                  <li><code>:min</code> becomes a JDBC bind parameter, so the value is never concatenated into SQL — this prevents SQL injection and lets the DB reuse the statement plan.</li>
+                  <li>The Criteria version builds the same query as an object tree; in Hibernate 6 both JPQL and Criteria go through the same SQM model, so they produce the same SQL.</li>
+                  <li>The native query is sent as-is; because a result class is given, Hibernate maps the returned columns onto managed <code>Employee</code> entities.</li>
+                  <li>All three return managed entities, so changes to the results are dirty-checked and flushed like any loaded entity.</li>
+                </ol>
+              </div>
             </div>
           </details>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>What are Spring Data derived query methods? Show <code>@Query</code> and <code>@Modifying</code>.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -287,7 +346,52 @@
                     int deactivateInactive(@Param("status") Status status, @Param("before") Instant before);
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>At startup Spring Data parses each method name into a query (and fails startup if a property doesn't exist). <code>findByDepartmentNameAndStatusOrderByNameAsc</code> resolves <code>DepartmentName</code> to <code>department.name</code>, producing roughly <code>... JOIN department d WHERE d.name = ? AND e.status = ? ORDER BY e.name ASC</code>.</li>
+                  <li><code>IgnoreCase</code> wraps both sides in <code>upper()</code>; <code>existsBy</code> runs a lightweight select limited to one row and returns <code>boolean</code>; <code>countBy</code> runs <code>SELECT count(...)</code>; <code>Top5</code> + <code>GreaterThan</code> becomes <code>WHERE salary &gt; ?</code> with a 5-row limit.</li>
+                  <li><code>join fetch e.department</code> loads the employee and its department in one SELECT with a JOIN, so accessing the department later costs no extra query.</li>
+                  <li><code>@Modifying</code> marks the JPQL as an UPDATE: it executes a single <code>UPDATE employees SET status = ? WHERE last_login &lt; ?</code> directly in the DB and returns the affected row count.</li>
+                  <li>Because that bulk UPDATE bypasses the persistence context, already-loaded entities would show old values; <code>clearAutomatically = true</code> clears the context afterwards so the next read hits the DB.</li>
+                </ol>
+              </div>
               <div class="note">Bulk <code>@Modifying</code> queries skip lifecycle callbacks, <code>@Version</code> checks and cascades, and leave the context stale — hence <code>clearAutomatically = true</code>.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary><code>CrudRepository</code> vs <code>PagingAndSortingRepository</code> vs <code>JpaRepository</code> — what does each give you?</summary>
+            <div class="answer">
+              <p>Spring Data generates the implementation of a repository interface at startup, so you write no DAO boilerplate. You pick the interface that exposes the operations you need:</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Interface</th><th>Adds</th></tr></thead>
+                <tbody>
+                  <tr><td><code>Repository&lt;T, ID&gt;</code></td><td>Marker only — expose just the methods you declare</td></tr>
+                  <tr><td><code>CrudRepository</code> / <code>ListCrudRepository</code></td><td><code>save</code>, <code>saveAll</code>, <code>findById</code>, <code>findAll</code>, <code>existsById</code>, <code>count</code>, <code>deleteById</code>, <code>delete</code> (the <code>List</code> variant returns <code>List</code> instead of <code>Iterable</code>)</td></tr>
+                  <tr><td><code>PagingAndSortingRepository</code></td><td><code>findAll(Sort)</code>, <code>findAll(Pageable)</code> — since Spring Data 3 it no longer extends <code>CrudRepository</code></td></tr>
+                  <tr><td><code>JpaRepository</code></td><td>All of the above plus JPA-specific <code>flush</code>, <code>saveAndFlush</code>, <code>saveAllAndFlush</code>, <code>deleteAllInBatch</code>, <code>getReferenceById</code>, and Query by Example</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java">
+                public interface StudentRepository extends JpaRepository<Student, Long> {
+                    List<Student> findByDept(String dept);                       // derived query
+                    Optional<Student> findByEmailIgnoreCase(String email);
+                    Page<Student> findByAgeGreaterThan(int age, Pageable pageable);
+                    boolean existsByEmail(String email);
+                }
+
+                Page<Student> page = repo.findAll(PageRequest.of(0, 20, Sort.by("name").ascending()));
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Spring creates a proxy for the interface at startup; inherited methods like <code>save</code>/<code>findAll</code> are implemented by <code>SimpleJpaRepository</code>, and the declared methods are derived from their names.</li>
+                  <li><code>findByDept</code> → <code>WHERE dept = ?</code>; <code>findByEmailIgnoreCase</code> → <code>WHERE upper(email) = upper(?)</code>; <code>existsByEmail</code> returns <code>true</code>/<code>false</code> without loading the full entity list.</li>
+                  <li><code>PageRequest.of(0, 20, Sort.by("name").ascending())</code> asks for the first page (pages are zero-based) of 20 rows: Hibernate adds <code>ORDER BY name ASC</code> and a dialect-specific limit/offset.</li>
+                  <li>Returning <code>Page</code> also triggers a <code>SELECT count(*)</code> so <code>getTotalElements()</code> is known; Spring Data skips it when the first page already holds fewer rows than the page size.</li>
+                </ol>
+              </div>
+              <div class="tip">To keep a repository read-only, extend <code>Repository</code> and declare only <code>findById</code>/<code>findAll</code> — callers then can't delete or save by accident.</div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -311,9 +415,19 @@
                 // Dynamic projection
                 <T> List<T> findByDepartmentId(Long deptId, Class<T> type);
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Interface projection: for a closed projection like <code>EmployeeSummary</code>, Spring Data selects only <code>name</code> and <code>email</code> and wraps each row in a generated proxy whose getters return those values.</li>
+                  <li>DTO projection: <code>select new com.acme.hr.EmployeeDto(...)</code> calls the record's constructor once per row; the fully qualified class name is required in JPQL.</li>
+                  <li><code>e.department.id</code> uses the FK column <code>department_id</code> directly, so Hibernate 6 doesn't need a join for it.</li>
+                  <li>Projections are not managed entities — no snapshots, no dirty checking, and no accidental UPDATEs — which is why they're faster for read-only screens.</li>
+                  <li>The dynamic projection picks the result shape per call: <code>findByDepartmentId(id, EmployeeSummary.class)</code> or <code>findByDepartmentId(id, Employee.class)</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>How do pagination and sorting work in Spring Data?</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -324,6 +438,15 @@
                 Page<Employee> page = repo.findByStatus(Status.ACTIVE, p);
                 page.getContent(); page.getTotalElements(); page.getTotalPages();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Page</code> runs two queries: the data query with limit/offset and a <code>SELECT count(*)</code> with the same WHERE, so it can report total elements and pages.</li>
+                  <li><code>Slice</code> skips the count: Spring Data fetches <code>size + 1</code> rows, and if the extra row exists, <code>hasNext()</code> is true.</li>
+                  <li><code>Sort.by("name").ascending().and(Sort.by("id"))</code> becomes <code>ORDER BY name ASC, id ASC</code> — the <code>id</code> tie-breaker gives a stable order so rows don't repeat or vanish between pages.</li>
+                  <li>Offset paging makes the DB read and discard all skipped rows, so deep pages get slower — which is why keyset/scroll paging exists.</li>
+                </ol>
+              </div>
               <p>In controllers, accept <code>Pageable</code> directly: <code>GET /employees?page=0&amp;size=20&amp;sort=name,asc</code>. For very large tables prefer keyset (seek) pagination — Spring Data 3.1+ supports <code>ScrollPosition</code> / <code>Window&lt;T&gt;</code>.</p>
             </div>
           </details>
@@ -347,6 +470,15 @@
                 // null predicates are ignored → only provided filters are applied
                 repo.findAll(Specification.where(hasDept(dept)).and(salaryAbove(min)), pageable);
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>JpaSpecificationExecutor</code> adds methods like <code>findAll(Specification, Pageable)</code>; Spring Data turns the specification into a Criteria query at call time.</li>
+                  <li>Each <code>Specification</code> is a lambda receiving <code>root</code>, <code>query</code> and <code>cb</code> and returning a <code>Predicate</code>. <code>root.get("department").get("name")</code> navigates the association, which adds a join to the department table.</li>
+                  <li>Returning <code>null</code> means "no restriction", so combining with <code>.and()</code> puts only the supplied filters in the WHERE clause — e.g. with only <code>min</code> set: <code>WHERE salary &gt; ?</code>.</li>
+                  <li>The <code>pageable</code> adds ORDER BY and a limit, plus a count query for the <code>Page</code> result — all built from one reusable set of predicates.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -365,6 +497,15 @@
                     @Version private long version;
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>When an <code>Account</code> is loaded, Hibernate remembers its <code>version</code> (say 3).</li>
+                  <li>On flush the UPDATE includes the version check and bumps it: <code>UPDATE account SET balance = ?, version = 4 WHERE id = ? AND version = 3</code>.</li>
+                  <li>If another transaction committed first, the version is already 4, so 0 rows are updated; Hibernate treats that as a conflict and throws <code>OptimisticLockException</code> (wrapped by Spring), and the transaction rolls back.</li>
+                  <li>No row lock is held between read and write, so the usual recovery is to reload and retry. Never set <code>version</code> yourself — the provider manages it.</li>
+                </ol>
+              </div>
               <p><b>Pessimistic</b>: takes a DB row lock (<code>SELECT … FOR UPDATE</code>). Use when conflicts are frequent and retrying is expensive (seat booking, inventory).</p>
               <script type="text/plain" class="code" data-lang="java">
                 @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -372,6 +513,15 @@
                 @Query("select a from Account a where a.id = :id")
                 Optional<Account> findForUpdate(Long id);
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@Lock(PESSIMISTIC_WRITE)</code> makes Hibernate append the dialect's row-lock clause, e.g. <code>SELECT ... FROM account WHERE id = ? FOR UPDATE</code>.</li>
+                  <li>The row stays locked until the surrounding transaction commits or rolls back, so this must run inside <code>@Transactional</code>; other writers (and other <code>FOR UPDATE</code> readers) block until then.</li>
+                  <li>The <code>jakarta.persistence.lock.timeout</code> hint (milliseconds) asks the DB to wait at most about 3 seconds for the lock; how it's applied depends on the database, and if the wait is exceeded a lock-timeout exception is thrown instead of hanging.</li>
+                  <li>Unlike <code>@Version</code>, conflicts are prevented up front rather than detected at commit, at the cost of blocking concurrent transactions.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -397,6 +547,16 @@
                     @LastModifiedBy                          private String updatedBy;
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@EnableJpaAuditing</code> activates Spring Data's auditing, and <code>auditorAwareRef</code> points to the bean that answers "who is the current user?" — here the Spring Security principal's name (empty if no one is logged in).</li>
+                  <li><code>AuditingEntityListener</code> hooks the JPA <code>@PrePersist</code> and <code>@PreUpdate</code> callbacks: on persist it fills <code>createdAt</code>/<code>createdBy</code> (and by default the modified fields too); on update it refreshes <code>updatedAt</code>/<code>updatedBy</code>.</li>
+                  <li>Because the callbacks run just before the INSERT/UPDATE SQL is generated, the values end up in the same statement — no extra query.</li>
+                  <li><code>@Column(updatable = false)</code> leaves the created columns out of every UPDATE statement, so they can't be overwritten.</li>
+                  <li><code>@MappedSuperclass</code> copies these columns into each subclass entity's own table. Bulk JPQL updates skip entity callbacks, so they won't touch these fields.</li>
+                </ol>
+              </div>
               <p>For full change history (who changed what), use Hibernate Envers (<code>@Audited</code>).</p>
             </div>
           </details>
@@ -421,6 +581,15 @@
                 @Entity @DiscriminatorValue("CARD") public class CardPayment extends Payment { String last4; }
                 @Entity @DiscriminatorValue("UPI")  public class UpiPayment  extends Payment { String vpa; }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>SINGLE_TABLE</code> stores every subclass in one <code>payment</code> table with all columns: <code>id</code>, <code>type</code>, <code>amount</code>, <code>last4</code>, <code>vpa</code>.</li>
+                  <li>Persisting a <code>CardPayment</code> generates <code>INSERT INTO payment (amount, last4, type, id) VALUES (?, ?, 'CARD', ?)</code>; <code>vpa</code> stays NULL — which is why subclass columns must be nullable.</li>
+                  <li>A polymorphic query <code>select p from Payment p</code> is a single SELECT with no joins; Hibernate reads the <code>type</code> column of each row to decide whether to instantiate <code>CardPayment</code> or <code>UpiPayment</code>.</li>
+                  <li>Querying a subclass adds the discriminator filter automatically, e.g. <code>... WHERE type = 'UPI'</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -449,6 +618,16 @@
                     @EmbeddedId private OrderLineId id;
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Address</code> has no table or id of its own: its fields become columns of <code>customer</code> (<code>street</code>, <code>city</code>, <code>zip</code>).</li>
+                  <li><code>@AttributeOverride</code> renames just the <code>city</code> column to <code>billing_city</code>; the same embeddable could be embedded twice (billing/shipping) with different overrides.</li>
+                  <li>When loading, Hibernate builds the record from those columns via its constructor; if all of them are NULL, <code>billingAddress</code> is <code>null</code>.</li>
+                  <li><code>OrderLineId</code> as <code>@EmbeddedId</code> makes <code>(order_id, line_no)</code> the composite primary key of <code>order_line</code>. A record gives you the required value-based <code>equals()</code>/<code>hashCode()</code> for free, which the persistence context relies on to identify rows.</li>
+                  <li>There's no generator: you assign the key yourself and look rows up with <code>em.find(OrderLine.class, new OrderLineId(orderId, lineNo))</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>

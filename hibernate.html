@@ -93,6 +93,15 @@
                     // no save(): UPDATE runs automatically at commit
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>findById</code> runs one SELECT; the entity becomes managed and Hibernate stores a snapshot of its loaded values.</li>
+                  <li><code>setSalary()</code> only changes the Java object — no SQL happens at that point.</li>
+                  <li>When <code>@Transactional</code> commits, Hibernate flushes: it compares each managed entity with its snapshot, finds <code>salary</code> changed and runs <code>UPDATE employee SET ... WHERE id = ?</code> (all columns by default; only changed ones with <code>@DynamicUpdate</code>).</li>
+                  <li>If the method threw a runtime exception, the transaction would roll back and the change would never reach the DB. Under <code>readOnly = true</code> the change would not be flushed.</li>
+                </ol>
+              </div>
               <p><b>Flush modes</b>: <code>AUTO</code> (default — flush before commit and before queries that touch dirty tables), <code>COMMIT</code> (only at commit), <code>ALWAYS</code> (before every query), <code>MANUAL</code> (only on <code>flush()</code>; used by read-only transactions).</p>
               <div class="tip"><code>@Transactional(readOnly = true)</code> sets flush mode to MANUAL and lets Hibernate skip snapshots — a real performance gain for read paths.</div>
             </div>
@@ -141,6 +150,14 @@
                   <classifier>jakarta</classifier>
                 </dependency>
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>hibernate-jcache</code> is the bridge: it implements Hibernate's cache region SPI on top of the standard JCache (JSR-107) API.</li>
+                  <li><code>ehcache</code> is the actual cache provider that implements JCache; the <code>jakarta</code> classifier selects the build that uses the Jakarta XML Binding namespace instead of the old <code>javax</code> one.</li>
+                  <li>No versions are given because Spring Boot's dependency management supplies compatible ones.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="yaml">
                 spring:
                   jpa:
@@ -153,6 +170,15 @@
                             factory_class: jcache
                       jakarta.persistence.sharedCache.mode: ENABLE_SELECTIVE
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>use_second_level_cache</code> turns on the SessionFactory-wide L2 cache, and <code>region.factory_class: jcache</code> tells Hibernate to store it through the JCache provider found on the classpath (Ehcache here).</li>
+                  <li><code>use_query_cache</code> separately enables caching of query results; it still does nothing unless a query is marked cacheable.</li>
+                  <li><code>sharedCache.mode: ENABLE_SELECTIVE</code> means only entities annotated <code>@Cacheable</code> are cached — everything else always goes to the DB.</li>
+                  <li>If no cache configuration (e.g. <code>ehcache.xml</code>) defines a region, Hibernate by default creates it on the fly with default settings and logs a warning.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="java">
                 @Entity
                 @Cacheable
@@ -163,6 +189,15 @@
                 @QueryHints(@QueryHint(name = "org.hibernate.cacheable", value = "true"))
                 List<Country> findAllByOrderByName();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The first <code>find(Country.class, "IN")</code> in any session runs a SELECT and stores the entity's dehydrated state (column values, not the object) in the <code>Country</code> region.</li>
+                  <li>A later session asking for the same id checks its first-level cache, then L2 — and builds the entity from L2 with no SQL.</li>
+                  <li><code>READ_WRITE</code> soft-locks the cache entry while a transaction updates the row and refreshes it after commit, so other sessions never read a half-updated value.</li>
+                  <li>The query hint caches <code>findAllByOrderByName()</code>'s result as a list of ids keyed by the query and its parameters; entities are then resolved from L2. Any insert/update/delete on the <code>country</code> table invalidates the cached query results.</li>
+                </ol>
+              </div>
               <p>Concurrency strategies: <code>READ_ONLY</code> (immutable data), <code>NONSTRICT_READ_WRITE</code>, <code>READ_WRITE</code> (soft locks), <code>TRANSACTIONAL</code> (JTA).</p>
             </div>
           </details>
@@ -180,6 +215,15 @@
                     System.out.println(d.getEmployees().size());      // +1 query per department = N
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>findAll()</code> fires one <code>SELECT * FROM department</code>; each department's <code>employees</code> is a lazy, uninitialized collection wrapper.</li>
+                  <li>Calling <code>size()</code> forces Hibernate to initialize that collection: <code>SELECT * FROM employee WHERE department_id = ?</code> — once per department.</li>
+                  <li>With 100 departments that's 1 + 100 = 101 round trips — the N+1 problem. Each query is fast, so it often hides in development and hurts in production.</li>
+                  <li>With SQL logging on you'd see the same SELECT repeated with different parameter values — the telltale sign.</li>
+                </ol>
+              </div>
               <p><b>Detect</b>: enable SQL logging, Hibernate statistics, or assert query counts in tests (e.g. with <i>datasource-proxy</i> or <i>Hypersistence Utils</i>' <code>SQLStatementCountValidator</code>).</p>
             </div>
           </details>
@@ -205,6 +249,15 @@
                 @Query("select new com.acme.DeptCount(d.name, count(e)) from Department d left join d.employees e group by d.name")
                 List<DeptCount> countPerDept();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>left join fetch</code> loads departments and employees in one SELECT with a LEFT JOIN, filling the collections from the joined rows. The join repeats each department once per employee; Hibernate 6 removes those duplicate parents from the result automatically (<code>distinct</code> was required in Hibernate 5).</li>
+                  <li><code>@EntityGraph</code> does the same declaratively: Spring Data adds a fetch graph so <code>employees</code> and <code>manager</code> are joined into the derived query <code>WHERE region = ?</code>.</li>
+                  <li><code>@BatchSize(size = 50)</code>: when one lazy collection is first accessed, Hibernate also initializes up to 49 other pending department collections with <code>WHERE department_id IN (?, ?, ...)</code>, so N departments cost about 1 + N/50 queries.</li>
+                  <li>The DTO projection asks the DB to aggregate: one <code>SELECT d.name, count(e.id) ... GROUP BY d.name</code>, no entities loaded or managed.</li>
+                </ol>
+              </div>
               <div class="note">Don't combine <code>JOIN FETCH</code> on a collection with pagination — Hibernate paginates in memory and logs <code>HHH90003004</code>. Page the parent ids first, then fetch.</div>
             </div>
           </details>
@@ -228,6 +281,14 @@
               <script type="text/plain" class="code" data-lang="properties">
                 spring.jpa.open-in-view=false
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Spring Boot stops registering the <code>OpenEntityManagerInViewInterceptor</code>, so the EntityManager now closes when the <code>@Transactional</code> service method returns (and the startup warning disappears).</li>
+                  <li>The DB connection is released as soon as the transaction ends instead of being held while the controller and JSON serializer run.</li>
+                  <li>Any lazy association touched outside the transaction now throws <code>LazyInitializationException</code> — this exposes hidden queries so you fetch data explicitly in the service layer.</li>
+                </ol>
+              </div>
               <p><b>Better fixes</b>: fetch what you need inside the service transaction (JOIN FETCH / entity graph), return DTOs instead of entities, or call <code>Hibernate.initialize()</code> deliberately. Avoid <code>hibernate.enable_lazy_load_no_trans</code> — it's an anti-pattern.</p>
             </div>
           </details>
@@ -249,16 +310,33 @@
                         order_inserts: true      # group inserts by entity type
                         order_updates: true
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>batch_size: 50</code> makes Hibernate collect up to 50 identical INSERT/UPDATE statements and send them in one JDBC <code>executeBatch()</code> round trip instead of 50.</li>
+                  <li>A batch only holds one SQL string, so interleaving (<code>Order</code>, <code>Line</code>, <code>Order</code>, …) breaks it into tiny batches; <code>order_inserts</code>/<code>order_updates</code> sort statements by entity type (updates also by id) so batches stay full.</li>
+                  <li><code>batch_versioned_data: true</code> allows batching UPDATEs of <code>@Version</code>ed entities; Hibernate still checks each statement's row count to detect optimistic-lock failures.</li>
+                </ol>
+              </div>
               <p>With <code>IDENTITY</code> the id is known only after the INSERT executes, and Hibernate must put the entity in the persistence context with its id immediately — so it executes each insert right away and <b>silently disables insert batching</b>. Use <code>SEQUENCE</code> with a pooled optimizer (<code>allocationSize</code>).</p>
               <script type="text/plain" class="code" data-lang="java">
                 @Transactional
                 public void importAll(List<Product> products) {
                     for (int i = 0; i < products.size(); i++) {
                         em.persist(products.get(i));
-                        if (i % 50 == 0) { em.flush(); em.clear(); }   // keep the context small
+                        if ((i + 1) % 50 == 0) { em.flush(); em.clear(); }   // keep the context small
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>persist()</code> with a <code>SEQUENCE</code> id only assigns an id (from the pooled sequence) and queues the INSERT — no SQL per call.</li>
+                  <li><code>flush()</code> sends the queued INSERTs, grouped into JDBC batches of up to <code>batch_size</code>; <code>clear()</code> then detaches everything so the persistence context — and the memory used for snapshots and dirty checking — stays small.</li>
+                  <li>Without the clear, all products remain managed and every flush dirty-checks an ever-growing set, making the import slower and slower.</li>
+                  <li>Remaining inserts are flushed at commit. The check is <code>(i + 1) % 50 == 0</code>, not <code>i % 50 == 0</code>, so the first flush happens after exactly 50 entities instead of after the very first one.</li>
+                </ol>
+              </div>
               <p>For PostgreSQL also add <code>reWriteBatchedInserts=true</code> to the JDBC URL.</p>
             </div>
           </details>
@@ -283,6 +361,15 @@
                     tx.commit();
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>openStatelessSession()</code> gives a session with no persistence context: there is no first-level cache, no snapshot, and no dirty checking.</li>
+                  <li>Each <code>ss.insert(p)</code> is turned directly into an INSERT — there is no write-behind queue waiting for flush, and no cascade to associated entities.</li>
+                  <li><code>tx.commit()</code> commits the JDBC transaction; afterwards the products are plain objects — changing them does nothing unless you call <code>ss.update(p)</code>.</li>
+                  <li>try-with-resources closes the session and releases the connection. Memory stays flat no matter how many rows you insert.</li>
+                </ol>
+              </div>
               <p>Hibernate 6.3+ also adds <code>insertMultiple()</code>/<code>upsert()</code>, and stateless sessions are central to Hibernate 7's Jakarta Data repositories.</p>
             </div>
           </details>
@@ -303,6 +390,15 @@
                         generate_statistics: true                # query counts, cache hits, timings
                         session.events.log.LOG_QUERIES_SLOWER_THAN_MS: 200
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>org.hibernate.SQL: DEBUG</code> logs every SQL statement through your logging framework; <code>org.hibernate.orm.jdbc.bind: TRACE</code> adds the bound parameter values (the Hibernate 6 category name).</li>
+                  <li><code>format_sql: true</code> pretty-prints the SQL across multiple lines for readability.</li>
+                  <li><code>generate_statistics: true</code> makes Hibernate count queries, entity loads, flushes and cache hits/misses; with <code>org.hibernate.stat: DEBUG</code> it logs a per-session summary — a quick way to spot N+1.</li>
+                  <li><code>LOG_QUERIES_SLOWER_THAN_MS: 200</code> logs any query taking longer than 200 ms (via the <code>org.hibernate.SQL_SLOW</code> logger).</li>
+                </ol>
+              </div>
               <div class="tip">Prefer logger configuration over <code>spring.jpa.show-sql=true</code> — show-sql writes to stdout and bypasses your logging framework.</div>
             </div>
           </details>
@@ -330,6 +426,14 @@
                     private Map<String, Object> attributes;
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@JdbcTypeCode(SqlTypes.JSON)</code> tells Hibernate 6 to treat the field as a JSON value instead of trying to map <code>Map</code> as an association or collection.</li>
+                  <li>The dialect chooses the column type — <code>jsonb</code> on PostgreSQL, <code>json</code> on MySQL — when generating DDL.</li>
+                  <li>On write, Hibernate serializes the map to JSON (using Jackson if it's on the classpath) and binds it as a parameter; on read it parses the column back into a <code>Map</code>. No extra library is needed, unlike Hibernate 5.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -354,6 +458,15 @@
                     return getClass().hashCode();                    // constant across states
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Hibernate.getClass()</code> unwraps a proxy to its real entity class, so a lazy proxy and a loaded instance of the same row can compare equal (plain <code>getClass()</code> would see the proxy subclass).</li>
+                  <li>Comparing ids with <code>id != null</code> means two transient (not yet persisted) entities are equal only if they're the same instance.</li>
+                  <li><code>other.getId()</code> uses the getter because on an uninitialized proxy the fields aren't populated, while the id getter returns the id the proxy was created with.</li>
+                  <li>The constant <code>hashCode()</code> never changes when the id gets assigned at persist/flush, so an entity added to a <code>HashSet</code> before saving can still be found afterwards. The trade-off is that all instances share one bucket — fine for typical entity collections.</li>
+                </ol>
+              </div>
               <div class="note">Never use Lombok's <code>@Data</code> / <code>@EqualsAndHashCode</code> on entities — it includes lazy collections (triggering loads or stack overflows on bidirectional links) and mutable fields.</div>
             </div>
           </details>
@@ -381,6 +494,15 @@
                     public boolean validateExistingCurrentSessions() { return true; }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@TenantId</code> marks the discriminator column. On persist, Hibernate fills <code>tenantId</code> from the current tenant identifier, so you never set it by hand.</li>
+                  <li>On every load and query of <code>Invoice</code>, Hibernate adds a restriction like <code>WHERE tenant_id = ?</code> with the current tenant, so one tenant can't read another's rows.</li>
+                  <li><code>CurrentTenantIdentifierResolver</code> supplies that value when a session opens — here from <code>TenantContext</code>, typically a <code>ThreadLocal</code> set by a web filter from a header or JWT. Make sure Hibernate actually uses it (property <code>hibernate.tenant_identifier_resolver</code>, e.g. via a <code>HibernatePropertiesCustomizer</code>).</li>
+                  <li><code>validateExistingCurrentSessions()</code> returning <code>true</code> makes Hibernate check that an already-open current session belongs to the same tenant.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>

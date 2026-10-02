@@ -39,7 +39,7 @@
 
         <section class="qa-group">
           <h2>Core</h2>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>What is Spring Boot and how is it different from the Spring Framework?</summary>
             <div class="answer">
               <p><b>Spring Framework</b> provides the core (IoC container, AOP, MVC, transactions, data access). <b>Spring Boot</b> is an opinionated layer on top that removes boilerplate:</p>
@@ -52,7 +52,7 @@
               <div class="tip">One-liner: Spring is the engine; Spring Boot is the car that's ready to drive.</div>
             </div>
           </details>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>What does <code>@SpringBootApplication</code> do?</summary>
             <div class="answer">
               <p>It is a meta-annotation combining three annotations:</p>
@@ -69,10 +69,19 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>SpringApplication.run()</code> prepares the <code>Environment</code> (properties, profiles) and creates an <code>ApplicationContext</code> — a servlet web context because Spring MVC is on the classpath.</li>
+                  <li><code>@ComponentScan</code> registers every <code>@Component</code>/<code>@Service</code>/<code>@RestController</code> found in the main class&#39;s package and its sub-packages as a bean definition.</li>
+                  <li><code>@EnableAutoConfiguration</code> imports the classes listed in <code>AutoConfiguration.imports</code>; each one is kept only if its <code>@Conditional</code> checks pass. <code>exclude</code> removes <code>DataSourceAutoConfiguration</code>, so no <code>DataSource</code> is created even if a JDBC driver is present.</li>
+                  <li>The context refresh then creates all non-lazy singletons, starts the embedded server and publishes <code>ApplicationReadyEvent</code> — the app is now serving requests.</li>
+                </ol>
+              </div>
               <div class="note">Put the main class in a root package — beans outside its package tree are not scanned.</div>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>How does auto-configuration work? Explain <code>@Conditional</code> annotations.</summary>
             <div class="answer">
               <p>Each auto-configuration class is a <code>@AutoConfiguration</code> guarded by conditions. Beans are created only when conditions match, and your own beans take precedence (<code>@ConditionalOnMissingBean</code>).</p>
@@ -89,10 +98,20 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Boot finds this class through the <code>AutoConfiguration.imports</code> file (not component scanning), and processes auto-configurations <b>after</b> your own configuration, so it already knows which beans you defined.</li>
+                  <li><code>@ConditionalOnClass(ObjectMapper.class)</code> is checked first: if Jackson isn&#39;t on the classpath the whole class is skipped.</li>
+                  <li><code>@ConditionalOnProperty</code> reads <code>app.audit.enabled</code>: <code>true</code> or missing (<code>matchIfMissing = true</code>) passes; <code>false</code> switches the feature off.</li>
+                  <li><code>@ConditionalOnMissingBean</code> on the method makes it back off if you already declared an <code>AuditService</code> bean — that&#39;s how &quot;your beans win&quot; works.</li>
+                  <li>If all conditions match, Spring calls <code>auditService()</code>, injecting the auto-configured <code>ObjectMapper</code>. Every decision is listed in the condition evaluation report (<code>--debug</code>).</li>
+                </ol>
+              </div>
               <p>Common conditions: <code>@ConditionalOnClass</code>, <code>@ConditionalOnMissingBean</code>, <code>@ConditionalOnBean</code>, <code>@ConditionalOnProperty</code>, <code>@ConditionalOnWebApplication</code>. Run with <code>--debug</code> or hit <code>/actuator/conditions</code> to see the condition evaluation report.</p>
             </div>
           </details>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>What are starters? Name a few.</summary>
             <div class="answer">
               <p>Starters are dependency descriptors that pull in everything needed for a capability, with versions managed by the Boot BOM (<code>spring-boot-dependencies</code>).</p>
@@ -125,6 +144,15 @@
                   <artifactId>spring-boot-starter-jetty</artifactId>
                 </dependency>
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The Maven <code>&lt;exclusion&gt;</code> removes <code>spring-boot-starter-tomcat</code> (and the embedded Tomcat jars) from the classpath.</li>
+                  <li>The Jetty starter adds Jetty&#39;s server classes instead.</li>
+                  <li>At startup the embedded-server auto-configuration uses <code>@ConditionalOnClass</code>: Tomcat classes are absent, Jetty&#39;s are present, so a Jetty web server factory bean is created.</li>
+                  <li>Spring MVC code doesn&#39;t change — it only talks to the Servlet API — and generic settings like <code>server.port</code> still apply.</li>
+                </ol>
+              </div>
               <div class="note">Undertow support was removed in Spring Boot 4 because it doesn't yet support Servlet 6.1 — use Tomcat or Jetty.</div>
             </div>
           </details>
@@ -147,8 +175,541 @@
         </section>
 
         <section class="qa-group">
+          <h2>Spring core essentials</h2>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>What is the Spring Framework, and what problem does it solve?</summary>
+            <div class="answer">
+              <p>Spring is a lightweight framework for building Java applications. Its core is an <b>IoC container</b> that creates your objects (beans) and wires their dependencies, plus modules for web (MVC/WebFlux), data access, transactions, security, messaging, AOP and testing.</p>
+              <p>The main problem it solves is <b>tight coupling</b>. Without Spring, classes create their own dependencies, so they're hard to test and change:</p>
+              <script type="text/plain" class="code" data-lang="java">
+                // Without DI: OrderService is welded to one implementation and can't be unit-tested with a fake
+                public class OrderService {
+                    private final PaymentService payment = new CardPaymentService();
+                }
+
+                // With Spring DI: depends on an interface; the container supplies the implementation
+                @Service
+                public class OrderService {
+                    private final PaymentService payment;
+                    public OrderService(PaymentService payment) { this.payment = payment; }
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>In the first version <code>new CardPaymentService()</code> hard-codes the implementation, so a test can&#39;t swap in a fake.</li>
+                  <li>In the second, component scanning registers <code>OrderService</code> as a bean. Because it has a single constructor, Spring uses it for injection (no <code>@Autowired</code> needed).</li>
+                  <li>Spring resolves the <code>PaymentService</code> parameter <b>by type</b>, creates that bean first if necessary, and passes it in.</li>
+                  <li>No matching bean → startup fails with <code>NoSuchBeanDefinitionException</code>; two matches → <code>NoUniqueBeanDefinitionException</code> unless <code>@Primary</code>/<code>@Qualifier</code> is used.</li>
+                  <li>In a unit test you skip Spring entirely: <code>new OrderService(fakePayment)</code>.</li>
+                </ol>
+              </div>
+              <p>Benefits: loose coupling, easy testing (inject mocks), declarative cross-cutting concerns (<code>@Transactional</code>, security, caching via AOP), and a huge ecosystem.</p>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview">
+            <summary><code>BeanFactory</code> vs <code>ApplicationContext</code>?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th><code>BeanFactory</code></th><th><code>ApplicationContext</code></th></tr></thead>
+                <tbody>
+                  <tr><td>What it is</td><td>The basic IoC container interface</td><td>Extends <code>BeanFactory</code> — the full-featured container</td></tr>
+                  <tr><td>Singleton creation</td><td>Lazy (when first requested)</td><td><b>Eager</b> at startup (so configuration errors fail fast)</td></tr>
+                  <tr><td>Extra features</td><td>—</td><td>Events (<code>ApplicationEventPublisher</code>), i18n (<code>MessageSource</code>), resource loading, environment/profiles, automatic <code>BeanPostProcessor</code> registration (needed for AOP, <code>@Transactional</code>)</td></tr>
+                  <tr><td>Used</td><td>Rarely directly</td><td>Always — Spring Boot creates one for you (e.g. <code>AnnotationConfigServletWebServerApplicationContext</code>)</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary><code>@Component</code> vs <code>@Service</code> vs <code>@Repository</code> vs <code>@Controller</code> vs <code>@RestController</code>?</summary>
+            <div class="answer">
+              <p>All are <b>stereotype annotations</b> detected by component scanning; <code>@Service</code>, <code>@Repository</code> and <code>@Controller</code> are specialisations of <code>@Component</code>.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Annotation</th><th>Layer</th><th>Extra behaviour</th></tr></thead>
+                <tbody>
+                  <tr><td><code>@Component</code></td><td>Any generic bean</td><td>None</td></tr>
+                  <tr><td><code>@Service</code></td><td>Business logic</td><td>None today — documents intent (and is a natural place for <code>@Transactional</code>)</td></tr>
+                  <tr><td><code>@Repository</code></td><td>Data access</td><td><b>Exception translation</b>: persistence exceptions (JPA/JDBC) become Spring's <code>DataAccessException</code> hierarchy</td></tr>
+                  <tr><td><code>@Controller</code></td><td>Web (MVC views)</td><td>Handler methods return view names</td></tr>
+                  <tr><td><code>@RestController</code></td><td>Web (REST)</td><td><code>@Controller</code> + <code>@ResponseBody</code>: return values are serialised to JSON</td></tr>
+                  <tr><td><code>@Configuration</code></td><td>Configuration</td><td>Holds <code>@Bean</code> methods; proxied so inter-bean calls return the same singleton</td></tr>
+                </tbody>
+              </table></div>
+              <p>Related: <code>@Autowired</code> injects a dependency (implicit for a single constructor), <code>@Qualifier</code>/<code>@Primary</code> resolve ambiguity, <code>@ComponentScan</code> sets which packages are scanned (Boot scans the main class's package and below).</p>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>How do you create a Spring Boot project, and what is the standard project structure?</summary>
+            <div class="answer">
+              <p>Use <b>Spring Initializr</b> (<a href="https://start.spring.io" target="_blank" rel="noopener">start.spring.io</a>, or the IntelliJ / VS Code wizard): choose Maven or Gradle, Java version, Boot version, group/artifact and dependencies (Web, Data JPA, Validation, Security, Actuator…), then download and open it.</p>
+              <script type="text/plain" class="code" data-lang="plaintext">
+                student-service/
+                ├── pom.xml
+                ├── src/main/java/com/example/students/
+                │   ├── StudentServiceApplication.java     ← @SpringBootApplication (root package!)
+                │   ├── controller/   StudentController.java
+                │   ├── service/      StudentService.java
+                │   ├── repository/   StudentRepository.java
+                │   ├── entity/       Student.java
+                │   ├── dto/          StudentRequest.java, StudentResponse.java
+                │   ├── exception/    ResourceNotFoundException.java, GlobalExceptionHandler.java
+                │   └── config/       SecurityConfig.java
+                ├── src/main/resources/
+                │   ├── application.yml  (+ application-dev.yml, application-prod.yml)
+                │   └── db/migration/    (Flyway scripts)
+                └── src/test/java/...    (mirrors main)
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The <code>@SpringBootApplication</code> class sits in <code>com.example.students</code>, so component scanning covers <code>controller</code>, <code>service</code>, <code>repository</code>, <code>config</code>… automatically.</li>
+                  <li>The same base package is used by auto-configuration to find <code>@Entity</code> classes and Spring Data repository interfaces.</li>
+                  <li>Everything in <code>src/main/resources</code> lands at the classpath root: <code>application.yml</code> is loaded at startup, and <code>application-dev.yml</code> is added on top when the <code>dev</code> profile is active.</li>
+                  <li>If Flyway is on the classpath, its auto-configuration runs the scripts in <code>classpath:db/migration</code> at startup, before JPA uses the database.</li>
+                  <li>Tests mirror the package layout so <code>@SpringBootTest</code> can find the main configuration by searching up the package tree.</li>
+                </ol>
+              </div>
+              <div class="note">Keep the main class in the <b>root package</b>: component scanning starts there, so beans in sibling packages outside it won't be found.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary><code>application.properties</code> vs <code>application.yml</code>?</summary>
+            <div class="answer">
+              <p>Both configure the same properties; Boot loads either (if both exist, <code>.properties</code> wins for duplicate keys). Choose one style per project.</p>
+              <script type="text/plain" class="code" data-lang="properties">
+                # application.properties — flat key=value
+                server.port=8081
+                spring.application.name=student-service
+                spring.datasource.url=jdbc:postgresql://localhost:5432/school
+                spring.datasource.username=${DB_USER}
+                spring.jpa.hibernate.ddl-auto=validate
+                logging.level.com.example=DEBUG
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>At startup Boot loads <code>application.properties</code> from the classpath into the <code>Environment</code> as a property source.</li>
+                  <li><code>server.port</code> is bound to <code>ServerProperties</code> and used when the embedded server is created; <code>spring.datasource.*</code> is bound to <code>DataSourceProperties</code>, from which auto-configuration builds a HikariCP <code>DataSource</code>.</li>
+                  <li><code>${DB_USER}</code> is a placeholder resolved from other sources such as an environment variable; if nothing provides it, startup fails with a &quot;Could not resolve placeholder&quot; error.</li>
+                  <li><code>ddl-auto=validate</code> makes Hibernate compare entity mappings with the real schema at startup and fail fast on a mismatch; <code>logging.level.com.example=DEBUG</code> sets that logger&#39;s level.</li>
+                </ol>
+              </div>
+              <script type="text/plain" class="code" data-lang="yaml">
+                # application.yml — hierarchical, less repetition, supports lists naturally
+                server:
+                  port: 8081
+                spring:
+                  application:
+                    name: student-service
+                  datasource:
+                    url: jdbc:postgresql://localhost:5432/school
+                    username: ${DB_USER}
+                  jpa:
+                    hibernate:
+                      ddl-auto: validate
+                logging:
+                  level:
+                    com.example: DEBUG
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Boot parses the YAML tree and flattens it into the same dotted keys (<code>server.port</code>, <code>spring.datasource.url</code>…), so it configures exactly the same beans as the properties file.</li>
+                  <li>Indentation defines nesting — a wrong indent silently puts a key under the wrong parent.</li>
+                  <li><b>Relaxed binding</b> maps <code>ddl-auto</code> to the <code>ddlAuto</code> field of the properties class; under <code>logging.level</code>, <code>com.example</code> is a logger name.</li>
+                  <li>If both files define the same key, the <code>.properties</code> value wins.</li>
+                </ol>
+              </div>
+              <ul>
+                <li>YAML is easier for nested config and lists, and can hold several profile documents separated by <code>---</code>; but indentation errors are easy to make.</li>
+                <li>Never commit real credentials — use <code>${ENV_VAR}</code> placeholders or a secrets manager.</li>
+                <li>Use <code>ddl-auto=validate</code> (or <code>none</code>) with Flyway/Liquibase in production, never <code>update</code>/<code>create</code>.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>REST API essentials</h2>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>What is REST? Explain the HTTP methods, and PUT vs PATCH.</summary>
+            <div class="answer">
+              <p>REST (Representational State Transfer) is an architectural style for APIs: <b>resources</b> are identified by URLs, manipulated with standard <b>HTTP methods</b>, represented as JSON, and every request is <b>stateless</b> (it carries all the information needed, e.g. a token).</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Method</th><th>Purpose</th><th>Example</th><th>Safe?</th><th>Idempotent?</th></tr></thead>
+                <tbody>
+                  <tr><td><code>GET</code></td><td>Read</td><td><code>GET /students/10</code></td><td>Yes</td><td>Yes</td></tr>
+                  <tr><td><code>POST</code></td><td>Create (or trigger an action)</td><td><code>POST /students</code></td><td>No</td><td><b>No</b></td></tr>
+                  <tr><td><code>PUT</code></td><td>Replace the whole resource</td><td><code>PUT /students/10</code></td><td>No</td><td>Yes</td></tr>
+                  <tr><td><code>PATCH</code></td><td>Partial update</td><td><code>PATCH /students/10</code></td><td>No</td><td>Not guaranteed</td></tr>
+                  <tr><td><code>DELETE</code></td><td>Remove</td><td><code>DELETE /students/10</code></td><td>No</td><td>Yes</td></tr>
+                </tbody>
+              </table></div>
+              <ul>
+                <li><b>Safe</b> = doesn't change server state. <b>Idempotent</b> = repeating the request has the same effect as sending it once (important for retries).</li>
+                <li><b>PUT</b> sends the complete representation; omitted fields are cleared/reset. <b>PATCH</b> sends only the fields to change (e.g. <code>{"email": "new@x.com"}</code>).</li>
+                <li>To make <code>POST</code> retry-safe (payments), accept an <b>Idempotency-Key</b> header and store processed keys.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary><code>@PathVariable</code> vs <code>@RequestParam</code> vs <code>@RequestBody</code> vs <code>@RequestHeader</code>?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                @RestController
+                @RequestMapping("/api/students")
+                public class StudentController {
+
+                    // GET /api/students/42                    → id = 42 (identifies a resource)
+                    @GetMapping("/{id}")
+                    public StudentResponse get(@PathVariable Long id) { ... }
+
+                    // GET /api/students?dept=IT&page=0        → filtering, sorting, paging (optional values)
+                    @GetMapping
+                    public List<StudentResponse> search(@RequestParam(required = false) String dept,
+                                                        @RequestParam(defaultValue = "0") int page) { ... }
+
+                    // POST /api/students  {"name":"Asha","email":"asha@x.com"}  → JSON body to an object
+                    @PostMapping
+                    public ResponseEntity<StudentResponse> create(@Valid @RequestBody StudentRequest req,
+                                                                  @RequestHeader("X-Request-Id") String requestId) { ... }
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>At startup <code>RequestMappingHandlerMapping</code> registers each method, combining the class-level <code>/api/students</code> with the method path and HTTP verb.</li>
+                  <li>A request reaches <code>DispatcherServlet</code>, which finds the matching handler and resolves each parameter with an argument resolver.</li>
+                  <li><code>@PathVariable</code> takes the <code>{id}</code> segment and converts it to <code>Long</code> (<code>/abc</code> → <code>MethodArgumentTypeMismatchException</code> → 400). <code>@RequestParam</code> reads the query string: <code>required = false</code> gives <code>null</code>, <code>defaultValue</code> fills in <code>0</code>.</li>
+                  <li><code>@RequestBody</code> uses Jackson to turn the JSON into <code>StudentRequest</code> (malformed JSON → 400); <code>@Valid</code> then validates it, and on failure <code>MethodArgumentNotValidException</code> is thrown before the method runs.</li>
+                  <li>A missing required header throws <code>MissingRequestHeaderException</code> (400). Return values are written as JSON by Jackson because of <code>@RestController</code>.</li>
+                </ol>
+              </div>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Annotation</th><th>Reads from</th><th>Typical use</th></tr></thead>
+                <tbody>
+                  <tr><td><code>@PathVariable</code></td><td>URL path segment</td><td>Resource identity</td></tr>
+                  <tr><td><code>@RequestParam</code></td><td>Query string / form field</td><td>Filters, paging, optional inputs</td></tr>
+                  <tr><td><code>@RequestBody</code></td><td>Request body (JSON → object via Jackson)</td><td>Create / update payloads</td></tr>
+                  <tr><td><code>@RequestHeader</code></td><td>HTTP header</td><td>Correlation IDs, API versions, idempotency keys</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>What is <code>ResponseEntity</code>? Which HTTP status codes should an API return?</summary>
+            <div class="answer">
+              <p>By default a controller method returns <code>200 OK</code>. <code>ResponseEntity</code> gives full control over the <b>status</b>, <b>headers</b> and <b>body</b>.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                return ResponseEntity.ok(body);                                   // 200
+                return ResponseEntity.created(URI.create("/api/students/" + id)).body(body);   // 201 + Location
+                return ResponseEntity.noContent().build();                        // 204
+                return ResponseEntity.notFound().build();                         // 404
+                return ResponseEntity.badRequest().body(problem);                 // 400
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);  // 409
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>When a handler returns <code>ResponseEntity</code>, Spring MVC uses its status and headers as given and writes the body through an <code>HttpMessageConverter</code> (Jackson for objects).</li>
+                  <li><code>created(uri)</code> sets 201 plus a <code>Location</code> header pointing at the new resource; <code>noContent()</code>/<code>notFound()</code> + <code>build()</code> send no body.</li>
+                  <li>The converter is chosen by content negotiation (the client&#39;s <code>Accept</code> header), so the same object can be served as JSON or another supported format.</li>
+                  <li>If you return a plain object instead, Spring writes it with 200 (or the status from <code>@ResponseStatus</code>).</li>
+                </ol>
+              </div>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Code</th><th>Meaning</th><th>When</th></tr></thead>
+                <tbody>
+                  <tr><td>200 OK</td><td>Success with a body</td><td>GET, PUT, PATCH</td></tr>
+                  <tr><td>201 Created</td><td>Resource created</td><td>POST (with a <code>Location</code> header)</td></tr>
+                  <tr><td>204 No Content</td><td>Success, no body</td><td>DELETE</td></tr>
+                  <tr><td>400 Bad Request</td><td>Invalid input</td><td>Validation errors, malformed JSON</td></tr>
+                  <tr><td>401 Unauthorized</td><td>Not authenticated</td><td>Missing / expired token</td></tr>
+                  <tr><td>403 Forbidden</td><td>Authenticated but not allowed</td><td>Wrong role</td></tr>
+                  <tr><td>404 Not Found</td><td>Resource doesn't exist</td><td>Unknown ID</td></tr>
+                  <tr><td>409 Conflict</td><td>State conflict</td><td>Duplicate email, optimistic-lock failure</td></tr>
+                  <tr><td>422 Unprocessable Content</td><td>Valid syntax, business rule violated</td><td>Some APIs use it for domain validation</td></tr>
+                  <tr><td>429 Too Many Requests</td><td>Rate limited</td><td>Throttling</td></tr>
+                  <tr><td>500 Internal Server Error</td><td>Unexpected failure</td><td>Bugs — never leak stack traces</td></tr>
+                  <tr><td>503 Service Unavailable</td><td>Temporarily down / overloaded</td><td>Maintenance, dependency outage</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>What are REST API design best practices?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Nouns, not verbs</b>, plural collections: <code>GET /students/10</code>, not <code>/getStudent?id=10</code> or <code>/createStudent</code>.</li>
+                <li>Let the <b>HTTP method</b> express the action; nest only for clear ownership: <code>GET /students/10/courses</code>.</li>
+                <li>Return correct <b>status codes</b> and a consistent error format (RFC 9457 <code>ProblemDetail</code>).</li>
+                <li><b>Paginate</b> collections (<code>?page=0&amp;size=20&amp;sort=name</code>) and cap page sizes.</li>
+                <li>Use <b>DTOs</b>, never expose entities; validate input.</li>
+                <li><b>Version</b> the API (<code>/api/v1/...</code> or a header) and evolve compatibly.</li>
+                <li>Use lowercase, hyphenated URLs; ISO-8601 dates; consistent field naming.</li>
+                <li>Secure everything (HTTPS, auth), add rate limits, and document with <b>OpenAPI</b> (springdoc → Swagger UI).</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary><code>@NotNull</code> vs <code>@NotEmpty</code> vs <code>@NotBlank</code> — and what other validation annotations are common?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Annotation</th><th><code>null</code></th><th><code>""</code></th><th><code>"  "</code></th><th>Applies to</th></tr></thead>
+                <tbody>
+                  <tr><td><code>@NotNull</code></td><td>❌</td><td>✅</td><td>✅</td><td>Any type</td></tr>
+                  <tr><td><code>@NotEmpty</code></td><td>❌</td><td>❌</td><td>✅</td><td>String, Collection, Map, array (size &gt; 0)</td></tr>
+                  <tr><td><code>@NotBlank</code></td><td>❌</td><td>❌</td><td>❌</td><td>String only (needs a non-whitespace character)</td></tr>
+                </tbody>
+              </table></div>
+              <p>Other common Jakarta Bean Validation constraints: <code>@Size(min, max)</code>, <code>@Min</code>/<code>@Max</code>, <code>@Positive</code>, <code>@Email</code>, <code>@Pattern(regexp)</code>, <code>@Past</code>/<code>@Future</code>, <code>@Digits</code>, and <code>@Valid</code> to cascade into nested objects.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public record StudentRequest(
+                    @NotBlank @Size(max = 80) String name,
+                    @NotBlank @Email String email,
+                    @NotNull @Min(16) @Max(100) Integer age,
+                    @NotEmpty List<@NotBlank String> courses,
+                    @Valid @NotNull AddressRequest address) {}
+
+                @PostMapping
+                public ResponseEntity<StudentResponse> create(@Valid @RequestBody StudentRequest req) { ... }
+                // Invalid input → MethodArgumentNotValidException → 400 (map it in @RestControllerAdvice)
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Jackson creates the <code>StudentRequest</code> record from the JSON through its canonical constructor.</li>
+                  <li><code>@Valid</code> on the parameter makes Spring run Hibernate Validator (from <code>spring-boot-starter-validation</code>) over every constraint on the record components.</li>
+                  <li><code>List&lt;@NotBlank String&gt;</code> checks each element; <code>@Valid</code> on <code>address</code> cascades into the constraints of <code>AddressRequest</code>.</li>
+                  <li>All violations are collected (not just the first). If there are any, <code>MethodArgumentNotValidException</code> is thrown before the method body runs → 400, which your <code>@RestControllerAdvice</code> can turn into a readable error body.</li>
+                </ol>
+              </div>
+              <div class="tip">Requires <code>spring-boot-starter-validation</code>. Validate <b>early</b> at the API boundary, before business logic or the database.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>What is a DTO, and why shouldn't you return JPA entities from controllers?</summary>
+            <div class="answer">
+              <p>A <b>Data Transfer Object</b> is a simple object (ideally a Java <code>record</code>) that defines exactly what data goes <b>in</b> or <b>out</b> of the API.</p>
+              <script type="text/plain" class="code" data-lang="plaintext">
+                Client → StudentRequest (DTO) → Controller → Service → Student (Entity) → Repository → DB
+                Client ← StudentResponse (DTO) ← Controller ← Service ← Student (Entity) ←────────────┘
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Inbound: Jackson converts the JSON into the request DTO, validation runs, and the controller passes the DTO to the service.</li>
+                  <li>The service maps the DTO to an entity and the repository persists it inside a transaction.</li>
+                  <li>Outbound: the service maps the entity to a response DTO <b>while still inside the transaction</b>, so any lazy fields it needs are loaded deliberately.</li>
+                  <li>Jackson only ever sees the DTO — no lazy-loading exceptions, no infinite recursion, and no internal fields leaking to the client.</li>
+                </ol>
+              </div>
+              <ul>
+                <li><b>Security</b>: entities can expose internal fields (password hashes, internal flags) and allow <b>mass assignment</b> if bound directly from requests.</li>
+                <li><b>Decoupling</b>: you can change the database schema without breaking API clients, and vice versa.</li>
+                <li><b>Avoids JPA problems</b>: lazy-loading exceptions and infinite recursion in bidirectional relationships during JSON serialisation.</li>
+                <li><b>Tailored shapes</b>: different DTOs per use case (summary vs detail), validation annotations on request DTOs only.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                public record StudentResponse(Long id, String name, String email) {
+                    public static StudentResponse from(Student s) {
+                        return new StudentResponse(s.getId(), s.getName(), s.getEmail());
+                    }
+                }
+                // For larger projects, MapStruct generates mappers at compile time
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The record gives you an immutable DTO with constructor, accessors, <code>equals</code>/<code>hashCode</code>/<code>toString</code> generated.</li>
+                  <li><code>from()</code> copies only the fields you choose from the entity — anything else (e.g. a password hash) can never be serialised.</li>
+                  <li>Jackson serialises a record through its accessors <code>id()</code>, <code>name()</code>, <code>email()</code> → <code>{"id":…,"name":…,"email":…}</code>.</li>
+                  <li>MapStruct does the same mapping with an annotation processor: it generates plain Java mapper code at compile time (no runtime reflection) and can register it as a Spring bean.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Logging, async &amp; scheduling</h2>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>How does logging work in Spring Boot? Explain log levels and configuration.</summary>
+            <div class="answer">
+              <p>Spring Boot uses <b>SLF4J</b> (the API you code against) with <b>Logback</b> (the implementation) by default; you can swap in Log4j2. Levels, from most to least verbose: <code>TRACE</code> &lt; <code>DEBUG</code> &lt; <code>INFO</code> &lt; <code>WARN</code> &lt; <code>ERROR</code>. Setting a level shows that level and everything above it.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @Service
+                public class StudentService {
+                    private static final Logger log = LoggerFactory.getLogger(StudentService.class);
+
+                    public Student find(Long id) {
+                        log.debug("Looking up student id={}", id);          // {} placeholders: no string building if disabled
+                        return repo.findById(id).orElseThrow(() -> {
+                            log.warn("Student not found id={}", id);
+                            return new ResourceNotFoundException("Student " + id);
+                        });
+                    }
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>LoggerFactory.getLogger</code> is the SLF4J API; Boot&#39;s default logging starter binds it to Logback, which does the actual output.</li>
+                  <li>One <code>static final</code> logger per class, named after the class, so its level is controlled by <code>logging.level.com.example…</code>.</li>
+                  <li><code>log.debug(&quot;…{}&quot;, id)</code> first checks whether DEBUG is enabled; if not it returns immediately and the message is never formatted.</li>
+                  <li>The <code>orElseThrow</code> lambda runs only when the <code>Optional</code> is empty: it logs a WARN and throws, and the exception travels up to your exception handler.</li>
+                </ol>
+              </div>
+              <script type="text/plain" class="code" data-lang="yaml">
+                logging:
+                  level:
+                    root: INFO
+                    com.example: DEBUG
+                    org.hibernate.SQL: DEBUG          # log SQL in dev only
+                  file:
+                    name: logs/app.log
+                  structured:
+                    format:
+                      console: ecs                     # Boot 3.4+: JSON logs for ELK / Loki
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Boot&#39;s logging system applies these settings very early in startup, before most beans are created.</li>
+                  <li><code>logging.level</code> works on the logger-name hierarchy: everything defaults to INFO, <code>com.example</code> and its children log DEBUG, and <code>org.hibernate.SQL</code> at DEBUG prints every SQL statement.</li>
+                  <li><code>logging.file.name</code> adds a file appender next to the console; Boot&#39;s default Logback setup rolls the file when it grows (10&nbsp;MB by default).</li>
+                  <li><code>logging.structured.format.console: ecs</code> (Boot 3.4+) switches console output to JSON in Elastic Common Schema, so log shippers can parse fields instead of text.</li>
+                </ol>
+              </div>
+              <ul>
+                <li>Use <b>placeholders</b>, never string concatenation; log the exception as the last argument to get the stack trace.</li>
+                <li>Add a <b>correlation/trace ID</b> to every log line (MDC; Micrometer Tracing adds <code>traceId</code> automatically).</li>
+                <li>Never log passwords, tokens or personal data. Change levels at runtime via <code>/actuator/loggers</code>.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview">
+            <summary>How does <code>@Async</code> work, and what are its pitfalls?</summary>
+            <div class="answer">
+              <p><code>@EnableAsync</code> + <code>@Async</code> makes Spring run the method on a <b>separate thread</b> (through a proxy), so the caller returns immediately. Return <code>void</code> or <code>CompletableFuture&lt;T&gt;</code>.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @Configuration
+                @EnableAsync
+                class AsyncConfig {}
+
+                @Service
+                public class ReportService {
+                    @Async
+                    public CompletableFuture<Report> generate(long customerId) {
+                        Report r = buildSlowReport(customerId);
+                        return CompletableFuture.completedFuture(r);
+                    }
+                }
+
+                // Caller continues immediately
+                CompletableFuture<Report> future = reportService.generate(42);
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@EnableAsync</code> registers a bean post-processor that wraps every bean having <code>@Async</code> methods in a proxy.</li>
+                  <li>Other beans get the proxy injected. Calling <code>generate(42)</code> on it submits the real call to a <code>TaskExecutor</code> (Boot&#39;s auto-configured <code>applicationTaskExecutor</code>) and returns a <code>CompletableFuture</code> immediately.</li>
+                  <li>The method runs on a pool thread; when it returns, the future the caller holds is completed with the <code>Report</code>. If it throws, that future completes exceptionally.</li>
+                  <li>The caller can continue and later <code>join()</code> or chain <code>thenApply</code>. A call through <code>this</code> skips the proxy and simply runs synchronously.</li>
+                </ol>
+              </div>
+              <ul>
+                <li><b>Self-invocation</b> doesn't work: calling an <code>@Async</code> method from the same class bypasses the proxy (same as <code>@Transactional</code>).</li>
+                <li>The method must be <b>public</b> and on a Spring bean.</li>
+                <li>Exceptions from <code>void</code> methods are lost unless you configure an <code>AsyncUncaughtExceptionHandler</code>.</li>
+                <li>Boot auto-configures a <code>ThreadPoolTaskExecutor</code> (tune <code>spring.task.execution.pool.*</code>), or virtual threads with <code>spring.threads.virtual.enabled=true</code>.</li>
+                <li>Security context, MDC and transactions don't automatically flow to the new thread.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>How do you schedule tasks with <code>@Scheduled</code>? Explain Spring cron expressions.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                @Configuration
+                @EnableScheduling
+                class SchedulingConfig {}
+
+                @Component
+                public class Jobs {
+                    @Scheduled(fixedRate = 60_000)                 // every 60 s, measured from each start
+                    public void refreshRates() { ... }
+
+                    @Scheduled(fixedDelay = 30_000, initialDelay = 10_000)   // 30 s after the previous run ENDS
+                    public void pollInbox() { ... }
+
+                    @Scheduled(cron = "0 0 9 * * MON-FRI", zone = "Asia/Kolkata")   // weekdays at 09:00 IST
+                    public void sendDailyDigest() { ... }
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@EnableScheduling</code> registers a post-processor that finds <code>@Scheduled</code> methods on beans and registers them with a <code>TaskScheduler</code> (Boot auto-configures one with a single thread by default).</li>
+                  <li><code>fixedRate</code> triggers every 60&nbsp;s measured from each start; on a single thread a long run delays the next one rather than overlapping it.</li>
+                  <li><code>fixedDelay</code> waits 30&nbsp;s after the previous run <b>finishes</b>; <code>initialDelay</code> postpones the first run by 10&nbsp;s after startup.</li>
+                  <li>The <code>cron</code> expression is evaluated in the given <code>zone</code>, independent of the server&#39;s clock zone.</li>
+                  <li>If a run throws, the error is logged and the task is still scheduled for its next run.</li>
+                </ol>
+              </div>
+              <p>Spring cron has <b>six</b> fields (it includes seconds): <code>second minute hour day-of-month month day-of-week</code>.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Expression</th><th>Runs</th></tr></thead>
+                <tbody>
+                  <tr><td><code>0 0 0 * * *</code></td><td>Every day at midnight</td></tr>
+                  <tr><td><code>0 0 * * * *</code></td><td>Every hour</td></tr>
+                  <tr><td><code>0 */10 * * * *</code></td><td>Every 10 minutes</td></tr>
+                  <tr><td><code>0 0 9 * * MON-FRI</code></td><td>Weekdays at 9 AM</td></tr>
+                  <tr><td><code>0 30 2 1 * *</code></td><td>02:30 on the 1st of every month</td></tr>
+                </tbody>
+              </table></div>
+              <div class="note">With several app instances, every instance runs the job. Use <b>ShedLock</b> (or Quartz in clustered mode) to run it on only one node. By default all scheduled tasks share a single thread — configure <code>spring.task.scheduling.pool.size</code> if jobs can overlap.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview">
+            <summary>What are Spring Boot best practices you follow in production code?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Constructor injection</b>, final fields; no field <code>@Autowired</code>.</li>
+                <li><b>Layered structure</b>: thin controllers, business logic in services, data access in repositories; single responsibility per class.</li>
+                <li><b>DTOs</b> at the API boundary, <b>validation</b> on input, <b>centralised exception handling</b> with <code>ProblemDetail</code>.</li>
+                <li><b>Externalised config</b> with profiles and type-safe <code>@ConfigurationProperties</code>; secrets from env vars / Vault, never in git.</li>
+                <li><b>Transactions</b> on service methods; keep them short; no remote calls inside them.</li>
+                <li><b>Database migrations</b> with Flyway/Liquibase; <code>open-in-view=false</code>; avoid N+1 queries.</li>
+                <li><b>Observability</b>: structured logs with trace IDs, Actuator health/metrics, alerts.</li>
+                <li><b>Resilience</b>: timeouts on every outbound call, retries with backoff, circuit breakers.</li>
+                <li><b>Testing</b>: unit tests, slice tests, Testcontainers integration tests in CI.</li>
+                <li><b>Security</b>: Spring Security defaults, least privilege, dependency scanning, keep Boot and libraries up to date.</li>
+                <li><b>Build &amp; run</b>: <code>./mvnw clean verify</code>, executable jar (<code>java -jar app.jar</code>), container images via buildpacks or a layered Dockerfile.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
           <h2>DI &amp; Beans</h2>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>What is IoC and Dependency Injection? Why prefer constructor injection?</summary>
             <div class="answer">
               <p><b>Inversion of Control</b>: the container, not your code, creates and wires objects. <b>DI</b> is how it supplies dependencies. Constructor injection is preferred because:</p>
@@ -171,6 +732,15 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Component scanning finds <code>@Service</code>; the class has one constructor, so Spring uses it without <code>@Autowired</code>.</li>
+                  <li>Before calling it, Spring resolves <code>OrderRepository</code> (a Spring Data proxy) and <code>PaymentClient</code> by type, creating them first if needed.</li>
+                  <li>If a dependency is missing, startup fails with <code>UnsatisfiedDependencyException</code> — you find out at boot, not on the first request.</li>
+                  <li>Fields are <code>final</code> and set once, so the singleton is safely shared by all request threads.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -190,7 +760,7 @@
               <div class="tip">Injecting a prototype into a singleton gives you only one instance. Use <code>ObjectProvider&lt;T&gt;</code>, <code>@Lookup</code>, or a scoped proxy to get a fresh one each time.</div>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>Explain the bean lifecycle.</summary>
             <div class="answer">
               <ol>
@@ -203,7 +773,7 @@
               </ol>
             </div>
           </details>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary><code>@Component</code> vs <code>@Bean</code> — when to use which?</summary>
             <div class="answer">
               <ul>
@@ -219,10 +789,19 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@Configuration</code> classes are processed at startup; each <code>@Bean</code> method is a factory Spring calls once to create a singleton.</li>
+                  <li>The <code>RestClient.Builder</code> parameter is injected from Boot&#39;s auto-configuration — a prototype-scoped builder already set up with message converters and observability.</li>
+                  <li>The returned <code>RestClient</code> is registered as a bean named <code>paymentClient</code> (the method name) and can be injected by type or by name.</li>
+                  <li>Because <code>@Configuration</code> classes are proxied, calling <code>paymentClient()</code> from another <code>@Bean</code> method returns the same singleton instead of a new client.</li>
+                </ol>
+              </div>
               <p><code>@Repository</code> also enables exception translation into Spring's <code>DataAccessException</code> hierarchy.</p>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>Two beans of the same type exist. How do you resolve the ambiguity?</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -240,6 +819,15 @@
                                     Map<String, PaymentGateway> byName) {}       // bean name -> bean
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Both gateways are scanned; <code>StripeGateway</code> gets the bean name <code>stripe</code>, the other the default <code>razorpayGateway</code>.</li>
+                  <li>For <code>defaultGw</code> Spring finds two candidates by type and picks the one marked <code>@Primary</code>.</li>
+                  <li><code>@Qualifier(&quot;stripe&quot;)</code> narrows the candidates to that one bean, overriding <code>@Primary</code>.</li>
+                  <li><code>List&lt;PaymentGateway&gt;</code> receives every implementation (ordered by <code>@Order</code> if present); <code>Map&lt;String, PaymentGateway&gt;</code> is keyed by bean name — handy for strategy lookups.</li>
+                </ol>
+              </div>
               <p><code>@Qualifier</code> beats <code>@Primary</code>. Without either, startup fails with <code>NoUniqueBeanDefinitionException</code>.</p>
             </div>
           </details>
@@ -258,7 +846,7 @@
 
         <section class="qa-group">
           <h2>Configuration</h2>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>How do profiles work? Show an <code>application.yml</code> example.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="yaml">
@@ -280,6 +868,15 @@
                   level:
                     root: WARN
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The <code>---</code> line splits the file into two documents that Boot loads in order.</li>
+                  <li>The first document has no activation condition, so it always applies.</li>
+                  <li>The second applies only when the <code>prod</code> profile is active (<code>spring.config.activate.on-profile</code>). Its keys override the earlier ones: <code>datasource.url</code> changes, while <code>username</code> and <code>password</code> are kept from the first document.</li>
+                  <li><code>${DB_PASSWORD}</code> is resolved from the environment, so the secret never lives in the file.</li>
+                </ol>
+              </div>
               <p>Activate with <code>--spring.profiles.active=prod</code> or <code>SPRING_PROFILES_ACTIVE=prod</code>. Profile-specific files <code>application-prod.yml</code> also work. Beans can be limited with <code>@Profile("!prod")</code>.</p>
             </div>
           </details>
@@ -298,12 +895,31 @@
                 @ConfigurationPropertiesScan          // or @EnableConfigurationProperties(PaymentProperties.class)
                 public class App {}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@ConfigurationPropertiesScan</code> finds <code>PaymentProperties</code> and registers it as a bean.</li>
+                  <li>The Binder collects every property under <code>app.payment</code>, applies relaxed binding (<code>base-url</code>, <code>APP_PAYMENT_BASEURL</code> → <code>baseUrl</code>) and converts strings like <code>10s</code> into a <code>Duration</code>.</li>
+                  <li>Because it&#39;s a record, values go through the constructor; missing ones take their <code>@DefaultValue</code> (<code>retries = 3</code>).</li>
+                  <li><code>@Validated</code> runs Bean Validation during binding: a blank <code>baseUrl</code> stops startup with a clear binding error.</li>
+                  <li>You then inject <code>PaymentProperties</code> like any other bean — immutable and type-safe.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="yaml">
                 app:
                   payment:
                     base-url: https://pay.example.com   # relaxed binding: base-url -> baseUrl
                     timeout: 10s
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Keys under <code>app.payment</code> map onto the record&#39;s components.</li>
+                  <li><code>base-url</code> (kebab-case) binds to <code>baseUrl</code>; <code>timeout: 10s</code> overrides the 5&nbsp;s default.</li>
+                  <li><code>retries</code> is absent, so the <code>@DefaultValue(&quot;3&quot;)</code> is used.</li>
+                  <li>Any value can be overridden per environment, e.g. <code>APP_PAYMENT_TIMEOUT=20s</code>, following the normal precedence rules.</li>
+                </ol>
+              </div>
               <div class="tip">Prefer this over many <code>@Value</code> annotations: it's validated, grouped, immutable and IDE-autocompleted (with <code>spring-boot-configuration-processor</code>).</div>
             </div>
           </details>
@@ -328,7 +944,7 @@
 
         <section class="qa-group">
           <h2>REST APIs</h2>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>Write a REST controller with validation and proper status codes.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -355,10 +971,19 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@RestController</code> is scanned and its methods are mapped under <code>/api/orders</code>; the service is constructor-injected.</li>
+                  <li><code>GET /api/orders/7</code>: <code>7</code> is converted to <code>long</code>; <code>service.find</code> returns an <code>Optional</code> — present → 200 with JSON body, empty → 404 with no body.</li>
+                  <li><code>POST</code>: Jackson builds <code>CreateOrder</code> from the JSON and <code>@Valid</code> checks <code>@NotBlank</code>/<code>@Min(1)</code>. On failure <code>MethodArgumentNotValidException</code> is thrown before the method runs → 400 (a missing <code>quantity</code> becomes <code>0</code> and fails <code>@Min(1)</code>).</li>
+                  <li>On success the order is created and the method returns 201 Created with a <code>Location</code> header and the new order as the body.</li>
+                </ol>
+              </div>
               <p><code>@RestController</code> = <code>@Controller</code> + <code>@ResponseBody</code>. Invalid input throws <code>MethodArgumentNotValidException</code> → 400.</p>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>How do you implement global exception handling? What is <code>ProblemDetail</code>?</summary>
             <div class="answer">
               <p><code>ProblemDetail</code> (Spring 6) implements RFC 9457 (formerly 7807) — a standard JSON error body. Enable defaults with <code>spring.mvc.problemdetails.enabled=true</code> or write a handler:</p>
@@ -383,13 +1008,22 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@RestControllerAdvice</code> (<code>@ControllerAdvice</code> + <code>@ResponseBody</code>) is picked up at startup, and its handlers apply to all controllers.</li>
+                  <li>When a controller or service throws <code>OrderNotFoundException</code>, <code>DispatcherServlet</code> asks its exception resolvers; the <code>@ExceptionHandler</code> with the closest matching exception type is called.</li>
+                  <li>The returned <code>ProblemDetail</code> is written as <code>application/problem+json</code> with the HTTP status taken from it (404); <code>setProperty</code> adds extra top-level fields like <code>orderId</code>.</li>
+                  <li>Validation failures throw <code>MethodArgumentNotValidException</code> during argument resolution, so they flow through the same mechanism → 400 with a field→message <code>errors</code> map (the merge function keeps the first message if a field has several).</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
 
         <section class="qa-group">
           <h2>Data &amp; Transactions</h2>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>Explain <code>@Transactional</code> propagation and isolation.</summary>
             <div class="answer">
               <div class="table-wrap"><table>
@@ -428,6 +1062,15 @@
                 // ✅ Fix: move generate() into a separate bean and inject it,
                 //    or use TransactionTemplate programmatically.
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Because <code>ReportService</code> has a <code>@Transactional</code> method, Spring wraps it in a proxy at startup, and other beans are injected with that proxy.</li>
+                  <li>A caller invokes <code>generateAll()</code> on the proxy; it has no <code>@Transactional</code>, so the proxy just forwards to the real object.</li>
+                  <li>Inside, <code>this.generate(id)</code> is a plain Java call on the real object — the proxy and its <code>TransactionInterceptor</code> never see it, so no <code>REQUIRES_NEW</code> transaction is started.</li>
+                  <li>The fix moves <code>generate()</code> into another bean, so each call goes through that bean&#39;s proxy; or <code>TransactionTemplate.execute(…)</code> starts the transaction explicitly in code.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -439,13 +1082,23 @@
                                noRollbackFor = NotificationFailedException.class)
                 public void transfer(long from, long to, BigDecimal amt) throws InsufficientFundsException { ... }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The transactional proxy starts a transaction before <code>transfer()</code> runs and decides commit vs rollback when it exits.</li>
+                  <li>Normal return → commit.</li>
+                  <li><code>InsufficientFundsException</code> is checked, which would normally commit, but <code>rollbackFor</code> makes it roll back; the exception is still rethrown to the caller.</li>
+                  <li><code>NotificationFailedException</code> matches <code>noRollbackFor</code>, so the transaction commits even though the exception propagates.</li>
+                  <li>Any other <code>RuntimeException</code>/<code>Error</code> rolls back; other checked exceptions commit. The most specific matching rule wins.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
 
         <section class="qa-group">
           <h2>Production readiness</h2>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>What is Spring Boot Actuator? Which endpoints are most useful?</summary>
             <div class="answer">
               <p>Actuator exposes operational endpoints: <code>/actuator/health</code> (with Kubernetes <code>liveness</code>/<code>readiness</code> groups), <code>/info</code>, <code>/metrics</code>, <code>/prometheus</code>, <code>/env</code>, <code>/loggers</code> (change log levels at runtime), <code>/threaddump</code>, <code>/heapdump</code>, <code>/conditions</code>, <code>/beans</code>, <code>/mappings</code>.</p>
@@ -461,6 +1114,15 @@
                         enabled: true
                       show-details: when-authorized
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>exposure.include</code> decides which endpoints are reachable over HTTP under <code>/actuator</code>; the rest stay unexposed.</li>
+                  <li><code>prometheus</code> only appears when <code>micrometer-registry-prometheus</code> is on the classpath; it serves all Micrometer metrics in Prometheus text format.</li>
+                  <li><code>probes.enabled</code> adds <code>/actuator/health/liveness</code> and <code>/actuator/health/readiness</code>, driven by Spring&#39;s availability state — readiness reports UP only once the app is ready to take traffic.</li>
+                  <li><code>show-details: when-authorized</code> shows component details (database, disk space…) only to authenticated users (optionally limited by roles); everyone else just sees <code>UP</code>/<code>DOWN</code>.</li>
+                </ol>
+              </div>
               <div class="note">Only <code>health</code> is exposed over HTTP by default. Never expose <code>env</code> or <code>heapdump</code> publicly — secure them with Spring Security.</div>
             </div>
           </details>
@@ -481,6 +1143,15 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Boot auto-configures an <code>ObservationRegistry</code> with handlers: one records Micrometer metrics, and one creates trace spans if a tracing bridge (OpenTelemetry/Brave) is present.</li>
+                  <li><code>createNotStarted</code> builds the observation; <code>observe(…)</code> starts it, runs the lambda, then stops it. If <code>calculate</code> throws, the error is recorded on the observation and rethrown.</li>
+                  <li>On stop, the metrics handler updates a <code>pricing.calculate</code> timer and the tracing handler closes a span that is a child of the current request&#39;s trace.</li>
+                  <li>Low-cardinality key-values become metric tags (and span attributes), so keep them to a small fixed set of values to avoid exploding the number of time series.</li>
+                </ol>
+              </div>
               <p>Or simply annotate with <code>@Observed</code> / <code>@Timed</code>. Trace IDs are added to logs automatically.</p>
             </div>
           </details>
@@ -491,6 +1162,15 @@
               <script type="text/plain" class="code" data-lang="properties">
                 spring.threads.virtual.enabled=true
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>With this property on Java 21+, Boot configures the embedded server to handle each request on a new virtual thread instead of a fixed platform-thread pool.</li>
+                  <li>The auto-configured task executor (used by <code>@Async</code>) and the task scheduler also switch to virtual threads.</li>
+                  <li>When code blocks on I/O (JDBC, HTTP), the virtual thread is unmounted from its carrier OS thread, which is freed for other work — so thousands of concurrent blocking requests become cheap.</li>
+                  <li>Downstream limits still apply: the HikariCP pool size caps concurrent DB work no matter how many virtual threads are waiting.</li>
+                </ol>
+              </div>
               <p>Great for blocking I/O-heavy services (JDBC, REST calls). It doesn't make CPU-bound code faster, and the DB connection pool still caps concurrency.</p>
             </div>
           </details>
@@ -502,13 +1182,22 @@
                 ./mvnw -Pnative native:compile          # native executable
                 ./mvnw -Pnative spring-boot:build-image # native container image via buildpacks
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>-Pnative</code> activates the <code>native</code> profile, which runs Spring AOT at build time: it evaluates the configuration and generates Java code for bean definitions plus reflection/proxy hints.</li>
+                  <li><code>native:compile</code> runs GraalVM&#39;s <code>native-image</code>: it analyses everything reachable from <code>main</code> and compiles only that into a platform-specific executable.</li>
+                  <li><code>spring-boot:build-image</code> with the same profile uses Cloud Native Buildpacks to do the native compilation inside a container, so you don&#39;t need GraalVM installed locally; the result is an OCI image.</li>
+                  <li>Because conditions and beans are fixed at build time, the classpath and bean set cannot change at runtime.</li>
+                </ol>
+              </div>
               <ul>
                 <li>✅ Startup in tens of milliseconds, much lower memory — ideal for serverless and scale-to-zero.</li>
                 <li>❌ Long build times, closed-world assumption (reflection/proxies need hints via <code>RuntimeHints</code>), no runtime profile switching of <code>@Profile</code> beans, lower peak throughput without PGO.</li>
               </ul>
             </div>
           </details>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>How do you containerize a Spring Boot app?</summary>
             <div class="answer">
               <p>Option 1 — Cloud Native Buildpacks, no Dockerfile: <code>./mvnw spring-boot:build-image</code>. Option 2 — layered JAR in a Dockerfile for better caching:</p>
@@ -526,13 +1215,22 @@
                 COPY --from=builder /app/app/application/ ./
                 ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Stage 1 copies the fat jar and runs <code>-Djarmode=tools … extract --layers --launcher</code>, which splits it into folders: <code>dependencies</code>, <code>spring-boot-loader</code>, <code>snapshot-dependencies</code> and <code>application</code>.</li>
+                  <li>Stage 2 copies each folder as a separate Docker layer, least-frequently-changed first. When only your code changes, only the small <code>application</code> layer is rebuilt and pushed.</li>
+                  <li><code>ENTRYPOINT</code> runs Boot&#39;s <code>JarLauncher</code>, which builds the classpath from the extracted folders and calls your <code>main</code> method.</li>
+                  <li>The builder stage is discarded, so the final image contains only a JRE and your layers.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
 
         <section class="qa-group">
           <h2>Testing</h2>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary><code>@SpringBootTest</code> vs test slices (<code>@WebMvcTest</code>, <code>@DataJpaTest</code>)?</summary>
             <div class="answer">
               <div class="table-wrap"><table>
@@ -557,6 +1255,15 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@WebMvcTest(OrderController.class)</code> starts a slice context with only MVC infrastructure: that controller, <code>@ControllerAdvice</code>, filters, Jackson and <code>MockMvc</code> — no services, repositories or database.</li>
+                  <li><code>OrderService</code> isn&#39;t loaded, so <code>@MockitoBean</code> registers a Mockito mock in the context and the controller receives it in its constructor.</li>
+                  <li><code>mvc.perform(get(…))</code> sends a mock request through the real <code>DispatcherServlet</code> — routing, conversion and serialisation run — without starting a server.</li>
+                  <li>The stub returns <code>Optional.empty()</code>, the controller returns 404, and <code>andExpect</code> asserts it; any other status fails the test.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -579,6 +1286,15 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The <code>@Testcontainers</code> JUnit extension starts the static <code>@Container</code> before the tests (once for the class): it pulls the Postgres image and runs it on a random port. Docker must be available.</li>
+                  <li><code>@ServiceConnection</code> makes Boot create connection details from the running container (JDBC URL, username, password), which the <code>DataSource</code> auto-configuration uses instead of <code>spring.datasource.*</code>.</li>
+                  <li><code>@SpringBootTest</code> starts the full application context against that real database, so migrations and Hibernate run exactly as in production.</li>
+                  <li>The test does a real <code>INSERT</code> and the database generates the id. When the tests finish, the container is stopped.</li>
+                </ol>
+              </div>
               <div class="tip">Testing against the real database catches dialect-specific bugs that H2 hides.</div>
             </div>
           </details>
@@ -608,6 +1324,15 @@
                           filters:
                             - StripPrefix=1
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Spring Cloud Gateway builds a route called <code>orders</code> from this config at startup.</li>
+                  <li>For each incoming request it evaluates the predicates: <code>Path=/api/orders/**</code> matches <code>/api/orders/5</code>.</li>
+                  <li>Filters then modify the request: <code>StripPrefix=1</code> removes the first path segment, so the downstream call is <code>/orders/5</code>.</li>
+                  <li><code>lb://order-service</code> tells Spring Cloud LoadBalancer to look up instances of <code>order-service</code> via service discovery, pick one, and forward the request; the response is streamed back to the client.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -627,6 +1352,16 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The Resilience4j Spring Boot starter registers aspects, so <code>InventoryClient</code> is proxied and every call to <code>check()</code> passes through retry and circuit-breaker logic named <code>inventory</code>.</li>
+                  <li>Success: the HTTP call returns and the result is recorded as a success in the breaker&#39;s sliding window.</li>
+                  <li>Failure: the exception is recorded and <code>@Retry</code> may re-attempt the call according to its config.</li>
+                  <li>When the failure rate crosses the threshold the breaker <b>opens</b>: calls are rejected immediately without hitting the network.</li>
+                  <li>Instead of an exception reaching the caller, the <code>fallback</code> method — same arguments plus a <code>Throwable</code> — returns <code>Stock.unknown(sku)</code>, so the service degrades gracefully.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="yaml">
                 resilience4j:
                   circuitbreaker:
@@ -636,6 +1371,15 @@
                         failure-rate-threshold: 50
                         wait-duration-in-open-state: 10s
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>This configures the circuit-breaker instance <code>inventory</code>, matching <code>name = &quot;inventory&quot;</code> in the annotation.</li>
+                  <li>A count-based sliding window keeps the outcomes of the last 20 calls; if 50% or more of them failed, the breaker switches to OPEN.</li>
+                  <li>While OPEN, calls are rejected with <code>CallNotPermittedException</code> (handled by the fallback) for 10&nbsp;s.</li>
+                  <li>Then it moves to HALF_OPEN and lets a limited number of trial calls through: if they succeed it closes again, otherwise it reopens.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -664,6 +1408,15 @@
                             .build().createClient(UserApi.class);
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>UserApi</code> is only an interface; <code>HttpServiceProxyFactory</code> creates a proxy implementation of it when the bean is built.</li>
+                  <li><code>RestClientAdapter</code> makes the proxy execute requests through the given <code>RestClient</code>, which carries the base URL and Boot&#39;s message converters.</li>
+                  <li>Calling <code>userApi.get(42)</code> → the proxy reads the annotations, builds <code>GET https://users.internal/users/42</code>, sends it, and Jackson converts the JSON response into <code>User</code>.</li>
+                  <li>A 4xx/5xx response throws <code>HttpClientErrorException</code>/<code>HttpServerErrorException</code> by default; a network failure throws <code>ResourceAccessException</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -751,6 +1504,16 @@
                     public void delete(@PathVariable Long id) { service.delete(id); }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Startup: Hibernate maps <code>Product</code>; Spring Data generates an implementation of <code>ProductRepository</code> at runtime (backed by <code>SimpleJpaRepository</code>); <code>ProductService</code> is wrapped in a transactional proxy.</li>
+                  <li><code>POST /api/products</code>: <code>DispatcherServlet</code> routes to <code>create</code>, Jackson builds <code>ProductRequest</code>, and <code>@Valid</code> checks it. Invalid → <code>MethodArgumentNotValidException</code> → 400, and the service is never called.</li>
+                  <li>Valid → the proxy opens a read-write transaction (the method-level <code>@Transactional</code> overrides the class-level <code>readOnly = true</code>); <code>save()</code> inserts the row, the id is generated, the transaction commits, and the controller returns 201 with a <code>Location</code> header.</li>
+                  <li><code>update</code>: the loaded entity is <b>managed</b>, so the setters just change it in memory; at commit Hibernate&#39;s dirty checking flushes an <code>UPDATE</code> automatically.</li>
+                  <li>Unknown id → <code>ProductNotFoundException</code> (unchecked, so the transaction rolls back) propagates out of the controller; a <code>@RestControllerAdvice</code> maps it to 404 (without one it becomes a 500). <code>DELETE</code> success returns 204 via <code>@ResponseStatus</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -789,6 +1552,16 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>ProductNotFoundException</code> extends <code>RuntimeException</code>, so services can throw it without <code>throws</code> clauses and it also triggers transaction rollback.</li>
+                  <li>When a controller call throws, Spring looks for an <code>@ExceptionHandler</code> in the advice whose type is the closest match: <code>ProductNotFoundException</code> → <code>notFound</code>; <code>Exception.class</code> only catches what nothing more specific handles.</li>
+                  <li><code>MethodArgumentNotValidException</code> is raised during <code>@Valid</code> argument validation, before the controller method runs; <code>invalid</code> collects each field error into an ordered <code>errors</code> map.</li>
+                  <li>Each handler returns a <code>ProblemDetail</code>, which Spring writes as <code>application/problem+json</code> using the status inside it; if <code>instance</code> isn&#39;t set, Spring fills it with the request path.</li>
+                  <li><code>fallback</code> turns any unexpected error into a generic 500, so internal details never leak — log the exception there for debugging.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="json">
                 {
                   "type": "about:blank",
@@ -799,6 +1572,15 @@
                   "errors": { "price": "must be greater than 0" }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>type: &quot;about:blank&quot;</code> is the default, meaning &quot;no extra semantics beyond the HTTP status&quot;; <code>title</code> defaults to the status reason phrase.</li>
+                  <li><code>status</code> repeats the HTTP status code and <code>detail</code> comes from <code>forStatusAndDetail(…)</code>.</li>
+                  <li><code>instance</code> was not set in code, so Spring filled it with the request path.</li>
+                  <li><code>errors</code> is the custom property added with <code>setProperty</code>; Jackson writes such properties as top-level fields. Every error in the API now has the same shape for clients.</li>
+                </ol>
+              </div>
               <div class="tip">Alternatively extend <code>ResponseEntityExceptionHandler</code>, or set <code>spring.mvc.problemdetails.enabled=true</code> so Spring's built-in exceptions use ProblemDetail too.</div>
             </div>
           </details>
@@ -827,6 +1609,15 @@
 
                 public record CustomerRequest(@NotBlank String name, @NotNull @ValidPan String pan) {}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@Constraint(validatedBy = PanValidator.class)</code> links the annotation to its validator; <code>message</code>, <code>groups</code> and <code>payload</code> are required by the Bean Validation spec, and <code>RUNTIME</code> retention lets the validator see it via reflection.</li>
+                  <li>When <code>@Valid CustomerRequest</code> is validated, Hibernate Validator creates <code>PanValidator</code> through Spring&#39;s constraint validator factory (so it could even have injected dependencies) and calls <code>isValid</code>.</li>
+                  <li><code>null</code> returns <code>true</code> so only <code>@NotNull</code> reports it — no duplicate errors. Otherwise the precompiled, thread-safe regex checks 5 letters, 4 digits, 1 letter.</li>
+                  <li><code>false</code> creates a violation with &quot;invalid PAN format&quot; on field <code>pan</code> → <code>MethodArgumentNotValidException</code> → 400 through your exception handler.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -847,6 +1638,15 @@
 
                 // GET /api/products?name=phone&page=0&size=10&sort=price,desc
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Spring Data parses the method name: <code>findBy</code> + <code>NameContainingIgnoreCase</code> becomes a case-insensitive <code>LIKE &#39;%name%&#39;</code> query.</li>
+                  <li>With a <code>Pageable</code> argument it adds <code>ORDER BY</code> and <code>LIMIT/OFFSET</code>, and runs a separate count query to fill in the total pages and elements of the <code>Page</code>.</li>
+                  <li>In the controller, Spring Data&#39;s web support (auto-configured by Boot) builds the <code>Pageable</code> from <code>page</code>, <code>size</code> and <code>sort</code>; <code>@PageableDefault</code> applies when they are absent, and Boot caps the page size (2000 by default).</li>
+                  <li>An empty <code>name</code> matches everything; <code>page.map(…)</code> converts entities to DTOs while keeping the paging metadata, and Jackson serialises the result.</li>
+                </ol>
+              </div>
               <div class="note">Returning <code>Page</code> directly serialises internal structure; on Boot 3.3+ prefer <code>@EnableSpringDataWebSupport(pageSerializationMode = VIA_DTO)</code> or map to your own page DTO. For very large tables use keyset pagination (see the Database page).</div>
             </div>
           </details>
@@ -883,6 +1683,16 @@
                     public Report generate() { /* ... */ }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@Aspect</code> + <code>@Component</code> makes <code>TimingAspect</code> a bean; AOP auto-configuration registers a bean post-processor that checks every bean against the aspect&#39;s pointcuts.</li>
+                  <li><code>ReportService.generate()</code> carries <code>@LogExecutionTime</code>, so Spring creates a CGLIB proxy subclass and injects that proxy wherever <code>ReportService</code> is used.</li>
+                  <li>A call to <code>generate()</code> enters <code>time()</code> first: it records the start time and <code>pjp.proceed()</code> invokes the real method.</li>
+                  <li>The <code>finally</code> block logs the duration on success <b>and</b> on failure; the return value is passed back and any exception is rethrown unchanged.</li>
+                  <li><code>RUNTIME</code> retention is required so the annotation is visible at runtime, and the pointcut must use its fully-qualified name.</li>
+                </ol>
+              </div>
               <div class="note">Classic follow-up: calling <code>generate()</code> from another method <i>in the same class</i> is not intercepted, because Spring AOP is proxy-based (same pitfall as <code>@Transactional</code> self-invocation).</div>
             </div>
           </details>
@@ -925,6 +1735,16 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The slice loads <code>ProductController</code>, the <code>@RestControllerAdvice</code>, Jackson and validation; <code>ProductService</code> is replaced by a Mockito mock.</li>
+                  <li><code>returnsProduct</code>: the mock returns a DTO, the controller returns it, Jackson writes JSON, and <code>jsonPath(&quot;$.name&quot;)</code> checks the field.</li>
+                  <li><code>rejectsInvalidRequest</code>: the JSON is deserialised, <code>@Valid</code> fails on <code>name</code> and <code>price</code>, <code>MethodArgumentNotValidException</code> is handled by the advice → 400 with <code>errors.price</code>. The service is never called.</li>
+                  <li><code>returns404WhenMissing</code>: the mock throws <code>ProductNotFoundException</code>, the advice maps it to 404.</li>
+                  <li>Every request goes through the real <code>DispatcherServlet</code> in memory — no HTTP server or network.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -961,11 +1781,21 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The <code>@Bean</code> method receives Boot&#39;s pre-configured <code>RestClient.Builder</code> (message converters, observability) and sets a request factory with a 2&nbsp;s connect and 5&nbsp;s read timeout.</li>
+                  <li>The bean is named <code>inventoryClient</code>; <code>InventoryGateway</code> gets it through constructor injection.</li>
+                  <li><code>stock()</code> builds <code>GET http://inventory-service/api/stock/{sku}</code> (the URI template encodes <code>sku</code>); the request is executed when <code>body(…)</code> is called.</li>
+                  <li>2xx → Jackson converts the JSON into <code>StockResponse</code>. 404 → the <code>onStatus</code> handler throws <code>SkuNotFoundException</code>. Other 4xx/5xx → the default handler throws <code>HttpClientErrorException</code>/<code>HttpServerErrorException</code>.</li>
+                  <li>A timeout or connection failure throws <code>ResourceAccessException</code>, which a circuit breaker or retry can handle.</li>
+                </ol>
+              </div>
               <div class="tip">Inject <code>RestClient.Builder</code> (not <code>RestClient.create()</code>) so Boot's observability/tracing and message converters are applied. Wrap the call with a Resilience4j <code>@CircuitBreaker</code> + <code>@Retry</code> for resilience.</div>
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>Cache a slow lookup with <code>@Cacheable</code> and evict it on update.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -987,6 +1817,16 @@
                     public void refreshAll() { }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@EnableCaching</code> turns on the caching infrastructure, and Boot auto-configures a <code>CacheManager</code> from <code>spring.cache.*</code> and the classpath.</li>
+                  <li><code>CountryService</code> is wrapped in a proxy. On <code>find(&quot;IN&quot;)</code> the proxy evaluates the key <code>#code</code> and checks the <code>countries</code> cache: hit → returns the cached value <b>without running the method</b>; miss → runs it and stores the result.</li>
+                  <li><code>@CachePut</code> always runs <code>update()</code> and then stores the returned value under <code>country.code()</code>, so the next <code>find</code> sees fresh data.</li>
+                  <li><code>@CacheEvict(allEntries = true)</code> clears the whole cache after the method returns successfully; if it throws, nothing is evicted.</li>
+                  <li>As with every proxy feature, calling these methods via <code>this</code> from inside the class bypasses the cache.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="yaml">
                 spring:
                   cache:
@@ -994,10 +1834,19 @@
                     caffeine:
                       spec: maximumSize=1000,expireAfterWrite=10m
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>type: caffeine</code> makes Boot create a <code>CaffeineCacheManager</code> (Caffeine must be on the classpath).</li>
+                  <li>The <code>spec</code> applies to each cache: at most 1000 entries (older, less-used ones are evicted) and each entry expires 10 minutes after it was written.</li>
+                  <li>Caches like <code>countries</code> are created on first use.</li>
+                  <li>Caffeine is in-memory per instance, so each pod has its own copy; <code>type: redis</code> gives one shared cache across instances, with values serialised to Redis.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
-          <details class="qa" data-level="hard">
+          <details class="qa" data-level="hard" data-tag="interview">
             <summary>Publish a domain event after an order is saved, and send an email only if the transaction commits.</summary>
             <div class="answer">
               <p><code>@TransactionalEventListener(phase = AFTER_COMMIT)</code> guarantees the listener does not run if the transaction rolls back; add <code>@Async</code> so the email does not slow down the request.</p>
@@ -1028,6 +1877,16 @@
                 }
                 // Enable with @EnableAsync on a @Configuration class
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>place()</code> runs inside the transactional proxy: <code>save()</code> writes the order and <code>publishEvent</code> hands <code>OrderPlaced</code> to Spring&#39;s event multicaster.</li>
+                  <li>Because a transaction is active, the <code>@TransactionalEventListener</code> doesn&#39;t run yet — Spring registers it to run when the current transaction completes.</li>
+                  <li>The method returns and the proxy commits. Only after a <b>successful commit</b> is the listener invoked; <code>@Async</code> hands it to a pool thread, so the HTTP response isn&#39;t delayed by the email.</li>
+                  <li>If <code>place()</code> throws and the transaction rolls back, the listener never runs, so no email goes out for an order that doesn&#39;t exist.</li>
+                  <li>If the event is published with no transaction active, the listener is skipped by default (<code>fallbackExecution = false</code>). An email failure can&#39;t undo the committed order, so log and retry it separately.</li>
+                </ol>
+              </div>
               <div class="note">For guaranteed delivery across services (e.g. Kafka), use the <b>transactional outbox</b> pattern instead — an in-memory event is lost if the app crashes after commit.</div>
             </div>
           </details>

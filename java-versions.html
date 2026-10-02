@@ -76,10 +76,26 @@
                     @Override public String toString() { return "UserDto{name=" + name + ", email=" + email + "}"; }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>In Java 8, an immutable DTO needs everything written by hand: <code>final</code> class, <code>private final</code> fields, a constructor, getters and the three <code>Object</code> methods.</li>
+                  <li><code>equals</code>, <code>hashCode</code> and <code>toString</code> must be kept in sync with the fields by hand. Adding a field and forgetting one of them is a classic bug (e.g. broken <code>HashMap</code> lookups).</li>
+                  <li>That is why teams used Lombok (<code>@Value</code>) or IDE generation. It works, but adds a dependency or a lot of noise.</li>
+                </ol>
+              </div>
               <p><b>Java 17</b> — one line:</p>
               <script type="text/plain" class="code" data-lang="java">
                 public record UserDto(String name, String email) {}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The record declares the same data, and the compiler generates the fields, canonical constructor, accessors and value-based <code>equals</code>/<code>hashCode</code>/<code>toString</code>.</li>
+                  <li>Accessors are <code>name()</code> and <code>email()</code>, not <code>getName()</code>. Jackson and most frameworks support this natively.</li>
+                  <li>Records are final in Java 16 (JEP 395), so this works on Java 17. It is shorter, cannot drift out of sync, and clearly says "this is plain data".</li>
+                </ol>
+              </div>
               <p><b>Java 25</b> — same record, plus you can deconstruct it with record patterns:</p>
               <script type="text/plain" class="code" data-lang="java">
                 public record UserDto(String name, String email) {}
@@ -88,6 +104,15 @@
                     notifyInternal(name);
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The record is identical. The new part is consuming it: <code>obj instanceof UserDto(String name, String email)</code> is a <b>record pattern</b>.</li>
+                  <li>If <code>obj</code> is a <code>UserDto</code>, the JVM calls the accessors and binds the results to <code>name</code> and <code>email</code>, so type test, cast and field extraction happen in one step.</li>
+                  <li>The bindings are in scope after <code>&amp;&amp;</code>, so <code>email.endsWith("@corp.com")</code> runs only when the pattern matched.</li>
+                  <li>Record patterns are final in Java 21 (JEP 440). In Java 17 you would write <code>instanceof UserDto u</code> and then call <code>u.email()</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -112,6 +137,16 @@
                     default                -> "other";
                 };
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Java 8: test, then declare a new variable and cast it by hand, repeating <code>String</code> three times.</li>
+                  <li>Java 17: <code>obj instanceof String s</code> tests and binds in one step (final in 16). <code>s</code> can be used right away in the <code>&amp;&amp;</code> condition because flow analysis knows the match succeeded.</li>
+                  <li>Java 25 (since 21): a pattern <code>switch</code> checks many types in one expression. <code>case null</code> handles null explicitly; without it, a <code>null</code> would throw an NPE.</li>
+                  <li>Cases are tried top to bottom. <code>when i &gt; 0</code> is a guard, so a non-positive <code>Integer</code> falls to <code>default</code>. <code>List&lt;?&gt;</code> uses a wildcard because generic type arguments are erased at runtime.</li>
+                  <li><code>default</code> is required here because <code>Object</code> is not sealed, so the compiler cannot prove the cases are exhaustive.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -145,6 +180,16 @@
                     case Purchase(var u, _)                    -> u + " purchased";
                 };
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Java 8: a switch <em>statement</em>. <code>BLOCKED</code> falls through to <code>DELETED</code> on purpose, but forgetting a <code>break</code> elsewhere silently runs the next case. <code>label</code> must be assigned in every path, which the compiler checks only because of <code>default</code>.</li>
+                  <li>Java 17: a switch <em>expression</em> with arrows (final in 14). No fall-through, several labels per case (<code>BLOCKED, DELETED</code>), and the result is assigned directly.</li>
+                  <li>Because all enum constants are listed, the compiler accepts the expression without <code>default</code>. If a constant is added later, the code stops compiling until it is handled, and a compiled class that meets an unknown constant at runtime throws an error instead of returning garbage.</li>
+                  <li>Java 25 (since 21): <code>Event</code> is sealed, so the switch checks it covers every subtype. Record patterns like <code>Purchase(var u, var amt)</code> deconstruct the event, and the <code>when amt &gt; 1000</code> guard selects the large purchases.</li>
+                  <li>The guarded <code>Purchase</code> case comes before the general one, and <code>Purchase(var u, _)</code> uses the unnamed pattern (Java 22) for the unused amount.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -166,6 +211,15 @@
                 // or with a concurrency limit, directly in a stream (Java 24+ gatherer)
                 List<String> bodies = urls.stream().gather(Gatherers.mapConcurrent(100, this::fetch)).toList();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Java 8/17: a fixed pool of 200 platform threads. Each one is an OS thread with its own stack, so you cannot create 10,000. At most 200 fetches run at once and the rest wait in the queue.</li>
+                  <li>While a pool thread waits on <code>fetch(url)</code>, it sits idle but stays busy for the pool, so throughput is limited by pool size, not by CPU.</li>
+                  <li>Java 25 (virtual threads final since 21): <code>newVirtualThreadPerTaskExecutor()</code> gives each URL its own virtual thread. When <code>fetch</code> blocks, the virtual thread unmounts from its carrier, so all 10,000 can wait at once on a handful of OS threads. Leaving the try block waits for all tasks.</li>
+                  <li>The last form uses <code>Gatherers.mapConcurrent(100, ...)</code> (Java 24). It runs fetches on virtual threads but caps concurrency at 100, protecting the remote service, and returns results in input order.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -184,6 +238,15 @@
                     IO.println("Hello");
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Java 8: you must declare a <code>public class</code> and a <code>public static void main(String[] args)</code>, then compile with <code>javac</code> and run with <code>java</code>.</li>
+                  <li>Java 11 added the source launcher (<code>java Hello.java</code>), which compiles in memory and runs, but the class/static-main boilerplate remained.</li>
+                  <li>Java 25 (JEP 512, final): a compact source file needs no class. <code>void main()</code> is an instance main method, and the compiler wraps the file in an implicit class.</li>
+                  <li><code>IO.println</code> is a new <code>java.lang.IO</code> helper, so beginners and scripts avoid <code>System.out</code>. The output is the same.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -202,6 +265,15 @@
                     WHERE status = 'ACTIVE'
                     """;
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Java 8: each line is a separate literal with an explicit <code>\n</code>, joined with <code>+</code>. It is noisy and easy to break by missing a newline or a space.</li>
+                  <li>Java 17/25: a text block (final in 15). The compiler removes the common leading indentation and turns line breaks into <code>\n</code>.</li>
+                  <li>Because the closing <code>"""</code> is on its own line, the text block also ends with <code>\n</code>, so both versions produce the same string.</li>
+                  <li>Single quotes and even double quotes need no escaping inside a text block, which makes SQL and JSON readable.</li>
+                </ol>
+              </div>
               <div class="note">String Templates (<code>STR."..."</code>) were previewed in 21–22 but withdrawn — they are <b>not</b> in Java 25. Use <code>formatted()</code> or <code>MessageFormat</code>.</div>
             </div>
           </details>
@@ -223,6 +295,15 @@
                 String last  = list.getLast();
                 List<String> rev = list.reversed();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Java 8: <code>Arrays.asList</code> wrapped in <code>Collections.unmodifiableList</code> gives a read-only view. The last element needs <code>list.get(list.size() - 1)</code>, and <code>Collectors.toList()</code> returns a list whose mutability is not guaranteed (in practice an <code>ArrayList</code>).</li>
+                  <li>Java 17: <code>List.of</code> (Java 9) creates a truly immutable list that also rejects <code>null</code>s, and <code>stream.toList()</code> (Java 16) returns an unmodifiable list with less code.</li>
+                  <li>Java 25 (since 21, JEP 431): <code>List</code> implements <code>SequencedCollection</code>, so <code>getFirst()</code>, <code>getLast()</code> and <code>reversed()</code> express intent directly and work the same across lists, deques and ordered sets.</li>
+                  <li><code>reversed()</code> returns a view, not a copy. For an immutable <code>List.of</code>, the view is read-only as well.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -244,6 +325,15 @@
                     .filter(e -> e.getJoinDate().isAfter(LocalDate.now().minusYears(1)))
                     .collect(Collectors.groupingBy(Employee::getDept, Collectors.counting()));
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>employees.stream()</code> starts a lazy pipeline; nothing runs until the terminal <code>collect</code>.</li>
+                  <li><code>filter</code> keeps employees whose join date is within the last year, using immutable <code>java.time.LocalDate</code> arithmetic (<code>minusYears(1)</code> returns a new date).</li>
+                  <li><code>groupingBy(Employee::getDept, counting())</code> uses a method reference as the key function and a <em>downstream</em> collector to count each group.</li>
+                  <li>The result type is <code>Map&lt;String, Long&gt;</code> because <code>counting()</code> always produces <code>Long</code>. This is the declarative style that lambdas and streams brought in Java 8.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -261,6 +351,15 @@
                 public record Ok<T>(T value) implements Result<T> {}
                 public record Err<T>(String message) implements Result<T> {}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>sealed interface Result&lt;T&gt; permits Ok, Err</code> says a result is exactly one of two shapes, success or failure, and no other implementation can be added.</li>
+                  <li><code>Ok</code> and <code>Err</code> are records, so they are implicitly <code>final</code> and immutable, and get <code>equals</code>/<code>toString</code> for free.</li>
+                  <li><code>Err&lt;T&gt;</code> declares <code>T</code> even though it holds only a message, so it can implement <code>Result&lt;T&gt;</code> for any <code>T</code>.</li>
+                  <li>Sealed classes are final in Java 17 (JEP 409). From Java 21, <code>switch (result) { case Ok&lt;T&gt; ok -&gt; ...; case Err&lt;T&gt; err -&gt; ...; }</code> is checked for exhaustiveness with no <code>default</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -281,6 +380,15 @@
                         exec.submit(() -> ScopedValue.where(TENANT, req.tenant()).run(() -> process(req)));
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>TENANT</code> is a <code>ScopedValue</code> key (final in Java 25, JEP 506), declared once as a constant.</li>
+                  <li>The executor starts one virtual thread per request (final in Java 21), so each request gets its own cheap thread. Closing the executor waits for all of them to finish.</li>
+                  <li>Inside each task, <code>ScopedValue.where(TENANT, req.tenant()).run(...)</code> binds that request's tenant only for the call to <code>process(req)</code>. Any code it calls can read it with <code>TENANT.get()</code>.</li>
+                  <li>Each binding belongs to its own thread and scope, so tenants never leak between requests. Unlike <code>ThreadLocal</code>, there is no <code>remove()</code> to forget.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -304,6 +412,15 @@
                 mvn -U org.openrewrite.maven:rewrite-maven-plugin:run \
                     -Drewrite.activeRecipes=org.openrewrite.java.migrate.UpgradeToJava17
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>jdeps --jdk-internals</code> scans the JAR and its <code>lib/*</code> dependencies for uses of internal JDK APIs (e.g. <code>sun.misc</code>), which strong encapsulation blocks on 17, and suggests replacements. <code>--multi-release 17</code> tells it which version of multi-release JARs to analyse.</li>
+                  <li><code>jdeprscan --release 17</code> reports uses of APIs that are deprecated or removed as of Java 17.</li>
+                  <li>The OpenRewrite Maven plugin runs the <code>UpgradeToJava17</code> recipe, which rewrites source and build files automatically. The recipe comes from the <code>rewrite-migrate-java</code> artifact, usually supplied with <code>-Drewrite.recipeArtifactCoordinates</code>.</li>
+                  <li>The trailing <code>\</code> is just a shell line continuation. Run the scanners first to size the work, then use OpenRewrite for the mechanical changes.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -324,6 +441,15 @@
                     <maven.compiler.release>25</maven.compiler.release>
                 </properties>
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>java.version</code> is the property Spring Boot's parent POM reads to configure the Java level.</li>
+                  <li><code>maven.compiler.release</code> is read directly by <code>maven-compiler-plugin</code> and becomes <code>javac --release 25</code>.</li>
+                  <li><code>--release</code> compiles against the exact Java 25 API and emits class-file version 69. Unlike <code>-source</code>/<code>-target</code>, it also stops you from accidentally using APIs that do not exist in that release.</li>
+                  <li>The JDK running Maven must itself be 25 or newer, and plugins and bytecode libraries must understand class version 69.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">

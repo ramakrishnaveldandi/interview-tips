@@ -88,6 +88,16 @@
                 Thread.ofVirtual().name("worker-", 0).start(() -> doWork());
                 Thread.startVirtualThread(() -> doWork());
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Executors.newVirtualThreadPerTaskExecutor()</code> creates a new virtual thread for every submitted task, with no pool. Virtual threads were final in Java 21 (JEP 444).</li>
+                  <li>Submitting 10,000 tasks is fine. Each virtual thread is a small heap-allocated object, not an OS thread, and they run on a few carrier platform threads (a <code>ForkJoinPool</code> sized to the CPU cores).</li>
+                  <li>When <code>httpClient.fetch(...)</code> blocks on network I/O, the JVM <b>unmounts</b> the virtual thread: its stack is saved to the heap and the carrier picks up another virtual thread. When the I/O completes, the thread is mounted again and continues.</li>
+                  <li><code>f.get()</code> blocks the calling thread until each result is ready. The try-with-resources block calls <code>close()</code>, which waits for all submitted tasks to finish before exiting (<code>ExecutorService</code> is <code>AutoCloseable</code> since Java 19).</li>
+                  <li><code>Thread.ofVirtual().name("worker-", 0)</code> is a builder that names threads <code>worker-0</code>, <code>worker-1</code>, &hellip;. <code>Thread.startVirtualThread</code> is the shortcut that creates and starts one virtual thread.</li>
+                </ol>
+              </div>
               <div class="tip">You keep writing simple blocking, thread-per-request code but get the scalability of reactive code.</div>
             </div>
           </details>
@@ -98,6 +108,15 @@
               <script type="text/plain" class="code" data-lang="properties">
                 spring.threads.virtual.enabled=true
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>This one property in <code>application.properties</code> tells Spring Boot (3.2+) to use virtual threads where it creates threads itself.</li>
+                  <li>The embedded web server (Tomcat/Jetty) then handles each HTTP request on its own virtual thread instead of a fixed worker pool, so a request that blocks on JDBC or REST calls does not hold an OS thread.</li>
+                  <li>The auto-configured task executor used by <code>@Async</code> and scheduling also switches to virtual threads.</li>
+                  <li>It only takes effect on Java 21+, where virtual threads are final. Downstream limits such as the DB connection pool still apply.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -115,6 +134,15 @@
                 java -Djdk.tracePinnedThreads=full -jar app.jar   # older JDKs
                 jfr print --events jdk.VirtualThreadPinned recording.jfr
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>"Pinning" means a virtual thread cannot unmount from its carrier while blocked, so the carrier platform thread is stuck too.</li>
+                  <li><code>-Djdk.tracePinnedThreads=full</code> made older JDKs (21&ndash;23) print a stack trace whenever a virtual thread blocked while pinned. It was removed in Java 24, when JEP 491 stopped <code>synchronized</code> from pinning.</li>
+                  <li>The portable way is JFR: the <code>jdk.VirtualThreadPinned</code> event is recorded when a pinned thread blocks for longer than a threshold. <code>jfr print --events ...</code> dumps those events from a recording, with stack traces showing the cause.</li>
+                  <li>The recording must be captured first, e.g. by starting the app with <code>-XX:StartFlightRecording</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -142,6 +170,16 @@
                 User u = CURRENT_USER.get();
                 boolean bound = CURRENT_USER.isBound();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>ScopedValue.newInstance()</code> creates a key, usually a <code>static final</code> constant like a <code>ThreadLocal</code>. It holds no value yet.</li>
+                  <li><code>ScopedValue.where(CURRENT_USER, user).run(...)</code> binds the value only while the lambda runs. Any method called from inside it, at any depth, can read it.</li>
+                  <li><code>CURRENT_USER.get()</code> returns the bound value; outside a binding it throws <code>NoSuchElementException</code>, so <code>isBound()</code> lets you check first.</li>
+                  <li>When <code>run</code> returns, the binding is gone automatically. There is no <code>set</code> and no <code>remove()</code> to forget, so nothing leaks between requests. A nested <code>where</code> can rebind it for an inner scope only.</li>
+                  <li>Scoped Values became final in Java 25 (JEP 506) and are cheap to use with many virtual threads.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -159,6 +197,16 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Structured concurrency is a <b>preview</b> API in Java 25 (JEP 505), so you must pass <code>--enable-preview</code> (with <code>--release 25</code>) to both <code>javac</code> and <code>java</code>.</li>
+                  <li><code>StructuredTaskScope.open()</code> creates a scope whose default policy is that all subtasks must succeed. Being in try-with-resources means the scope cannot outlive the method.</li>
+                  <li>Each <code>scope.fork(...)</code> starts the callable in a new virtual thread and returns a <code>Subtask</code> handle right away, so <code>findUser</code> and <code>fetchOrder</code> run in parallel.</li>
+                  <li><code>scope.join()</code> waits for both. If one throws, the scope cancels (interrupts) the other and <code>join()</code> throws, so you never wait on work whose result is useless.</li>
+                  <li>After a successful <code>join()</code>, <code>user.get()</code> and <code>order.get()</code> return the results. <code>close()</code> guarantees every forked thread has finished, so no thread leaks.</li>
+                </ol>
+              </div>
               <p>Other joiners: <code>Joiner.anySuccessfulResultOrThrow()</code> (race replicas), <code>Joiner.awaitAll()</code>.</p>
             </div>
           </details>
@@ -188,6 +236,17 @@
 
                 if (obj instanceof Point(int x, int y) && x == y) System.out.println("diagonal");
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Shape</code> is sealed with three record subtypes, so the compiler knows every possible case. <code>Point</code> is a nested component record.</li>
+                  <li><code>case Circle(Point(var x, var y), double r) when r &gt; 100</code> is a nested <b>record pattern</b>. It checks the type, calls the accessors to deconstruct <code>center</code> into <code>x</code>/<code>y</code> and binds <code>r</code>, and the <code>when</code> guard adds a condition.</li>
+                  <li>Order matters: the guarded <code>Circle</code> case must come before the plain <code>case Circle c</code>. Otherwise the unguarded case would <em>dominate</em> it and the compiler reports an error.</li>
+                  <li><code>Rect</code> is deconstructed two levels deep to compute the area. <code>case Line _</code> uses the unnamed pattern (Java 22) because the value is not needed.</li>
+                  <li>All three permitted types are covered, so the switch is exhaustive without <code>default</code>. Pattern switch and record patterns are final in Java 21 (JEPs 441, 440). Passing <code>null</code> throws an NPE because there is no <code>case null</code>.</li>
+                  <li>The last line uses a record pattern in <code>instanceof</code>. It deconstructs <code>Point</code> and the binding variables can be used right away in the <code>&amp;&amp; x == y</code> condition.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -200,6 +259,16 @@
                 map.forEach((_, v) -> total += v);
                 if (shape instanceof Circle(Point _, double r)) area = Math.PI * r * r;
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>catch (NumberFormatException _)</code>: we only care that parsing failed, not about the exception object, so we do not invent an unused name like <code>ignored</code>.</li>
+                  <li><code>for (var _ : list) count++;</code> only counts iterations; the element itself is never used.</li>
+                  <li><code>map.forEach((_, v) -&gt; ...)</code> ignores the key. Note that <code>total</code> must be a field here, since a lambda cannot change a local variable.</li>
+                  <li><code>Circle(Point _, double r)</code> matches any center without binding it, extracting only the radius. <code>_</code> can be used more than once in the same scope because it never introduces a name.</li>
+                  <li>Final in Java 22 (JEP 456). Since Java 9, <code>_</code> had been a reserved word, which is what allowed this new meaning.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -215,6 +284,16 @@
                     IO.println(nums.stream().sorted().toList());
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The file has no <code>class</code> declaration. The compiler wraps its fields and methods in an <em>implicit class</em> named after the file, and that class cannot be referenced by name from other code.</li>
+                  <li><code>void main()</code> is an instance main method: no <code>public</code>, <code>static</code> or <code>String[] args</code>. The launcher creates an instance and calls it.</li>
+                  <li><code>IO.readln(prompt)</code> prints the prompt and reads a line, and <code>IO.println</code> prints. <code>IO</code> lives in <code>java.lang</code>, so it needs no import.</li>
+                  <li>Compact source files automatically import the whole <code>java.base</code> module, which is why <code>List</code> works without an import. The last line prints <code>[1, 2, 3]</code> because the stream is sorted before <code>toList()</code>.</li>
+                  <li><code>java Hello.java</code> uses the source launcher to compile in memory and run. Final in Java 25 (JEP 512).</li>
+                </ol>
+              </div>
               <div class="tip">Great for scripts, teaching and quick prototypes; combine with the multi-file source launcher (JEP 458, Java 22) to run small multi-class programs without a build tool.</div>
             </div>
           </details>
@@ -233,6 +312,16 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Before Java 25, <code>super(...)</code> had to be the first statement. JEP 513 (final in 25) allows a <em>prologue</em> of statements before it.</li>
+                  <li>The age check runs before <code>Person</code>'s constructor, so an invalid object is never partly built.</li>
+                  <li><code>this.dept = ...</code> before <code>super()</code> is allowed: in the prologue you may <em>assign</em> the subclass's own fields, but you cannot read fields, call instance methods or pass <code>this</code> anywhere.</li>
+                  <li>Because <code>dept</code> is set before <code>super(...)</code> runs, an overridable method called by <code>Person</code>'s constructor would see a real <code>dept</code> instead of <code>null</code>.</li>
+                  <li><code>name.strip()</code> shows computing a constructor argument inline. Previously this needed a static helper method.</li>
+                </ol>
+              </div>
               <p>Benefit: no more static helper methods just to validate constructor arguments, and superclass constructors that call overridable methods now see initialized subclass fields.</p>
             </div>
           </details>
@@ -245,6 +334,15 @@
                 import module java.sql;
                 import java.sql.Date;        // single-type import resolves ambiguity with java.util.Date
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>import module java.base;</code> works like a wildcard import of every package the module exports (<code>java.util</code>, <code>java.io</code>, <code>java.time</code>, ...) in one line.</li>
+                  <li><code>import module java.sql;</code> imports <code>java.sql</code> and <code>javax.sql</code>, plus the packages of modules that <code>java.sql</code> <code>requires transitive</code> (such as <code>java.xml</code> and <code>java.logging</code>).</li>
+                  <li>Both <code>java.util</code> and <code>java.sql</code> export a class named <code>Date</code>, so plain <code>Date</code> would be ambiguous. A single-type import (<code>import java.sql.Date;</code>) takes priority over on-demand imports and resolves the ambiguity.</li>
+                  <li>Your code does not need to be a module itself; it works on the classpath. Final in Java 25 (JEP 511).</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -258,6 +356,15 @@
                 /// - see [TaxService#rateFor(String)]
                 public double net(double gross) { ... }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Lines starting with <code>///</code> are a Markdown doc comment and replace <code>/** ... */</code> with HTML tags (Java 23, JEP 467).</li>
+                  <li><code>**net**</code> renders as bold, the <code>-</code> lines become a bullet list and backticks become inline code. A blank <code>///</code> line separates paragraphs.</li>
+                  <li><code>[TaxService#rateFor(String)]</code> is a reference link: Javadoc resolves it to that method, just like <code>{@link}</code>.</li>
+                  <li>The method body <code>{ ... }</code> is a placeholder; only the comment matters here.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -274,6 +381,15 @@
                 long big = 42L;
                 if (big instanceof int i) IO.println("fits in int: " + i);   // safe narrowing check
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>This is a <b>preview</b> feature in Java 25 (JEP 507, 3rd preview), so it needs <code>--enable-preview</code> at compile time and run time.</li>
+                  <li><code>case 200</code> is a constant label. <code>case int i when i &gt;= 500</code> is a primitive type pattern with a guard, which was not allowed on an <code>int</code> switch before.</li>
+                  <li><code>case int i</code> matches every remaining <code>int</code>, so the switch is exhaustive without <code>default</code>.</li>
+                  <li><code>big instanceof int i</code> tests if the <code>long</code> value converts to <code>int</code> without loss. <code>42L</code> fits, so it prints <code>fits in int: 42</code>; a value above <code>Integer.MAX_VALUE</code> would make the test false instead of silently truncating.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -295,6 +411,15 @@
                 m.putLast("x", 1);
                 m.firstEntry(); m.pollLastEntry(); m.sequencedKeySet().reversed();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>getFirst()</code> returns <code>"a"</code> and <code>getLast()</code> returns <code>"c"</code>. These methods come from the new <code>SequencedCollection</code> interface (Java 21, JEP 431), which <code>List</code> now extends.</li>
+                  <li><code>addFirst("z")</code> makes the list <code>[z, a, b, c]</code>, so <code>reversed()</code> gives <code>[c, b, a, z]</code>. <code>reversed()</code> is a view, not a copy, so later changes to the list show up in it.</li>
+                  <li>On an empty collection, <code>getFirst()</code>/<code>getLast()</code> throw <code>NoSuchElementException</code>. On an unmodifiable list, <code>addFirst</code> throws <code>UnsupportedOperationException</code>.</li>
+                  <li><code>LinkedHashMap</code> implements <code>SequencedMap</code>: <code>putLast</code> inserts at the end, <code>firstEntry()</code> reads <code>x=1</code>, <code>pollLastEntry()</code> removes and returns the last entry, and <code>sequencedKeySet().reversed()</code> gives the keys in reverse order.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -324,6 +449,17 @@
                         (seen, item, down) -> !seen.add(key.apply(item)) || down.push(item));
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>windowFixed(3)</code> collects elements into lists of 3 and emits each full list downstream. The leftover <code>7</code> is emitted as a final partial window, giving <code>[[1, 2, 3], [4, 5, 6], [7]]</code>.</li>
+                  <li><code>windowSliding(2)</code> emits overlapping windows that move one element at a time, so 4 elements produce 3 windows <code>[[1, 2], [2, 3], [3, 4]]</code>.</li>
+                  <li><code>scan(() -&gt; 0, Integer::sum)</code> starts from 0 and emits the running state after each element: 0+1=1, 1+2=3, 3+3=6, 6+4=10.</li>
+                  <li><code>mapConcurrent(10, this::fetch)</code> runs <code>fetch</code> on virtual threads with at most 10 in flight, and still emits results in the original stream order.</li>
+                  <li>In the custom gatherer, <code>ofSequential(initializer, integrator)</code> gives each stream a fresh <code>HashSet</code> as state. For each item, if <code>seen.add</code> returns false (duplicate), the <code>||</code> short-circuits and returns <code>true</code> ("keep going") without pushing. Otherwise <code>down.push(item)</code> emits it and returns whether downstream still wants more elements.</li>
+                  <li>Stream Gatherers are final in Java 24 (JEP 485), so they are available on 25 LTS.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -341,6 +477,16 @@
                     long len = (long) strlen.invokeExact(str);    // 13
                 }   // memory freed deterministically
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Linker.nativeLinker()</code> gives the linker for the current platform's C calling convention. <code>defaultLookup().find("strlen")</code> finds the symbol in the standard C library.</li>
+                  <li><code>FunctionDescriptor.of(JAVA_LONG, ADDRESS)</code> describes the C signature <code>size_t strlen(const char*)</code>: the return value maps to <code>long</code> and the argument is a pointer. <code>downcallHandle</code> turns it into a Java <code>MethodHandle</code>.</li>
+                  <li><code>Arena.ofConfined()</code> owns off-heap memory that only the current thread can use. <code>allocateFrom("Hello Java 25")</code> copies the string as UTF-8 with a terminating NUL byte, as C expects.</li>
+                  <li><code>invokeExact</code> calls the native function. The <code>(long)</code> cast is required because <code>invokeExact</code> needs the exact type. The result is 13, the number of characters in <code>"Hello Java 25"</code>.</li>
+                  <li>When the try block ends, the arena closes and frees the memory deterministically; any later access fails safely instead of crashing. Final in Java 22 (JEP 454).</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -354,11 +500,29 @@
                     .thenExpand("session-key".getBytes(), 32);
                 SecretKey aesKey = hkdf.deriveKey("AES", params);
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>KDF.getInstance("HKDF-SHA256")</code> gets an HKDF implementation using the same provider-based factory pattern as <code>Cipher</code> or <code>MessageDigest</code>.</li>
+                  <li>HKDF has two phases. <code>ofExtract().addIKM(sharedSecret).addSalt(salt)</code> sets up the <em>extract</em> step, which condenses the input key material (e.g. a Diffie-Hellman shared secret) into a strong pseudorandom key.</li>
+                  <li><code>thenExpand("session-key".getBytes(), 32)</code> adds the <em>expand</em> step: the context "info" label separates keys for different purposes, and 32 is the output length in bytes (256 bits).</li>
+                  <li><code>deriveKey("AES", params)</code> runs both steps and wraps the 32 bytes as an AES-256 <code>SecretKey</code>. Final in Java 25 (JEP 510).</li>
+                </ol>
+              </div>
               <p><b>Stable Values</b> (preview, JEP 502) — lazily initialized, set-at-most-once values that the JIT treats like <code>final</code> constants. Useful for deferred, expensive initialization.</p>
               <script type="text/plain" class="code" data-lang="java">
                 private final StableValue<Logger> logger = StableValue.of();
                 Logger log() { return logger.orElseSet(() -> Logger.create(OrderService.class)); }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Stable Values are a <b>preview</b> API in Java 25 (JEP 502), so compile and run with <code>--enable-preview</code>.</li>
+                  <li><code>StableValue.of()</code> creates an empty holder; the field is <code>final</code> but its content is set later, at most once.</li>
+                  <li><code>orElseSet(supplier)</code> returns the value if set; otherwise it runs the supplier once, stores the result and returns it. This is thread-safe, so concurrent first calls still create only one <code>Logger</code>.</li>
+                  <li>Once set, the JIT can treat the value as a constant, like a <code>static final</code> field. You get lazy initialization without double-checked locking or <code>volatile</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -372,6 +536,15 @@
               <script type="text/plain" class="code" data-lang="bash">
                 java -XX:+UseCompactObjectHeaders -jar app.jar
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Every Java object starts with a header: a mark word (hash, lock and GC bits) plus a class pointer, normally 12&ndash;16 bytes on 64-bit JVMs.</li>
+                  <li><code>-XX:+UseCompactObjectHeaders</code> packs the class pointer into the mark word, so the header is 8 bytes. Small objects like <code>Integer</code> or small records shrink noticeably.</li>
+                  <li>In Java 24 it was experimental and also needed <code>-XX:+UnlockExperimentalVMOptions</code>. In Java 25 (JEP 519) it is a product option but still off by default, so you must pass the flag.</li>
+                  <li>No code changes are needed. Measure heap use and GC frequency before and after.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -385,6 +558,15 @@
                 # Production runs
                 java -XX:AOTCache=app.aot -jar app.jar
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The first command is a <b>training run</b>: the app runs normally while the JVM records which classes are loaded and linked and which methods are hot. On exit, <code>-XX:AOTCacheOutput=app.aot</code> writes the cache file (JEP 514 made this a single step in Java 25).</li>
+                  <li>In Java 24 the same result needed two commands, one with <code>-XX:AOTMode=record</code> and one with <code>-XX:AOTMode=create</code>.</li>
+                  <li>Production runs pass <code>-XX:AOTCache=app.aot</code>. Classes come from the cache already loaded and linked (JEP 483), and the stored method profiles (JEP 515) let the JIT compile hot code sooner.</li>
+                  <li>The cache is only valid for the same JDK build and a compatible classpath. Make the training run exercise typical startup paths so the cache is useful.</li>
+                </ol>
+              </div>
               <p>Spring Boot apps commonly see 30–40%+ faster startup with no code changes (unlike GraalVM native image, there are no closed-world restrictions).</p>
             </div>
           </details>
@@ -401,6 +583,15 @@
                 java -XX:+UseZGC -jar app.jar
                 java -XX:+UseShenandoahGC -XX:ShenandoahGCMode=generational -jar app.jar
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>-XX:+UseZGC</code> selects ZGC. Since Java 24 it is always generational (the old mode was removed), so <code>-XX:+ZGenerational</code> is no longer needed.</li>
+                  <li>Generational ZGC collects short-lived young objects more often and cheaply, while most work stays concurrent with the application, keeping pauses very short.</li>
+                  <li>The second line selects Shenandoah in generational mode. In Java 25 (JEP 521) this is a product feature, so the experimental unlock flag is no longer needed.</li>
+                  <li>With neither flag, the JVM uses G1, the default.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -427,6 +618,15 @@
               <script type="text/plain" class="code" data-lang="bash">
                 java -XX:StartFlightRecording:jdk.MethodTiming#filter=com.app.OrderService::placeOrder,filename=rec.jfr -jar app.jar
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>-XX:StartFlightRecording</code> starts Java Flight Recorder at JVM startup.</li>
+                  <li><code>jdk.MethodTiming#filter=com.app.OrderService::placeOrder</code> turns on the method-timing event (JEP 520, Java 25) for that one method. The JVM instruments it at runtime to record invocation counts and execution times, with no bytecode agent or code change.</li>
+                  <li><code>filename=rec.jfr</code> sets where the recording is saved; open it with the <code>jfr</code> tool or JDK Mission Control.</li>
+                  <li>Narrow filters keep overhead low: only the matched methods are instrumented.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>

@@ -82,6 +82,15 @@
                   onSale = computed(() => this.price() < 500);
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>input.required&lt;string&gt;()</code> and <code>input(0)</code> create <em>signal inputs</em>: the parent's binding value is read by calling <code>name()</code> / <code>price()</code>.</li>
+                  <li>While rendering, Angular tracks every signal the template reads. When the parent passes a new <code>price</code>, that signal changes and only this component's view is marked dirty and refreshed — this works with OnPush and zoneless apps.</li>
+                  <li><code>onSale</code> is a <code>computed</code>: it re-evaluates only when <code>price()</code> changes and caches the result, so <code>price = 400</code> shows the Sale badge, <code>price = 900</code> hides it.</li>
+                  <li>Clicking the button calls <code>add.emit(name())</code>; the parent receives the name via <code>(add)="onAdd($event)"</code>. <code>CurrencyPipe</code> must be in <code>imports</code> because standalone components only see what they import.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -132,6 +141,15 @@
                   ],
                 });
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>bootstrapApplication</code> starts the app from a standalone root component — no root NgModule; the <code>providers</code> array creates the root (environment) injector.</li>
+                  <li><code>provideZonelessChangeDetection()</code> removes Zone.js-driven checking: Angular now re-renders when signals change, template event handlers fire, the <code>async</code> pipe emits or <code>markForCheck()</code> is called.</li>
+                  <li><code>provideRouter(routes, withComponentInputBinding())</code> registers the routes and lets route params, query params, data and resolver results flow straight into component <code>input()</code>s.</li>
+                  <li><code>provideHttpClient(withInterceptors([authInterceptor]))</code> makes <code>HttpClient</code> injectable and wraps every request in the listed functional interceptors, in order.</li>
+                </ol>
+              </div>
               <div class="tip">Benefits: less boilerplate, clearer dependencies, better tree-shaking and simpler lazy loading. NgModules still work for legacy code.</div>
             </div>
           </details>
@@ -156,6 +174,15 @@
                   <li>No items</li>
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@if (user(); as u)</code> reads the signal once, and if it is truthy stores it in the local alias <code>u</code>; otherwise the <code>@else</code> branch (Sign in link) renders.</li>
+                  <li>Because <code>user()</code> is a signal read in the template, setting the user (e.g. after login) automatically swaps the branch on the next change detection.</li>
+                  <li><code>@for</code> requires <code>track</code>: Angular uses <code>item.id</code> as each row's identity, so when the list is re-fetched it reuses the existing DOM rows with the same id instead of destroying and re-creating them.</li>
+                  <li><code>$index</code> is a built-in loop variable (0-based, hence <code>i + 1</code>); <code>@empty</code> renders when the array has zero items.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="typescript">
                 // Custom attribute directive
                 @Directive({ selector: '[appHighlight]', host: { '(mouseenter)': 'on()', '(mouseleave)': 'off()' } })
@@ -166,6 +193,15 @@
                   off() { this.el.nativeElement.style.background = ''; }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The selector <code>[appHighlight]</code> attaches the directive to any element with that attribute; <code>inject(ElementRef)</code> gives access to that host element.</li>
+                  <li>The <code>host</code> metadata registers <code>mouseenter</code>/<code>mouseleave</code> listeners on the host element, calling <code>on()</code> and <code>off()</code>.</li>
+                  <li><code>alias: 'appHighlight'</code> lets the same attribute carry the value: <code>&lt;p appHighlight="pink"&gt;</code> sets <code>color()</code> to <code>'pink'</code>. Gotcha: a bare <code>sets <code>color()</code> to <code>'pink'</code>; with no binding it keeps the default <code>'yellow'</code>.lt;p appHighlightsets <code>color()</code> to <code>'pink'</code>; with no binding it keeps the default <code>'yellow'</code>.gt;</code> passes an empty string, not the default, so always give a value.</li>
+                  <li>Hovering sets the inline background; leaving clears it by assigning an empty string. (For SSR-safe code, <code>Renderer2</code> or a <code>host</code> style binding is preferred over touching <code>nativeElement</code>.)</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -181,6 +217,15 @@
                   }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@Pipe({ name: 'initials' })</code> makes the class usable in templates as <code>{{ fullName | initials }}</code>.</li>
+                  <li>Walk-through: <code>'asha rao'</code> → <code>split(' ')</code> gives <code>['asha','rao']</code> → first letters <code>['a','r']</code> → <code>join('')</code> = <code>'ar'</code> → <code>'AR'</code>.</li>
+                  <li>Pipes are pure by default: Angular calls <code>transform</code> again only when the input value changes (by <code>===</code> for primitives, by reference for objects), so it is cheap even in big lists.</li>
+                  <li>That is why mutating an array passed to a pure pipe does not re-run it — the reference is the same.</li>
+                </ol>
+              </div>
               <div class="note">Mutating an array (<code>list.push()</code>) won't re-trigger a pure pipe — create a new array instead.</div>
             </div>
           </details>
@@ -200,6 +245,15 @@
                 }
                 inc() { this.count.update(c => c + 1); }        // or this.count.set(5)
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>signal(0)</code> holds a value; reading <code>count()</code> inside a reactive context (template, <code>computed</code>, <code>effect</code>) registers a dependency.</li>
+                  <li><code>double</code> is lazy and memoised: it is computed on first read and recomputed only after <code>count</code> changes — reading it 10 times does the work once.</li>
+                  <li><code>effect</code> runs once initially, then again whenever a signal it read (<code>count</code>) changes. Effects are scheduled, so several quick updates may result in a single run with the latest value.</li>
+                  <li><code>inc()</code> uses <code>update(c =&gt; c + 1)</code> to derive the new value from the old; this notifies <code>double</code>, the effect and any template that reads them.</li>
+                </ol>
+              </div>
               <ul>
                 <li><code>computed</code> is read-only and recalculates only when a dependency changes.</li>
                 <li><code>effect</code> is for side effects (logging, localStorage, DOM sync) — not for deriving state.</li>
@@ -238,6 +292,15 @@
                 @Component({ selector: 'app-list', changeDetection: ChangeDetectionStrategy.OnPush, template: `...` })
                 export class ListComponent { items = input<Item[]>([]); }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>With <code>ChangeDetectionStrategy.OnPush</code>, Angular skips checking this component on every app-wide tick.</li>
+                  <li>It is checked only when an input changes reference (a new <code>items</code> array), an event fires in its template, a signal it reads changes, an <code>async</code> pipe emits, or <code>markForCheck()</code> is called.</li>
+                  <li>So <code>items.push(x)</code> on the parent's existing array is not detected through the input — pass a new array (<code>[...items, x]</code>) instead.</li>
+                  <li>Because <code>items</code> is a signal input, reading <code>items()</code> in the template also ties the view to that signal for precise updates.</li>
+                </ol>
+              </div>
               <div class="tip">Combine OnPush with immutable data and signals for predictable, fast rendering.</div>
             </div>
           </details>
@@ -288,6 +351,15 @@
                   add(item: Item) { this.items$.next([...this.items$.value, item]); }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>providedIn: 'root'</code> makes one shared instance for the whole app, so every component injecting <code>CartService</code> sees the same cart.</li>
+                  <li><code>BehaviorSubject</code> always holds a current value (starting with <code>[]</code>) and replays it immediately to each new subscriber — a late-loading header still gets the current count.</li>
+                  <li><code>add()</code> pushes a <em>new</em> array via <code>next([...value, item])</code>; immutability keeps OnPush components and comparisons working.</li>
+                  <li><code>count$</code> is derived with <code>map</code>, so it emits 0, then 1, 2… automatically every time <code>items$</code> emits. Keeping the subject <code>private</code> means only the service can change state.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -310,6 +382,16 @@
                   switchMap(q => this.http.get<Product[]>(`/api/products?q=${q}`).pipe(catchError(() => of([])))),
                 );
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>valueChanges</code> emits on every keystroke. <code>debounceTime(300)</code> waits until the user pauses typing for 300 ms and emits only the latest value.</li>
+                  <li><code>distinctUntilChanged()</code> drops a value equal to the previous one (e.g. typing <code>a</code> then deleting it back to the same term), and <code>filter</code> ignores terms of 2 characters or fewer.</li>
+                  <li><code>switchMap</code> maps each term to an HTTP call and <em>unsubscribes from the previous one</em> when a new term arrives, cancelling the stale request — so results for <code>lap</code> never overwrite results for <code>laptop</code>.</li>
+                  <li><code>catchError</code> is inside the inner pipe on purpose: a failed request becomes <code>[]</code> and the outer stream stays alive. Placed outside, one error would complete the whole search stream.</li>
+                  <li>Nothing runs until something subscribes, typically <code>results$ | async</code> in the template, which also unsubscribes on destroy.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -332,6 +414,14 @@
                   }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>inject(ApiService)</code> in a field initializer works because fields are initialized inside the injection context during construction.</li>
+                  <li><code>toSignal</code> subscribes to <code>stats$</code> immediately, exposes the latest value as a signal (<code>null</code> until the first emission) and unsubscribes automatically when the component is destroyed.</li>
+                  <li><code>interval(5000)</code> emits every 5 s; <code>takeUntilDestroyed()</code> (called in the constructor, so it can find <code>DestroyRef</code>) completes the stream when the component is destroyed — no manual <code>ngOnDestroy</code> and no leak.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -349,6 +439,15 @@
                   { path: '**', loadComponent: () => import('./not-found').then(m => m.NotFound) },
                 ];
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The router matches paths in array order and the first match wins, which is why the wildcard <code>'**'</code> must be last.</li>
+                  <li><code>loadComponent</code> uses a dynamic <code>import()</code>, so the bundler emits a separate chunk that is downloaded only when <code>/profile/42</code> is first visited.</li>
+                  <li><code>canMatch: [adminGuard]</code> runs before the route is matched: if it returns <code>false</code> the router keeps looking at other routes and the admin chunk is never downloaded.</li>
+                  <li><code>loadChildren</code> lazily loads a whole array of child routes (<code>ADMIN_ROUTES</code>) under <code>/admin</code>.</li>
+                </ol>
+              </div>
               <p>Each lazy route becomes a separate chunk downloaded on first navigation, reducing the initial bundle.</p>
             </div>
           </details>
@@ -370,6 +469,15 @@
 
                 // { path: 'admin', canActivate: [authGuard, roleGuard('ADMIN')], ... }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>A functional guard runs in an injection context, so it can call <code>inject()</code> directly.</li>
+                  <li>Return values: <code>true</code> allows navigation; a <code>UrlTree</code> cancels it and redirects (here to <code>/login?returnUrl=/orders</code>), which is preferred over calling <code>router.navigate</code> inside a guard. Observables or Promises of these are also allowed.</li>
+                  <li><code>roleGuard('ADMIN')</code> is a factory: calling it returns a new <code>CanActivateFn</code> that closes over <code>role</code>, so one function serves many roles.</li>
+                  <li>In <code>canActivate: [authGuard, roleGuard('ADMIN')]</code> every guard must allow navigation; if any returns <code>false</code> or a <code>UrlTree</code>, the route is not activated.</li>
+                </ol>
+              </div>
               <div class="note">Guards are UX only — always enforce authorization on the backend.</div>
             </div>
           </details>
@@ -388,6 +496,15 @@
                   user = input.required<User>();   // from resolver
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>When navigating to <code>/users/7</code>, the router runs <code>userResolver</code> <em>before</em> activating the route and waits for the returned Observable to emit.</li>
+                  <li><code>route.paramMap.get('id')</code> reads <code>'7'</code>; the <code>!</code> tells TypeScript it is not null because the path declares <code>:id</code>.</li>
+                  <li>With <code>withComponentInputBinding()</code>, the router binds the path param to the <code>id</code> input and the resolved value under key <code>user</code> to the <code>user</code> input, so the component renders with data ready.</li>
+                  <li>Trade-off: navigation waits for the request, so slow APIs delay the page — show a global loading indicator or load inside the component instead.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -421,6 +538,15 @@
                 // app.config.ts
                 provideHttpClient(withInterceptors([authInterceptor]), withFetch());
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Each <code>HttpClient</code> call passes through the interceptor chain: <code>req</code> is the outgoing request and <code>next(req)</code> forwards it to the next interceptor or the backend, returning the response Observable.</li>
+                  <li>Requests are immutable, so <code>req.clone({ setHeaders })</code> creates a copy with the <code>Authorization</code> header — only for URLs starting with <code>/api</code>, so tokens never go to third-party hosts.</li>
+                  <li><code>catchError</code> on the response stream sees server errors: on 401 it logs out and redirects, then re-throws with <code>throwError</code> so the calling code still gets the error.</li>
+                  <li><code>inject()</code> works because functional interceptors run in an injection context. <code>withFetch()</code> makes HttpClient use the Fetch API instead of XMLHttpRequest (recommended for SSR).</li>
+                </ol>
+              </div>
               <div class="tip">Requests are immutable — always <code>clone()</code>. Only attach tokens to your own API origin to avoid leaking them to third parties. For refresh-token flows, queue requests while one refresh call is in flight.</div>
             </div>
           </details>
@@ -440,6 +566,16 @@
                   create(e: Employee) { return this.http.post<Employee>('/api/employees', e); }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>http.get</code> returns a <em>cold</em> Observable: no request is sent until someone subscribes, and each subscription sends its own request.</li>
+                  <li><code>params: { page, size: 20 }</code> is serialized into the URL as <code>/api/employees?page=0&amp;size=20</code>.</li>
+                  <li><code>retry({ count: 2, delay: 500 })</code> resubscribes on error, i.e. re-sends the request up to 2 more times with a 500 ms pause (3 attempts total).</li>
+                  <li><code>catchError</code> comes after <code>retry</code>, so it runs only if all attempts fail, and replaces the error with an empty page so the UI still renders.</li>
+                  <li><code>create()</code> is also cold: calling it without <code>.subscribe()</code> sends nothing — a common interview gotcha.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -481,6 +617,15 @@
                   }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>NonNullableFormBuilder</code> creates controls typed as <code>string</code> (not <code>string | null</code>) and makes <code>reset()</code> return them to their initial values.</li>
+                  <li>Each control lists synchronous validators; Angular runs them on every value change and sets <code>errors</code>, e.g. <code>{ email: true }</code> or <code>{ minlength: {...} }</code>.</li>
+                  <li><code>passwordMatch</code> is attached at <em>group</em> level, so it can read both controls; it returns <code>null</code> when they match and <code>{ mismatch: true }</code> on the group otherwise.</li>
+                  <li><code>submit()</code> calls <code>markAllAsTouched()</code> when invalid so every error message becomes visible; <code>getRawValue()</code> returns all values (including disabled controls) with full typing.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="html">
                 <form [formGroup]="form" (ngSubmit)="submit()">
                   <input formControlName="email" />
@@ -493,6 +638,15 @@
                   <button [disabled]="form.invalid">Register</button>
                 </form>
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>[formGroup]="form"</code> connects the DOM form to the component's <code>FormGroup</code>; <code>formControlName</code> links each input to a control by key, syncing value both ways.</li>
+                  <li>The email error shows only when the control is <code>touched</code> (blurred once) <em>and</em> has the <code>email</code> error, so users are not shouted at while typing.</li>
+                  <li><code>form.hasError('mismatch')</code> checks the group, because that is where the cross-field validator puts its error.</li>
+                  <li><code>(ngSubmit)</code> fires on submit (button click or Enter), and <code>[disabled]="form.invalid"</code> re-evaluates on every change detection pass.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -513,6 +667,15 @@
                 private apiUrl = inject(API_URL);
                 private logger = inject(Logger, { optional: true });
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>InjectionToken</code> gives a unique DI key for values that have no class, like a URL string or a config object.</li>
+                  <li><code>{ provide: API_URL, useValue: '...' }</code> registers the value; <code>inject(API_URL)</code> looks it up starting at the current element injector, walking up to parents, then the environment/root injector.</li>
+                  <li>If no provider is found, Angular throws <code>NullInjectorError</code>; with <code>{ optional: true }</code> it returns <code>null</code> instead, so <code>logger</code> may be null and should be used as <code>this.logger?.log(...)</code>.</li>
+                  <li><code>inject()</code> must be called in an injection context: field initializers, constructors, factory functions, guards or interceptors.</li>
+                </ol>
+              </div>
               <div class="tip"><code>providedIn: 'root'</code> services are singletons and tree-shakable if unused.</div>
             </div>
           </details>
@@ -535,6 +698,15 @@
                   add(title: string) { this._todos.update(l => [...l, { id: crypto.randomUUID(), title, done: false }]); }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>_todos</code> is a private writable signal; <code>asReadonly()</code> exposes a read-only view, so components can read <code>todos()</code> but only the store can change it.</li>
+                  <li><code>update(l =&gt; [...l, newTodo])</code> creates a new array; signals compare with <code>Object.is</code>, so a new reference notifies dependents (pushing into the old array would not).</li>
+                  <li><code>remaining</code> recomputes only when <code>_todos</code> changes and caches the count — adding 2 todos to an empty list makes it 2.</li>
+                  <li>Any template reading <code>todos()</code> or <code>remaining()</code> is re-rendered automatically, with no subscriptions to manage.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -558,6 +730,15 @@
                   <p>Could not load chart</p>
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The <code>@defer</code> block's component and its dependencies are split into a separate chunk (when they are standalone and not used eagerly elsewhere in the same file).</li>
+                  <li>Initially only <code>@placeholder</code> renders. <code>prefetch on idle</code> downloads the chunk when the browser is idle; <code>on viewport</code> renders the real content when the placeholder scrolls into view (via IntersectionObserver).</li>
+                  <li>If the chunk is still downloading at trigger time, <code>@loading</code> shows; <code>minimum 300ms</code> keeps the spinner visible at least that long to avoid a flicker.</li>
+                  <li>If loading fails, <code>@error</code> renders. On the server (SSR), the placeholder is rendered and the trigger runs in the browser.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -605,6 +786,16 @@
                   expect(fixture.nativeElement.querySelector('h3').textContent).toContain('Laptop');
                 });
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>provideHttpClient()</code> plus <code>provideHttpClientTesting()</code> replaces the real backend, so no network calls happen; <code>HttpTestingController</code> lets the test answer requests.</li>
+                  <li><code>subscribe</code> triggers the cold POST; <code>expectOne</code> asserts exactly one request went to that URL and returns it so its method can be checked.</li>
+                  <li><code>req.flush(...)</code> delivers the fake response synchronously, which runs the <code>expect(e.id).toBe(1)</code> inside the subscribe callback.</li>
+                  <li><code>http.verify()</code> in <code>afterEach</code> fails the test if any unexpected request is still pending.</li>
+                  <li>In the component test, <code>componentRef.setInput('name', 'Laptop')</code> sets the signal input and <code>detectChanges()</code> renders the template so the <code>h3</code> contains the text.</li>
+                </ol>
+              </div>
               <div class="tip">Karma is deprecated; new projects use Jest or Vitest for unit tests and Playwright or Cypress for end-to-end tests.</div>
             </div>
           </details>

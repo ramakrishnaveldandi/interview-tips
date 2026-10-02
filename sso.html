@@ -111,6 +111,16 @@
                 6. App validates id_token (signature, iss, aud, exp, nonce) and creates a local session
                 7. User opens second app ──▶ redirect to IdP ──▶ IdP session already exists ──▶ no login prompt (SSO!)
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Steps 1–2: the app finds no local session and redirects to the IdP. <code>scope=openid</code> makes it OIDC. <code>state</code> (CSRF protection), <code>nonce</code> (replay protection) and the PKCE <code>code_challenge</code> are remembered for later checks.</li>
+                  <li>Steps 3–4: the user logs in at the IdP, which sets its <b>own</b> session cookie on the IdP domain and redirects back with a one-time <code>code</code>.</li>
+                  <li>Step 5: the app exchanges the code, plus its <code>code_verifier</code> and secret, at the token endpoint, server to server, and receives the ID, access and refresh tokens.</li>
+                  <li>Step 6: the app validates the ID token's signature (JWKS), <code>iss</code>, <code>aud</code> (its own <code>client_id</code>), <code>exp</code> and <code>nonce</code>, then creates its own session.</li>
+                  <li>Step 7 is the SSO part: a second app redirects to the same IdP, the IdP session cookie is already there, so a code is issued immediately with no password prompt.</li>
+                </ol>
+              </div>
               <p>The <b>discovery document</b> at <code>{issuer}/.well-known/openid-configuration</code> lists all endpoints, so clients configure themselves from just the issuer URL:</p>
               <script type="text/plain" class="code" data-lang="json">
                 {
@@ -124,6 +134,16 @@
                   "code_challenge_methods_supported": ["plain", "S256"]
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Spring reads this document from <code>{issuer}/.well-known/openid-configuration</code>, so you configure only the issuer URL.</li>
+                  <li><code>authorization_endpoint</code> is where the browser is redirected. <code>token_endpoint</code> is where the backend exchanges the code. <code>userinfo_endpoint</code> returns profile claims.</li>
+                  <li><code>jwks_uri</code> serves the public keys used to verify token signatures. Keys are chosen by <code>kid</code>, which makes key rotation easy.</li>
+                  <li><code>end_session_endpoint</code> is used for RP-initiated logout. <code>issuer</code> must match the <code>iss</code> claim in every token exactly.</li>
+                  <li><code>code_challenge_methods_supported</code> includes <code>plain</code>, but clients should always use <code>S256</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -163,6 +183,15 @@
                             issuer-uri: https://sso.example.com/realms/shop
                             user-name-attribute: preferred_username
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>registration.keycloak</code> defines the client and its id becomes <code>{registrationId}</code> = <code>keycloak</code>. The client id and secret must match the confidential client in the Keycloak realm.</li>
+                  <li><code>authorization-grant-type: authorization_code</code> with <code>scope: openid ...</code> selects OIDC login. Spring will require and validate an ID token.</li>
+                  <li><code>redirect-uri</code> resolves to <code>https://app/login/oauth2/code/keycloak</code>, the callback URL that <code>OAuth2LoginAuthenticationFilter</code> listens on. It must match the Keycloak setting exactly.</li>
+                  <li><code>issuer-uri</code> lets Spring discover all endpoints and keys. <code>user-name-attribute: preferred_username</code> makes <code>principal.getName()</code> return the username instead of the <code>sub</code> UUID.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="java">
                 @Bean
                 SecurityFilterChain web(HttpSecurity http) throws Exception {
@@ -178,6 +207,15 @@
                     return Map.of("name", user.getFullName(), "email", user.getEmail(), "roles", user.getAuthorities());
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>/</code> and <code>/public/**</code> are open. Any other URL from an anonymous browser gets a 302 to <code>/oauth2/authorization/keycloak</code>, and from there to Keycloak. Spring goes straight to the IdP because only one registration is configured.</li>
+                  <li>After login, Keycloak redirects to <code>/login/oauth2/code/keycloak</code>. Spring checks <code>state</code>, exchanges the code, validates the ID token, and stores the authenticated <code>OidcUser</code> in the HTTP session.</li>
+                  <li><code>@AuthenticationPrincipal OidcUser</code> injects that user. <code>getFullName()</code> / <code>getEmail()</code> read the standard <code>name</code> / <code>email</code> claims.</li>
+                  <li><code>getAuthorities()</code> holds <code>OIDC_USER</code> and <code>SCOPE_*</code> by default. IdP roles appear only if you map them (see the role-mapping question).</li>
+                </ol>
+              </div>
               <p>In Keycloak create a confidential client with <b>Standard flow</b> enabled and valid redirect URI <code>https://app.example.com/login/oauth2/code/keycloak</code>.</p>
             </div>
           </details>
@@ -207,6 +245,15 @@
                             issuer-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0
                             user-name-attribute: preferred_username
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Two registrations, <code>okta</code> and <code>entra</code>, live side by side. Spring's default login page offers both, and each gets its own callback <code>/login/oauth2/code/{id}</code>.</li>
+                  <li>Each <code>provider.issuer-uri</code> points Spring at that IdP's discovery document. Okta's <code>/oauth2/default</code> is its default authorization server, and Entra's <code>/{tenant}/v2.0</code> issuer pins login to one tenant.</li>
+                  <li><code>groups</code> in the Okta scope asks for group membership, which appears as a claim if a groups claim is configured in Okta.</li>
+                  <li><code>user-name-attribute: preferred_username</code> makes the Entra principal name the user's UPN or email instead of an opaque ID. Secrets come from environment variables.</li>
+                </ol>
+              </div>
               <div class="tip">Entra ID sends app roles in the <code>roles</code> claim and group object IDs in <code>groups</code> (if enabled in "Token configuration"). Multi-tenant apps use <code>/common</code> or <code>/organizations</code> and must validate the <code>tid</code> claim themselves.</div>
             </div>
           </details>
@@ -231,6 +278,15 @@
                     };
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>After OIDC login, Spring builds the default authorities (<code>OIDC_USER</code>, <code>SCOPE_*</code>) and then passes them through your <code>GrantedAuthoritiesMapper</code> bean, which <code>oauth2Login</code> picks up automatically.</li>
+                  <li>The mapper keeps the originals and looks for the <code>OidcUserAuthority</code>, which carries the validated ID token.</li>
+                  <li>It reads Keycloak's nested <code>realm_access</code> claim (a map) and its <code>roles</code> list, and adds <code>ROLE_&lt;role&gt;</code> for each, so <code>hasRole("admin")</code> works. Role names are case-sensitive.</li>
+                  <li>The mapped set is stored in the session's <code>Authentication</code>. A user missing the role then gets <b>403</b> from URL rules or <code>@PreAuthorize</code>.</li>
+                </ol>
+              </div>
               <p>Alternative: wrap <code>OidcUserService</code>, call <code>super.loadUser()</code>, look the user up in your own database for app-specific permissions, then return a <code>DefaultOidcUser</code> with merged authorities.</p>
               <div class="note">In Keycloak, realm roles appear in the ID token only if the "roles" client scope mapper is configured to add them — check with a token decoder.</div>
             </div>
@@ -262,6 +318,15 @@
                   </saml2:AttributeStatement>
                 </saml2:Assertion>
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Issuer</code> says which IdP made the assertion. The SP accepts it only if it matches the asserting party in its configuration.</li>
+                  <li><code>ds:Signature</code> is checked against the IdP certificate from the metadata. Any change to the XML (for example adding a group) breaks the signature, and the login is rejected.</li>
+                  <li><code>Conditions</code> limit when and where the assertion is valid. It must be used between <code>NotBefore</code> and <code>NotOnOrAfter</code> (a short window, to resist replay), and <code>Audience</code> must equal <b>this</b> SP's entity ID, so an assertion meant for another app is refused.</li>
+                  <li><code>NameID</code> becomes the principal name (the user's email here). <code>AttributeStatement</code> values such as <code>groups=HR-Admins</code> can be mapped to authorities.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="hard">
@@ -283,6 +348,15 @@
                             assertingparty:
                               metadata-uri: https://idp.example.com/app/abc123/sso/saml/metadata
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>registration.corp-idp</code> creates one relying-party registration, and <code>corp-idp</code> becomes the <code>{registrationId}</code> in every SAML URL.</li>
+                  <li><code>entity-id</code> is the SP's unique name. The IdP puts it in the assertion's <code>Audience</code>, and Spring checks that it matches.</li>
+                  <li><code>signing.credentials</code> is the SP's own private key and certificate, used to sign <code>AuthnRequest</code> and logout messages. The IdP verifies them with the certificate in your SP metadata.</li>
+                  <li><code>assertingparty.metadata-uri</code> downloads the IdP's metadata: its entity ID, SSO/SLO endpoints and the verification certificates used to check assertion signatures.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="java">
                 @Bean
                 SecurityFilterChain saml(HttpSecurity http) throws Exception {
@@ -293,6 +367,15 @@
                     return http.build();
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>saml2Login</code>: an anonymous request is redirected to <code>/saml2/authenticate/corp-idp</code>. That builds an <code>AuthnRequest</code> and sends the browser to the IdP (redirect or POST binding).</li>
+                  <li>The IdP POSTs a signed <code>SAMLResponse</code> to the ACS URL <code>/login/saml2/sso/corp-idp</code>. Spring's OpenSAML-based provider checks the signature, issuer, audience, time window and <code>InResponseTo</code>, then creates a <code>Saml2Authentication</code> session.</li>
+                  <li><code>saml2Logout</code> handles <code>/logout</code> by sending a signed <code>LogoutRequest</code> to the IdP, and also processes logout requests the IdP sends. This is why signing credentials are required.</li>
+                  <li><code>saml2Metadata</code> publishes an SP metadata XML (entity ID, ACS URL, signing certificate) that the IdP admin imports to set up trust.</li>
+                </ol>
+              </div>
               <p>The ACS URL is <code>{baseUrl}/login/saml2/sso/{registrationId}</code>. The principal is a <code>Saml2AuthenticatedPrincipal</code>; read attributes with <code>getFirstAttribute("email")</code>.</p>
             </div>
           </details>
@@ -322,6 +405,15 @@
                     return http.build();
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>When a user POSTs to <code>/logout</code>, <code>LogoutFilter</code> invalidates the local session and clears the <code>SecurityContext</code>. Only the app is logged out at this point.</li>
+                  <li><code>OidcClientInitiatedLogoutSuccessHandler</code> then sends a 302 to the IdP's <code>end_session_endpoint</code> (from discovery) with <code>id_token_hint</code> and <code>post_logout_redirect_uri=https://app/goodbye</code>. The IdP ends its SSO session and redirects back.</li>
+                  <li>Make sure <code>/goodbye</code> is <code>permitAll()</code>. Here <code>anyRequest().authenticated()</code> would send the logged-out user straight back into a login.</li>
+                  <li><code>oidcLogout().backChannel()</code> exposes <code>/logout/connect/back-channel/{registrationId}</code>. When the user logs out elsewhere, the IdP POSTs a signed logout token there, and Spring validates it and ends the matching local sessions by <code>sid</code>/<code>sub</code>.</li>
+                </ol>
+              </div>
               <p>Back-channel endpoint: <code>/logout/connect/back-channel/{registrationId}</code> — register it in the IdP client settings.</p>
             </div>
           </details>
@@ -370,6 +462,15 @@
                   ],
                 };
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>authority</code> is the IdP issuer. The library reads its discovery document, generates PKCE values, and redirects to the authorize endpoint with <code>responseType: 'code'</code>.</li>
+                  <li>After login, the IdP returns to <code>redirectUrl</code>. The library exchanges the code plus verifier for tokens (a public client, so no secret) and validates the ID token.</li>
+                  <li><code>offline_access</code> + <code>useRefreshToken</code> + <code>silentRenew</code> renew the access token with the refresh token before it expires, so the user isn't sent back to the login page.</li>
+                  <li>The <code>authInterceptor</code> attaches <code>Authorization: Bearer</code> only to URLs in <code>secureRoutes</code>, so tokens never leak to third-party hosts. Spring Boot validates them as a resource server (401 or 403).</li>
+                </ol>
+              </div>
               <p><b>Option B — BFF (recommended)</b>: Spring Cloud Gateway is a confidential OAuth2 client with <code>oauth2Login</code>; the SPA only has a session cookie and the gateway forwards the token downstream with <code>TokenRelay</code>.</p>
               <script type="text/plain" class="code" data-lang="yaml">
                 spring:
@@ -386,6 +487,15 @@
                               predicates:
                                 - Path=/api/orders/**
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The gateway is also configured with <code>oauth2Login</code> (not shown), so the browser logs in through it and holds only a session cookie.</li>
+                  <li><code>TokenRelay=</code> on every route takes the logged-in user's access token from the gateway's authorized-client store, refreshing it if needed, and adds it as <code>Authorization: Bearer</code> to the downstream request.</li>
+                  <li><code>SaveSession</code> forces the WebSession to be saved before forwarding, so token and session updates are persisted. This matters with Spring Session or Redis.</li>
+                  <li>The <code>orders</code> route forwards <code>/api/orders/**</code> to <code>orders-service</code>, which validates the relayed JWT as a normal resource server.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">

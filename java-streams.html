@@ -80,6 +80,15 @@
 
                 Stream<String> lazy = Stream.of("a", "b").peek(System.out::println);  // prints NOTHING: no terminal op
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Stream.of(...)</code> is the source, and <code>filter</code>, <code>map</code> and <code>limit</code> are lazy intermediate ops. Nothing runs until the terminal <code>toList()</code> starts pulling elements.</li>
+                  <li>Each element goes through the whole pipeline before the next one starts. <code>"one"</code> and <code>"two"</code> have length 3, so they fail <code>length() &gt; 3</code> and never get to <code>map</code>. That is why you see "filter one", "filter two" with no map line after them.</li>
+                  <li><code>"three"</code> passes the filter, gets mapped to <code>"THREE"</code>, and reaches <code>limit(1)</code>. The limit is now full, so it short-circuits and the stream stops pulling. <code>"four"</code> is never filtered.</li>
+                  <li>The last line prints nothing. <code>peek</code> is an intermediate op, and with no terminal operation the pipeline never runs.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -101,6 +110,15 @@
                 Stream<Map.Entry<String, Integer>> s12 = map.entrySet().stream();
                 Stream<String> s13 = Stream.<String>builder().add("x").add("y").build();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Every line only builds a stream. Nothing is evaluated until a terminal op is called.</li>
+                  <li><code>Arrays.stream(int[])</code>, <code>IntStream.range</code> and <code>String.chars()</code> give primitive <code>IntStream</code>s, so the numbers are never boxed. <code>range(0, 5)</code> excludes the end (0..4). <code>rangeClosed</code> includes it.</li>
+                  <li><code>Stream.iterate(seed, f)</code> and <code>Stream.generate</code> are infinite, so you need a short-circuit like <code>limit(5)</code>. The 3-arg <code>iterate</code> (Java 9) stops once the condition fails, giving 1, 3, 9, 27, 81.</li>
+                  <li><code>Files.lines</code> holds an open file handle, so use it in try-with-resources. <code>Stream.ofNullable</code> returns an empty stream for <code>null</code> instead of throwing an NPE.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -167,6 +185,14 @@
                     .flatMap(line -> Arrays.stream(line.split(" ")))
                     .toList();                                                                 // [hello, world, java, streams]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>map(List::stream)</code> turns each inner list into exactly one <code>Stream</code>. You get a list of 3 stream objects, not numbers.</li>
+                  <li><code>flatMap(List::stream)</code> also makes one stream per inner list, but then joins them into a single stream: 1, 2 → 3 → 4, 5, giving <code>[1, 2, 3, 4, 5]</code>.</li>
+                  <li>In the word example each line is split into an array, <code>Arrays.stream</code> turns the array into a stream, and <code>flatMap</code> merges the words of both lines in encounter order.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -184,6 +210,15 @@
                 int totalLength = Stream.of("java", "spring", "sql")
                     .reduce(0, (acc, s) -> acc + s.length(), Integer::sum);   // 13
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>reduce(0, Integer::sum)</code> starts with the identity 0 and then folds: 0+1+2+3+4+5 = 15.</li>
+                  <li><code>reduce(Integer::max)</code> has no identity, so on an empty stream it has nothing to return. That is why it returns an <code>Optional</code>, here <code>Optional[5]</code>.</li>
+                  <li>For the product the identity is 1, because multiplying by 1 changes nothing: 1·1·2·3·4·5 = 120.</li>
+                  <li>The 3-arg form takes Strings in and gives an int out. The accumulator adds each length (4 + 6 + 3 = 13), and the combiner <code>Integer::sum</code> merges partial sums when the stream runs in parallel.</li>
+                </ol>
+              </div>
               <ul>
                 <li><b>Identity</b> must be a neutral value: <code>0</code> for sum, <code>1</code> for product. A wrong identity (e.g. <code>10</code>) gives wrong answers in parallel because it is applied once per chunk.</li>
                 <li>The accumulator must be <b>associative</b> — <code>(a - b)</code> is not, so subtraction gives different results in parallel.</li>
@@ -205,6 +240,14 @@
                 supplier.get().count();
                 supplier.get().toList();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>A stream is a one-shot pipeline. The first <code>count()</code> is a terminal op, and it marks the stream as consumed.</li>
+                  <li>The second <code>count()</code> on the same object throws <code>IllegalStateException</code>, because the elements have already been used up.</li>
+                  <li>A <code>Supplier&lt;Stream&gt;</code> builds a new stream every time you call <code>get()</code>, so each terminal op gets its own fresh pipeline.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -234,6 +277,15 @@
                 // IntSummaryStatistics{count=3, sum=27, min=4, average=9.000000, max=15}
                 List<Integer> boxed = IntStream.rangeClosed(1, 3).boxed().toList();             // [1, 2, 3]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>mapToInt(Integer::intValue)</code> unboxes each <code>Integer</code> into an <code>IntStream</code>. <code>sum()</code> only exists on primitive streams: 4 + 8 + 15 = 27.</li>
+                  <li><code>average()</code> returns <code>OptionalDouble</code> because an empty stream has no average. Here 27 / 3 = 9.0.</li>
+                  <li><code>summaryStatistics()</code> works out count, sum, min, average and max in one pass, so you see all five values in the output.</li>
+                  <li><code>boxed()</code> turns the <code>IntStream</code> 1..3 back into a <code>Stream&lt;Integer&gt;</code> so it can be collected into a <code>List</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -254,6 +306,13 @@
                 // Good
                 List<String> result = names.stream().filter(n -> n.startsWith("A")).toList();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The bad version filters and then calls <code>forEach(out::add)</code>, which writes into an outside <code>ArrayList</code>. <code>ArrayList</code> is not thread-safe, so in a parallel stream elements can be lost or an exception can be thrown.</li>
+                  <li>The good version lets the terminal op <code>toList()</code> build the result. The stream handles accumulation, and the result is correct in parallel too.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -269,6 +328,13 @@
                     })
                     .toList();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Files.readString</code> throws the checked <code>IOException</code>, but <code>Function.apply</code> cannot declare checked exceptions. Writing it directly would not compile.</li>
+                  <li>The lambda catches the exception and wraps it in the unchecked <code>UncheckedIOException</code>. That exception propagates out of <code>toList()</code> and stops the pipeline at the first failing path.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -295,6 +361,15 @@
                 // Java 24+: batches of 3
                 Stream.of(1, 2, 3, 4, 5, 6, 7).gather(Gatherers.windowFixed(3)).toList();  // [[1, 2, 3], [4, 5, 6], [7]]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>takeWhile(n -&gt; n &lt; 5)</code> takes 1, 2, 3, and stops for good at 10. The trailing 4 is never considered, so the result is <code>[1, 2, 3]</code>. A <code>filter</code> would have kept 4 as well.</li>
+                  <li><code>dropWhile</code> does the opposite. It drops 1, 2, 3 and keeps everything from the first failure on, including 4: <code>[10, 4]</code>.</li>
+                  <li><code>Predicate.not(String::isBlank)</code> flips a method reference, so you don't have to write <code>s -&gt; !s.isBlank()</code>.</li>
+                  <li><code>Gatherers.windowFixed(3)</code> groups elements into lists of 3. The 7 elements give two full windows and a last partial window <code>[7]</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -341,6 +416,14 @@
                         LinkedHashMap::new));          // keep insertion order
                 // {java=4, sql=3}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Each word is a key (<code>Function.identity()</code>) and its length is the value.</li>
+                  <li>The second <code>"java"</code> is a duplicate key. Without the merge function <code>(first, second) -&gt; first</code>, <code>toMap</code> would throw <code>IllegalStateException</code>. With it, the first value is kept.</li>
+                  <li>The <code>LinkedHashMap::new</code> supplier keeps the order in which keys were first inserted, so the output is <code>{java=4, sql=3}</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -377,6 +460,14 @@
                     .forEach(n -> System.out.println(n + " on " + Thread.currentThread().getName()));
                 // 3 on main, 1 on ForkJoinPool.commonPool-worker-1, ... (order varies)
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>IntStream.rangeClosed</code> splits cleanly (it is a sized, indexed range). <code>parallel()</code> splits it into chunks that run on <code>ForkJoinPool.commonPool()</code>.</li>
+                  <li>Each chunk filters and counts its own multiples of 3, and the partial counts are added together at the end. The result (3,333,333) is the same as sequential.</li>
+                  <li>In the <code>forEach</code> example, elements run on different threads at the same time, including the calling <code>main</code> thread. That is why both the order and the thread names change from run to run.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -417,6 +508,14 @@
                 int wrong = IntStream.rangeClosed(1, 4).parallel().reduce(10, Integer::sum); // not 20! identity added per chunk
                 int right = 10 + IntStream.rangeClosed(1, 4).parallel().sum();              // 20
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Bug 1: many threads call <code>ArrayList.add</code> at once. It does an unsynchronised "write slot, then bump size", so updates get lost (size &lt; 10000) or an internal resize races and throws. <code>boxed().toList()</code> lets each thread build its own part and merges them safely.</li>
+                  <li>Bug 2: parallel <code>forEach</code> prints elements in whatever order the threads finish. <code>forEachOrdered</code> keeps encounter order (12345), but some of the parallel speed-up is lost.</li>
+                  <li>Bug 3: the identity 10 is used once per chunk, so with k chunks you get 10·k + 10 instead of 20. Use a neutral identity (0) and add the 10 outside the stream.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -437,6 +536,14 @@
                 // Or resize the common pool globally (JVM-wide!)
                 // -Djava.util.concurrent.ForkJoinPool.common.parallelism=8
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>pool.submit(...)</code> runs the lambda as a task inside the custom 4-thread <code>ForkJoinPool</code>.</li>
+                  <li>A parallel stream started from inside a ForkJoinPool thread forks its subtasks into that same pool, so the prime check uses those 4 threads instead of the shared common pool.</li>
+                  <li><code>get()</code> blocks until the count is ready. <code>shutdown()</code> in <code>finally</code> stops the pool's threads even if an exception was thrown.</li>
+                </ol>
+              </div>
               <div class="note">For I/O fan-out, don't use parallel streams at all — use an executor or virtual threads (see <a href="java.html">Core Java → Virtual threads</a>), or Java 24's <code>Gatherers.mapConcurrent(n, fn)</code>.</div>
             </div>
           </details>
@@ -453,6 +560,14 @@
                 ConcurrentMap<Integer, Long> byLength = words.parallelStream()
                     .collect(Collectors.groupingByConcurrent(String::length, Collectors.counting()));
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>words.parallelStream()</code> splits the list across threads.</li>
+                  <li><code>groupingByConcurrent</code> has all threads write into one shared <code>ConcurrentMap</code> keyed by word length, instead of building a map per chunk and merging them. <code>counting()</code> adds up each group as a <code>Long</code>.</li>
+                  <li>The result is unordered, which is fine here. Use it when the order of elements inside a group doesn't matter.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -481,6 +596,15 @@
                 List<String>  words = List.of("java", "spring", "angular", "java", "sql", "spring", "java");
                 String sentence = "Java is fun and Java is powerful";
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Employee</code> is a record, an immutable data class. It automatically gets accessors such as <code>name()</code> and <code>salary()</code>, plus <code>equals</code>, <code>hashCode</code> and <code>toString</code>.</li>
+                  <li><code>emps</code> has 7 employees in 3 departments: IT (Asha, Ravi, Kiran), HR (Meena, Arjun), Finance (John, Priya). Ravi and Kiran both earn 95000, and that tie matters in the sorting questions.</li>
+                  <li><code>nums</code> has 10 numbers with duplicates 3, 5 and 8. <code>words</code> has "java" 3 times and "spring" twice. <code>sentence</code> contains "Java" and "is" twice each.</li>
+                  <li>All of them are created with <code>List.of</code>, so they are immutable and keep their order. Every <code>// =&gt;</code> output below comes from this data.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -510,6 +634,14 @@
                 Set<Integer> dups3 = nums.stream().filter(n -> Collections.frequency(nums, n) > 1).collect(Collectors.toSet());
                 System.out.println(dups3); // => [3, 5, 8]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Way 1: <code>Set.add</code> returns <code>false</code> for a value it has already seen, so <code>!seen.add(n)</code> keeps only the 2nd and later occurrences of 3, 5 and 8. The result is a <code>HashSet</code>, which happens to print small Integers in ascending order. O(n), but the stateful lambda is not safe in parallel.</li>
+                  <li>Way 2: <code>groupingBy(identity, counting())</code> builds <code>{1=1, 2=1, 3=2, 5=2, 7=1, 8=2, 9=1}</code>. Then a second stream over the entries keeps counts &gt; 1 and maps each entry to its key. O(n) and side-effect free.</li>
+                  <li>Way 3: <code>Collections.frequency</code> scans the whole list for each element, so it is O(n²). Collecting with <code>toSet()</code> removes the repeated 3, 5 and 8.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -529,6 +661,14 @@
                     .values();
                 System.out.println(bySalary.stream().map(Employee::name).toList()); // => [Asha, Ravi, Meena, John, Priya, Arjun]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>distinct()</code> uses <code>equals</code>/<code>hashCode</code> and keeps the first occurrence of each value in encounter order: 5, 3, 8, 1, 9, 7, 2. The second 3, 5 and 8 are dropped.</li>
+                  <li><code>distinct().sorted()</code> removes duplicates first and then sorts the 7 unique values in natural order.</li>
+                  <li>For "unique by property", <code>toMap</code> uses salary as the key. The merge function <code>(a, b) -&gt; a</code> keeps the first employee on a clash, so Kiran (95000, same as Ravi) is dropped. <code>LinkedHashMap</code> keeps the original order, and <code>values()</code> returns the 6 remaining employees.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -552,6 +692,14 @@
                     .collect(Collectors.groupingBy(Function.identity(), TreeMap::new, Collectors.counting()));
                 System.out.println(sentenceCounts); // => {and=1, fun=1, is=2, java=2, powerful=1}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>groupingBy(Function.identity(), counting())</code> uses each word as its own key and counts it: java=3, spring=2, angular=1, sql=1. <code>counting()</code> returns a <code>Long</code>. The default map is a <code>HashMap</code>, which is why the first print looks unordered.</li>
+                  <li>The entry stream is sorted by value descending, then by key ascending to break ties. That puts angular before sql, since both have count 1. Collecting into a <code>LinkedHashMap</code> keeps this sorted order. A plain <code>toMap</code> would lose it.</li>
+                  <li>For the sentence, <code>toLowerCase()</code> makes "Java" and "java" the same word, and <code>split("\\W+")</code> splits on runs of non-word characters. <code>TreeMap::new</code> as the map factory puts the keys in alphabetical order: and, fun, is, java, powerful.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -581,6 +729,15 @@
                     .collect(Collectors.groupingBy(Function.identity(), TreeMap::new, Collectors.counting()));
                 System.out.println(letters); // => {d=1, e=1, h=1, l=3, o=2, r=1, w=1}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>chars()</code> gives an <code>IntStream</code> of code points, and <code>mapToObj(c -&gt; (char) c)</code> boxes each one into a <code>Character</code> so it can be a map key.</li>
+                  <li><code>LinkedHashMap::new</code> keeps keys in the order they first appear in "programming": p, r, o, g, a, m, i, n. r, g and m appear twice.</li>
+                  <li>Both "first" queries stream the ordered entries and use <code>findFirst()</code>, which short-circuits. The first count of 1 is <b>p</b> and the first count above 1 is <b>r</b>. This is O(n) overall.</li>
+                  <li>For "Hello World", it lowercases first, then <code>filter(Character::isLetter)</code> drops the space before boxing. <code>TreeMap</code> sorts the keys: l=3, o=2.</li>
+                </ol>
+              </div>
               <div class="note"><code>LinkedHashMap</code> is the key detail: with a plain <code>HashMap</code> "first" would be meaningless because order is lost.</div>
             </div>
           </details>
@@ -597,6 +754,14 @@
                     .orElseThrow();
                 System.out.println(mostFrequent); // => java
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The first stream builds the frequency map <code>{java=3, spring=2, angular=1, sql=1}</code>.</li>
+                  <li>A second stream over its entries uses <code>max(Map.Entry.comparingByValue())</code> to find the entry with the largest count, java=3.</li>
+                  <li><code>max</code> returns an <code>Optional</code>. <code>map(Map.Entry::getKey)</code> extracts "java", and <code>orElseThrow()</code> unwraps it. If counts tie, which key wins depends on HashMap order. O(n) overall.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -609,6 +774,15 @@
                 System.out.println(emps.stream().allMatch(e -> e.age() >= 18)); // => true
                 System.out.println(emps.stream().noneMatch(e -> e.dept().equals("Sales"))); // => true
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>filter(n -&gt; n &gt; 4).count()</code> keeps 5, 8, 9, 5, 7, 8, so the count is 6. <code>count()</code> returns a <code>long</code>.</li>
+                  <li><code>anyMatch</code> short-circuits at the first match. Asha (120000) is the first element and is above 110000, so it returns <code>true</code> right away.</li>
+                  <li><code>allMatch</code> has to check everyone unless it finds a failure. All ages are 23 or more, so the result is <code>true</code>.</li>
+                  <li><code>noneMatch</code> is <code>true</code> because no employee is in "Sales". It had to look at all 7 elements to be sure.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -633,6 +807,15 @@
                     .collect(Collectors.groupingBy(Employee::gender, Collectors.counting()));
                 System.out.println(countByGender); // => {F=3, M=4}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>groupingBy(Employee::dept, TreeMap::new, ...)</code> uses the department as the key. <code>TreeMap</code> sorts the keys alphabetically: Finance, HR, IT.</li>
+                  <li>The downstream <code>mapping(Employee::name, toList())</code> stores only names, not whole Employee objects. Names stay in encounter order, so IT is [Asha, Ravi, Kiran].</li>
+                  <li>With <code>counting()</code> as the downstream, each group becomes its size as a <code>Long</code>: Finance=2, HR=2, IT=3.</li>
+                  <li>The gender grouping has no map factory, so it uses a <code>HashMap</code> and the order is not guaranteed. F=3 (Asha, Meena, Priya), M=4.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -662,6 +845,15 @@
                     .collect(Collectors.summarizingDouble(Employee::salary));
                 System.out.println(itStats.getMin() + " / " + itStats.getMax() + " / " + itStats.getAverage()); // => 95000.0 / 120000.0 / 103333.33333333333
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>averagingDouble</code> gives each department's mean: Finance (82000+105000)/2 = 93500.0, HR (70000+60000)/2 = 65000.0, IT 310000/3 = 103333.33…. The result is always a <code>Double</code>.</li>
+                  <li><code>summingDouble</code> adds salaries per group. Because <code>salary</code> is a <code>double</code>, the totals print as 187000.0 and so on.</li>
+                  <li><code>maxBy</code> returns <code>Optional&lt;Employee&gt;</code> for each group. <code>collectingAndThen</code> runs a finisher on it, <code>e.get().name()</code>. That is safe here because a group only exists if it has at least one employee.</li>
+                  <li><code>summarizingDouble</code> works out min, max, average, count and sum in one pass over the 3 IT employees: 95000.0 / 120000.0 / 103333.33….</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -677,6 +869,14 @@
                     .orElseThrow();
                 System.out.println(topDept); // => IT
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The first collect builds department → average salary: Finance=93500, HR=65000, IT≈103333.</li>
+                  <li>Streaming that map's entries and calling <code>max(comparingByValue())</code> picks the entry with the highest average.</li>
+                  <li><code>map(getKey)</code> and <code>orElseThrow()</code> unwrap the Optional, giving <b>IT</b>.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -690,6 +890,14 @@
                                  Collectors.mapping(Employee::name, Collectors.toList()))));
                 System.out.println(byDeptGender); // => {Finance={F=[Priya], M=[John]}, HR={F=[Meena], M=[Arjun]}, IT={F=[Asha], M=[Ravi, Kiran]}}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The outer <code>groupingBy</code> splits by department into a <code>TreeMap</code>, so Finance, HR, IT come out in order.</li>
+                  <li>Its downstream is another <code>groupingBy</code> on gender, also a <code>TreeMap</code>, so F comes before M inside each department.</li>
+                  <li>The innermost <code>mapping(name, toList())</code> keeps names in encounter order, so IT/M is [Ravi, Kiran]. Everything happens in one pass over <code>emps</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -711,6 +919,15 @@
                                  Collectors.mapping(Employee::name, Collectors.toList()))));
                 System.out.println(highEarners); // => {Finance=[Priya], HR=[], IT=[Asha, Ravi, Kiran]}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The classifier lambda maps each age to a label: Ravi 28, Kiran 25 and Arjun 23 go to "20s". Asha 32 and John 35 go to "30s". Meena 41 and Priya 45 go to "40+".</li>
+                  <li><code>TreeMap</code> sorts the labels as strings, so "20s" &lt; "30s" &lt; "40+", which matches the output order.</li>
+                  <li><code>Collectors.filtering</code> filters inside each group after the group has been created. HR has no one above 90000, so it still shows up as <code>HR=[]</code>. A <code>filter()</code> before <code>groupingBy</code> would have dropped the HR key completely.</li>
+                  <li>Kiran and Ravi (95000) count as &gt; 90000, so IT keeps all three.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -726,6 +943,13 @@
                     .collect(Collectors.partitioningBy(e -> e.salary() > 90000, Collectors.counting()));
                 System.out.println(above90k); // => {false=3, true=4}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>partitioningBy</code> always creates exactly two keys, <code>false</code> and <code>true</code>, and prints false first. Odd numbers keep their original order [5, 3, 3, 1, 9, 5, 7], and the evens are [8, 8, 2].</li>
+                  <li>With the <code>counting()</code> downstream, each side becomes a <code>Long</code>. Asha, Ravi, Kiran and Priya earn more than 90000 (true=4). Meena, John and Arjun don't (false=3).</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -747,6 +971,14 @@
                     .values();
                 System.out.println(anagrams); // => [[listen, silent, enlist], [google, gogole], [cat, act]]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>distinct()</code> first reduces <code>words</code> to java, spring, angular, sql. Then <code>groupingBy(String::length, TreeMap::new, ...)</code> uses the length as key, sorted numerically: 3, 4, 6, 7.</li>
+                  <li>For anagrams, the classifier sorts each word's characters (<code>chars().sorted()</code>) and rebuilds them into a String with the 3-arg <code>collect</code> on a <code>StringBuilder</code>. listen, silent and enlist all become "eilnst", so they share a key.</li>
+                  <li><code>LinkedHashMap::new</code> keeps the groups in the order their first word appeared, and <code>values()</code> returns just the lists. The cost is O(n · k log k) for n words of length k.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -769,6 +1001,15 @@
                     .toList();
                 System.out.println(byLen); // => [sql, java, Spring, Angular]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>sorted()</code> uses natural order, and <code>Comparator.reverseOrder()</code> flips it. Duplicates are kept, so 3, 3 and 8, 8 both stay. Sorting is O(n log n) and has to read every element before it outputs anything.</li>
+                  <li>String natural order compares Unicode values, and uppercase (A=65, S=83) comes before lowercase (j=106, s=115). That gives [Angular, Spring, java, sql].</li>
+                  <li><code>CASE_INSENSITIVE_ORDER</code> ignores case, so the result is alphabetical: angular, java, spring, sql.</li>
+                  <li><code>comparingInt(String::length)</code> sorts by length first (3, 4, 6, 7), and <code>thenComparing</code> would only break ties. There are no ties here, so you get [sql, java, Spring, Angular].</li>
+                </ol>
+              </div>
               <div class="note">Natural order of <code>String</code> is by Unicode value, so uppercase letters come before lowercase.</div>
             </div>
           </details>
@@ -793,6 +1034,15 @@
                     .toList();
                 System.out.println(multi); // => [Finance/Priya, Finance/John, HR/Meena, HR/Arjun, IT/Asha, IT/Kiran, IT/Ravi]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>comparingDouble(salary).reversed()</code> sorts highest salary first. <code>thenComparing(name)</code> is added after the <code>reversed()</code>, so only the salary part is reversed. Ravi and Kiran tie at 95000, and the names are compared A→Z, so Kiran comes before Ravi.</li>
+                  <li><code>(int) e.salary()</code> drops the decimal so the output reads 120000, not 120000.0.</li>
+                  <li>The multi-key comparator orders by department ascending first, then salary descending (<code>reverseOrder()</code> applies only to that key), then age ascending.</li>
+                  <li>For IT, Asha (120000) comes first. Kiran and Ravi tie on salary, so age decides: Kiran is 25 and Ravi is 28, so Kiran comes first.</li>
+                </ol>
+              </div>
               <div class="tip">Watch out: <code>comparing(A).thenComparing(B).reversed()</code> reverses the <i>whole</i> chain. To reverse only one key, pass <code>Comparator.reverseOrder()</code> to that key, as above.</div>
             </div>
           </details>
@@ -812,6 +1062,15 @@
                 Map<String, Integer> byKey = new TreeMap<>(scores);
                 System.out.println(byKey); // => {Asha=88, John=95, Meena=72, Ravi=95}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Map.of</code> has no defined iteration order, so you have to sort the entries yourself.</li>
+                  <li>Entries are sorted by value descending, then by key ascending for ties. John and Ravi both have 95, and "John" &lt; "Ravi", so John comes first. Then Asha 88 and Meena 72.</li>
+                  <li><code>toMap(..., LinkedHashMap::new)</code> keeps that sorted order. A default <code>HashMap</code> would scramble it.</li>
+                  <li>For sorting by key, copying into a <code>TreeMap</code> is enough. It keeps keys in natural (alphabetical) order.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -833,6 +1092,14 @@
                 // Second largest number in a list
                 System.out.println(nums.stream().distinct().sorted(Comparator.reverseOrder()).skip(1).findFirst().get()); // => 8
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Sorting by salary descending gives Asha 120000, Priya 105000, then Ravi and Kiran at 95000. <code>sorted</code> is stable for ordered streams, so Ravi (earlier in <code>emps</code>) stays ahead of Kiran. <code>limit(3)</code> keeps the first three: [Asha, Priya, Ravi].</li>
+                  <li>For the Nth highest, <code>map(salary)</code> turns each employee into a <code>Double</code>, and <code>distinct()</code> merges the two 95000s. Sorting descending gives 120000, 105000, 95000…. <code>skip(1)</code> drops the top value and <code>findFirst()</code> returns 105000.0.</li>
+                  <li>The same pattern on <code>nums</code>: distinct sorted descending gives 9, 8, 7…, and skipping one leaves 8. Using <code>distinct()</code> makes this "second largest distinct", so the repeated 8 doesn't count twice.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -856,6 +1123,14 @@
                 // 3. Java 21: sequenced collections — a reversed VIEW, no copy
                 System.out.println(list.reversed()); // => [5, 4, 3, 2, 1]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Way 1 streams the indexes 0..4 and maps each index i to <code>list.get(size - 1 - i)</code>, so it reads 5, 4, 3, 2, 1. That is O(n) on a random-access list.</li>
+                  <li>Way 2 collects into a mutable <code>ArrayList</code> (needed, because <code>toList()</code> is unmodifiable). <code>collectingAndThen</code> then calls <code>Collections.reverse</code> on it in place.</li>
+                  <li>Way 3 (Java 21) is <code>reversed()</code>, which returns a reversed view of the list in O(1) without copying.</li>
+                </ol>
+              </div>
               <div class="note">"Sort in reverse" and "reverse" are different: <code>sorted(Comparator.reverseOrder())</code> sorts descending; reversing keeps the original order backwards.</div>
             </div>
           </details>
@@ -882,6 +1157,14 @@
                     .collect(Collectors.joining(" "));
                 System.out.println(wordOrderReversed); // => Rock Streams Java
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>chars()</code> plus <code>mapToObj</code> turns each character into a one-letter String. <code>reduce("", (acc, ch) -&gt; ch + acc)</code> puts each new character in front, so the string comes out reversed. Every step builds a new String, so it is O(n²).</li>
+                  <li>To reverse each word, split on spaces, reverse every word with <code>StringBuilder.reverse()</code>, and glue them back with <code>joining(" ")</code>. The word order stays the same: avaJ smaertS kcoR.</li>
+                  <li>To reverse the word order, stream the indexes backwards over the parts list (the same trick as reversing a list) and join them: Rock Streams Java.</li>
+                </ol>
+              </div>
               <div class="tip">In an interview, mention that the <code>reduce</code> string version is O(n²) (new string each step) — <code>new StringBuilder(text).reverse()</code> is the practical answer.</div>
             </div>
           </details>
@@ -901,6 +1184,15 @@
                 System.out.println(nums.stream().mapToInt(Integer::intValue).average().orElse(0)); // => 5.1
                 System.out.println(nums.stream().mapToInt(Integer::intValue).summaryStatistics()); // => IntSummaryStatistics{count=10, sum=51, min=1, average=5.100000, max=9}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>map(n -&gt; n * n)</code> squares each element and keeps the original order and duplicates.</li>
+                  <li><code>filter</code> keeps the evens 8, 8 and 2, <code>mapToInt</code> squares them as primitives, and <code>sum()</code> gives 64 + 64 + 4 = 132.</li>
+                  <li><code>max()</code> on an <code>IntStream</code> returns <code>OptionalInt</code> (unwrapped with <code>getAsInt()</code>), and that gives 9. <code>min(Comparator)</code> on a <code>Stream&lt;Integer&gt;</code> returns <code>Optional&lt;Integer&gt;</code>, and that gives 1.</li>
+                  <li>The sum of <code>nums</code> is 51 over 10 elements, so <code>average()</code> is 5.1. <code>summaryStatistics()</code> shows all of these values from one pass.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -925,6 +1217,15 @@
                     .collect(Collectors.groupingBy(Function.identity(), TreeMap::new, Collectors.counting()));
                 System.out.println(skillCount); // => {AWS=2, Angular=1, Communication=2, Excel=2, Java=2, Python=2, SQL=2, Spring=1}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>flatMap(List::stream)</code> merges the three inner lists into one stream: [1, 2, 3, 4, 5].</li>
+                  <li><code>flatMap(e -&gt; e.skills().stream())</code> turns 7 employees into 15 skill strings. <code>toCollection(TreeSet::new)</code> removes duplicates and sorts them. "AWS" comes before "Angular" because uppercase 'W' (87) is less than lowercase 'n' (110).</li>
+                  <li>"Who knows Java" just filters with <code>skills().contains("Java")</code>, which matches Asha and Ravi.</li>
+                  <li>For skill counts, the same flatMap feeds <code>groupingBy(identity, TreeMap::new, counting())</code>. Spring (Asha only) and Angular (Ravi only) are 1, and every other skill is 2.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -941,6 +1242,14 @@
                     .collect(Collectors.joining(" | ", "[", "]"));
                 System.out.println(joined); // => [JAVA | SPRING | ANGULAR | SQL]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>toMap(Employee::id, Employee::name)</code> works here because the ids are unique. A duplicate key would throw <code>IllegalStateException</code>. The result is a <code>HashMap</code>, and small Integer keys happen to print in ascending order, but that is not guaranteed.</li>
+                  <li><code>joining(", ")</code> puts the separator only between elements, so there is no trailing comma.</li>
+                  <li>In the last example, <code>distinct()</code> keeps the first-seen order java, spring, angular, sql, <code>map(toUpperCase)</code> converts each, and <code>joining(" | ", "[", "]")</code> adds a separator, a prefix and a suffix.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -959,6 +1268,15 @@
                 long vowels = "Interview Preparation".toLowerCase().chars().filter(c -> "aeiou".indexOf(c) >= 0).count();
                 System.out.println(vowels); // => 9
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>max(comparingInt(String::length))</code> finds the longest word, "angular" (7 letters).</li>
+                  <li><code>filter(startsWith("s"))</code> keeps spring, sql and spring. <code>distinct()</code> drops the second spring, leaving [spring, sql].</li>
+                  <li>For title case, each word's first character is uppercased and joined with the rest (<code>substring(1)</code>), then the words are joined with spaces.</li>
+                  <li>To count vowels, <code>chars()</code> gives int code points, and <code>"aeiou".indexOf(c) &gt;= 0</code> checks each one. "interview" has 4 vowels and "preparation" has 5, so the total is 9.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -977,6 +1295,15 @@
                 // Elements in a but not in b
                 System.out.println(a.stream().filter(x -> !bSet.contains(x)).toList()); // => [2, 3]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Putting <code>b</code> into a <code>HashSet</code> makes <code>contains</code> O(1), so the intersection is O(n + m). Calling <code>List.contains</code> instead would make it O(n·m).</li>
+                  <li><code>filter(bSet::contains)</code> keeps the elements of <code>a</code> that are also in <code>b</code>, in <code>a</code>'s order: [1, 4, 5].</li>
+                  <li><code>Stream.concat</code> joins both streams (10 elements). <code>distinct()</code> drops the repeated 1, 4 and 5, and <code>sorted()</code> orders the result 1..7.</li>
+                  <li>Negating the check (<code>!bSet.contains(x)</code>) gives the difference a − b: [2, 3].</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -996,6 +1323,14 @@
                 long factorial = LongStream.rangeClosed(1, 10).reduce(1, (x, y) -> x * y);
                 System.out.println(factorial); // => 3628800
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>For Fibonacci, each stream element is a pair <code>[current, next]</code>. <code>iterate</code> moves the pair forward to <code>[next, current + next]</code>. The stream is infinite, so <code>limit(10)</code> stops it, and <code>map(f -&gt; f[0])</code> keeps the first number of each pair.</li>
+                  <li>For primes, each n from 2 to 30 is kept only if no d from 2 to √n divides it (<code>noneMatch</code> short-circuits on the first divisor). For 2 and 3 the inner range is empty, and <code>noneMatch</code> on an empty stream is <code>true</code>, so they count as prime.</li>
+                  <li>For the factorial, <code>LongStream</code> avoids int overflow, and identity 1 times 1·2·…·10 = 3628800.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1012,6 +1347,14 @@
                 boolean anagram = Arrays.equals(x.chars().sorted().toArray(), y.chars().sorted().toArray());
                 System.out.println(anagram); // => true
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The palindrome check streams only the first half of the indexes and compares <code>charAt(i)</code> with its mirror <code>charAt(len - 1 - i)</code>. <code>allMatch</code> stops at the first mismatch. O(n).</li>
+                  <li>For "racecar", r=r, a=a and c=c all match, so the result is <code>true</code>.</li>
+                  <li>The anagram check sorts each string's code points into an <code>int[]</code>. Two words are anagrams exactly when the sorted arrays are equal ("eilnst" for both). O(n log n).</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1028,6 +1371,14 @@
                     .toList();
                 System.out.println(pageItems); // => [Kiran, Meena, Priya]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Sorting by name gives Arjun, Asha, John, Kiran, Meena, Priya, Ravi. Paging only makes sense on a stable, defined order.</li>
+                  <li><code>skip(page * size)</code> = <code>skip(3)</code> drops the first page (page 0), and <code>limit(3)</code> takes the next three.</li>
+                  <li><code>map(name)</code> and <code>toList()</code> give [Kiran, Meena, Priya]. The <code>(long)</code> cast is there because <code>skip</code> takes a <code>long</code>, and it avoids int overflow for big page numbers.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1047,6 +1398,14 @@
                     (sum, count) -> (double) sum / count));
                 System.out.println(average); // => 5.1
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>teeing</code> sends every element to two collectors at once and then combines their results with a merger function. The stream is traversed only once.</li>
+                  <li><code>minBy</code> finds Arjun (60000) and <code>maxBy</code> finds Asha (120000). Both return <code>Optional</code>, so the merger calls <code>get()</code> and builds "Arjun → Asha".</li>
+                  <li>For the average, <code>summingInt</code> gives 51 and <code>counting()</code> gives 10L. The merger casts to <code>double</code> before dividing (otherwise it would be integer division, 5), so the result is 5.1.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -1067,6 +1426,14 @@
                 long parReduce = LongStream.rangeClosed(1, 10_000_000).parallel().reduce(0, Long::sum);
                 System.out.println(parReduce == seq); // => true
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>LongStream.rangeClosed</code> is a sized source that splits cleanly, so the parallel version divides it into chunks and sums each chunk on a different thread.</li>
+                  <li>Addition is associative, so the partial sums add up to the same total in any grouping: n(n+1)/2 = 10,000,000 · 10,000,001 / 2 = 50,000,005,000,000. That is why <code>seq == par</code>.</li>
+                  <li><code>reduce(0, Long::sum)</code> is also correct in parallel, because 0 is a true identity (each chunk starts at 0) and <code>Long::sum</code> is associative.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1087,6 +1454,14 @@
                 // Fix 2 (best): no shared state at all
                 System.out.println(IntStream.range(0, 100_000).parallel().count()); // => 100000
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>counter[0]++</code> is a read-modify-write, not an atomic step. Two threads can read the same value and both write value+1, so increments are lost. That is why the count is usually less than 100000. The line prints <code>true</code> because it only checks <code>&lt;= 100_000</code>.</li>
+                  <li><code>AtomicInteger.incrementAndGet()</code> uses an atomic compare-and-set, so no update is lost and the result is exactly 100000. All threads still compete for one variable, though, which slows it down.</li>
+                  <li>The best fix is to have no shared state. <code>count()</code> lets each chunk count by itself and adds the results together, and you always get 100000.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1102,6 +1477,14 @@
                 List<String> upper = emps.parallelStream().map(e -> e.name().toUpperCase()).toList();
                 System.out.println(upper); // => [ASHA, RAVI, MEENA, JOHN, KIRAN, PRIYA, ARJUN]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>groupingByConcurrent</code> has all threads update one <code>ConcurrentHashMap</code> safely, and <code>counting()</code> gives each department's size: Finance=2, HR=2, IT=3.</li>
+                  <li>A ConcurrentMap has no defined order, so the result is wrapped in <code>new TreeMap&lt;&gt;(...)</code> to print the keys alphabetically.</li>
+                  <li><code>map(...).toList()</code> on a parallel stream still returns elements in encounter order. The chunks are processed in parallel, but they are joined back in their original positions, which is why the names keep the <code>emps</code> order.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>

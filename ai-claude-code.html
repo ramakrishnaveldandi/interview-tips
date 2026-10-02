@@ -74,6 +74,15 @@
                          token once and retry the original request; if refresh fails, redirect to /login.
                          Add a unit test in auth.interceptor.spec.ts and run `npm test`."
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The weak prompt gives no symptom, location or definition of done, so Claude has to guess what &quot;the login bug&quot; is.</li>
+                  <li>The strong prompt states the exact symptom (401 after token expiry) and points to the evidence (the stack trace).</li>
+                  <li>It names the file to change (<code>auth.interceptor.ts</code>) and describes the desired behaviour: refresh once, retry, else redirect to <code>/login</code>.</li>
+                  <li>It ends with a way to verify: add a unit test and run <code>npm test</code>, so Claude can check its own work.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -99,6 +108,14 @@
                 Query:      question → embedding → similarity search → top-k chunks
                 Generation: prompt = instructions + retrieved chunks + question → LLM → answer with sources
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Indexing (done ahead of time): documents are split into chunks, each chunk is turned into a vector by an embedding model and stored in a vector DB.</li>
+                  <li>Query: the user&#39;s question is embedded with the same model, and a similarity search returns the top-k closest chunks.</li>
+                  <li>Generation: those chunks are pasted into the prompt with the instructions and question, so the LLM answers from real data and can cite sources.</li>
+                </ol>
+              </div>
               <p>Benefits: up-to-date and private data without retraining, fewer hallucinations, citations. In Java, <b>Spring AI</b> and <b>LangChain4j</b> provide embedding clients, vector stores and RAG advisors.</p>
             </div>
           </details>
@@ -118,6 +135,15 @@
                   ↓
                 Model: "Fixed: the discount was applied twice. Here's the change…"
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The user asks a question; the model doesn&#39;t answer from memory but replies with a <code>tool_use</code> request (run the failing test).</li>
+                  <li>Your code (here, Claude Code) executes the tool and sends the output back to the model.</li>
+                  <li>The model observes the result and decides the next step: read the source file, edit it, re-run the tests.</li>
+                  <li>The loop repeats until the tests pass, then the model returns a final text answer explaining the fix.</li>
+                </ol>
+              </div>
               <p>Claude Code is exactly this: an agent with tools to read, search and edit files, run shell commands and fetch web pages, inside your repository.</p>
             </div>
           </details>
@@ -171,6 +197,15 @@
                 cd my-project
                 claude                                       # start an interactive session (log in on first run)
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The native installer downloads Claude Code with <code>curl ... | bash</code> on macOS/Linux/WSL, or <code>irm ... | iex</code> in Windows PowerShell.</li>
+                  <li>Homebrew, WinGet and npm are alternative installers; the npm route needs a recent Node.js.</li>
+                  <li><code>claude --version</code> confirms the install worked.</li>
+                  <li><code>cd</code> into your project and run <code>claude</code>: it starts an interactive session in that folder (you log in on the first run).</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -192,6 +227,16 @@
                 claude mcp list                          # manage MCP servers (see below)
                 claude update                            # update to the latest version
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>claude</code> alone or with a quoted prompt starts an interactive session.</li>
+                  <li><code>-p</code> (print mode) answers once and exits, so it works in scripts and CI; you can pipe input into it, and <code>--output-format json</code> makes the output machine-readable.</li>
+                  <li><code>-c</code> continues the latest conversation in this folder; <code>-r</code> lets you pick an older session to resume.</li>
+                  <li><code>--model</code>, <code>--permission-mode plan</code> and <code>--add-dir</code> set the model, start in read-only plan mode, and grant access to another directory.</li>
+                  <li><code>claude mcp ...</code> and <code>claude update</code> are management subcommands, not chat sessions.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -328,6 +373,16 @@
 
                 @docs/architecture.md
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The title and <b>Build &amp; test</b> section give Claude the exact commands to build, run one test and start the app, so it doesn&#39;t guess.</li>
+                  <li><b>Tech stack</b> pins versions and frameworks, so generated code matches what the project actually uses.</li>
+                  <li><b>Conventions</b> and <b>Gotchas</b> capture team rules and traps Claude can&#39;t infer from the code (no field injection, never edit old migrations, Docker needed for tests).</li>
+                  <li><b>Before you finish</b> gives a definition of done: run <code>./mvnw verify</code> and use the commit format.</li>
+                  <li>The final <code>@docs/architecture.md</code> line is an import: that file is pulled into the context too.</li>
+                </ol>
+              </div>
               <div class="note"><code>CLAUDE.md</code> is guidance, not enforcement. For rules that must never be broken (e.g. "never edit <code>.env</code>"), use <b>permission deny rules</b> or a <b>hook</b>.</div>
             </div>
           </details>
@@ -342,10 +397,26 @@
                 - Use the `ram-sandbox` Kafka cluster for manual testing
                 - I prefer short explanations; skip the summary after edits
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>This file is loaded like <code>CLAUDE.md</code>, but holds facts only true on your machine (local DB port, your sandbox cluster).</li>
+                  <li>Personal style preferences (&quot;short explanations&quot;) go here too, so they don&#39;t affect teammates.</li>
+                  <li>Because it&#39;s gitignored, it is never committed to the shared repo.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="bash">
                 echo "CLAUDE.local.md" >> .gitignore
                 echo ".claude/settings.local.json" >> .gitignore
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>echo ... &gt;&gt; .gitignore</code> appends each filename as a new line to <code>.gitignore</code> (<code>&gt;&gt;</code> appends; <code>&gt;</code> would overwrite).</li>
+                  <li>Ignoring <code>CLAUDE.local.md</code> keeps your personal memory file out of git.</li>
+                  <li>Ignoring <code>.claude/settings.local.json</code> keeps your personal settings overrides out of git, while the shared <code>.claude/settings.json</code> stays committed.</li>
+                </ol>
+              </div>
               <div class="tip">A gitignored file exists only in the worktree where you created it. To share personal notes across worktrees, import a file from your home directory instead: <code>@~/.claude/my-project-notes.md</code>.</div>
             </div>
           </details>
@@ -369,6 +440,15 @@
                 - Errors use ProblemDetail (RFC 9457)
                 - Paginate list endpoints; max page size 100
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The file lives in <code>.claude/rules/</code>, so Claude Code picks it up as a modular rule file.</li>
+                  <li>The <code>paths</code> frontmatter is a glob: the rule loads <b>only</b> when Claude works on Java files under an <code>api</code> package.</li>
+                  <li>The body below the frontmatter is the actual instruction text (validation, ProblemDetail errors, pagination limits).</li>
+                  <li>Scoping it this way keeps the context small: API rules don&#39;t load while Claude edits, say, frontend code.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="plaintext">
                 .claude/
                 ├── CLAUDE.md
@@ -378,6 +458,14 @@
                     └── frontend/
                         └── angular.md
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>.claude/CLAUDE.md</code> holds the general project instructions.</li>
+                  <li>Each file in <code>rules/</code> covers one topic; <code>api.md</code> is path-scoped, <code>testing.md</code> has no <code>paths</code> so it applies generally.</li>
+                  <li>Sub-folders like <code>frontend/</code> are allowed because the rules directory is searched recursively.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -437,6 +525,16 @@
                   }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Each tool call is checked <b>deny → ask → allow</b>; the first matching rule wins, and a deny can&#39;t be overridden by a narrower allow.</li>
+                  <li><code>allow</code> runs the listed build, test, lint and read-only git commands, fetches from <code>docs.spring.io</code> and the <code>github</code> MCP tools without prompting.</li>
+                  <li><code>ask</code> always prompts before <code>git push</code> or any <code>docker</code> command.</li>
+                  <li><code>deny</code> blocks reading <code>.env</code> files and <code>secrets/</code>, plus <code>rm -rf</code> and <code>curl</code>, no matter what.</li>
+                  <li><code>defaultMode: acceptEdits</code> auto-accepts file edits, and <code>env</code> sets <code>SPRING_PROFILES_ACTIVE=dev</code> for the session.</li>
+                </ol>
+              </div>
               <ul>
                 <li><code>Bash(npm run test *)</code> — <code>*</code> is a wildcard (the older <code>Bash(npm run test:*)</code> suffix form means the same).</li>
                 <li><code>Read</code>/<code>Edit</code> paths use gitignore-style patterns: <code>./</code> relative to the project, <code>~/</code> home, <code>//</code> absolute.</li>
@@ -487,6 +585,15 @@
                   }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>PreToolUse</code> is the event: the handler runs <b>before</b> a tool executes.</li>
+                  <li><code>matcher: &quot;Edit|Write&quot;</code> limits it to file-editing tools; other tools skip this hook.</li>
+                  <li><code>type: command</code> runs the shell script; <code>$CLAUDE_PROJECT_DIR</code> points at the project root, and it&#39;s quoted in case the path has spaces.</li>
+                  <li>Claude Code pipes the tool call as JSON to the script&#39;s stdin; the script&#39;s exit code (0 = allow, 2 = block) decides what happens.</li>
+                </ol>
+              </div>
               <ul>
                 <li>The hook receives <b>JSON on stdin</b>: <code>session_id</code>, <code>cwd</code>, <code>hook_event_name</code>, and for tool events <code>tool_name</code> and <code>tool_input</code> (e.g. <code>tool_input.file_path</code>, <code>tool_input.command</code>).</li>
                 <li><b>Exit 0</b> = success. <b>Exit 2</b> = block (on events that support it, such as <code>PreToolUse</code>, <code>UserPromptSubmit</code> and <code>Stop</code>); stderr is shown to Claude as the reason. Other codes = non-blocking error.</li>
@@ -511,6 +618,16 @@
                 esac
                 exit 0
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Claude Code pipes the pending tool call as JSON to the script&#39;s stdin.</li>
+                  <li><code>jq -r &#39;.tool_input.file_path // empty&#39;</code> extracts the target file path (or an empty string if there is none).</li>
+                  <li>The <code>case</code> patterns match <code>.env</code> files, anything in <code>secrets/</code>, <code>package-lock.json</code>, and <code>.pem</code>/<code>.key</code> files.</li>
+                  <li>On a match, the message goes to stderr (<code>&gt;&amp;2</code>) and <code>exit 2</code> blocks the edit; Claude is shown the stderr text as the reason.</li>
+                  <li>Anything else reaches <code>exit 0</code>, so the edit proceeds normally.</li>
+                </ol>
+              </div>
               <p>Register it with the <code>PreToolUse</code> / <code>"Edit|Write"</code> config from the previous question. Claude sees the stderr message and adjusts its plan.</p>
             </div>
           </details>
@@ -535,6 +652,15 @@
                 fi
                 exit 0
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Claude Code pipes the Bash tool call as JSON to stdin; <code>jq</code> extracts <code>tool_input.command</code>.</li>
+                  <li><code>grep -Eiq</code> does a case-insensitive, silent regex check for <code>rm -rf</code> on <code>/</code>, <code>~</code> or <code>*</code>, force-push, <code>DROP TABLE/DATABASE</code> and <code>mkfs</code>.</li>
+                  <li>On a match, <code>jq -n</code> prints JSON with <code>permissionDecision: &quot;deny&quot;</code> and a reason, which Claude Code reads to block the command.</li>
+                  <li>It exits 0 in both cases: with JSON output the decision comes from the JSON, not from exit code 2.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="json">
                 {
                   "hooks": {
@@ -547,6 +673,14 @@
                   }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The handler is registered for <code>PreToolUse</code>, so it runs before the tool executes.</li>
+                  <li><code>matcher: &quot;Bash&quot;</code> means it only fires for shell commands, not edits or reads.</li>
+                  <li>It runs <code>block-dangerous.sh</code> from the project&#39;s <code>.claude/hooks/</code> folder via <code>$CLAUDE_PROJECT_DIR</code>.</li>
+                </ol>
+              </div>
               <div class="note">Hooks run with your user's permissions — review hook scripts like any code, especially ones that come from a shared repo or plugin. Combine them with <code>deny</code> permission rules for defence in depth.</div>
             </div>
           </details>
@@ -576,6 +710,15 @@
                   }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>PostToolUse</code> with matcher <code>Edit|Write</code> runs after every successful file edit.</li>
+                  <li>Its command reads the hook JSON from stdin, <code>jq</code> extracts <code>tool_input.file_path</code>, and <code>xargs</code> passes it to <code>npx prettier --write</code>; <code>--ignore-unknown</code> skips file types Prettier can&#39;t format.</li>
+                  <li>The <code>Notification</code> hook fires when Claude needs your attention; the empty matcher matches every notification.</li>
+                  <li><code>notify-send</code> shows a Linux desktop notification, so you can step away while Claude works.</li>
+                </ol>
+              </div>
               <p>On macOS use <code>osascript -e 'display notification "Claude needs your input" with title "Claude Code"'</code>; on Windows a PowerShell toast or <code>msg</code>. For Java projects, swap Prettier for <code>./mvnw spotless:apply</code>.</p>
             </div>
           </details>
@@ -627,6 +770,16 @@
                 3. Commit with the format `type(scope): summary` (feat, fix, refactor, test, docs, chore).
                 4. Show `git status` at the end.
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The frontmatter <code>name</code> makes it <code>/commit</code>, and <code>description</code> says what it does.</li>
+                  <li><code>disable-model-invocation: true</code> means only you can run it, never Claude on its own, which is right for a side-effecting action like committing.</li>
+                  <li><code>allowed-tools</code> pre-approves just the git add/commit/status/diff commands while the skill runs, so there are no prompts for them.</li>
+                  <li>The <code>!`git status --short`</code> and <code>!`git diff HEAD`</code> lines run <b>before</b> Claude reads the skill; their output is inserted in place, so Claude sees the real changes.</li>
+                  <li>The numbered <b>Task</b> list is the procedure Claude follows: check for secrets, stage, commit in <code>type(scope): summary</code> format, show status.</li>
+                </ol>
+              </div>
               <ul>
                 <li><code>!`command`</code> runs <b>before</b> Claude sees the skill; its output is inserted (dynamic context).</li>
                 <li><code>disable-model-invocation: true</code> — only you can trigger it (good for actions with side effects like commit or deploy).</li>
@@ -663,6 +816,14 @@
                 2. Find the relevant code, implement the fix, add a test
                 3. Run `./mvnw test`, then summarise the change
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>name</code> makes it <code>/fix-issue</code>; <code>description</code> lets Claude match it to requests; <code>argument-hint</code> shows <code>[issue-number]</code> in autocomplete.</li>
+                  <li>When you type <code>/fix-issue 482</code>, every <code>$ARGUMENTS</code> in the body is replaced with <code>482</code>.</li>
+                  <li>Claude then follows the steps: read the issue with <code>gh issue view 482</code>, fix it with a test, run <code>./mvnw test</code> and summarise.</li>
+                </ol>
+              </div>
               <p><code>$ARGUMENTS</code> = everything typed after the command; <code>$0</code>, <code>$1</code>… = individual arguments. <code>/fix-issue 482</code> fills in <code>482</code>.</p>
             </div>
           </details>
@@ -691,6 +852,15 @@
                 - Secrets in code or logs, weak crypto, missing input validation
                 Report each finding with file:line, severity, and a concrete fix. Do not edit files.
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The file in <code>.claude/agents/</code> (or <code>~/.claude/agents/</code>) defines a subagent; <code>name</code> is how you refer to it.</li>
+                  <li><code>description</code> tells Claude when to delegate to it automatically (after changes to auth, controllers or SQL).</li>
+                  <li><code>tools</code> restricts it to reading, searching and Bash, and <code>model: opus</code> picks the model it runs on.</li>
+                  <li>The body is its system prompt: what to check, how to report findings, and not to edit files. It runs in its own context and only its summary comes back.</li>
+                </ol>
+              </div>
               <p>Manage them with <code>/agents</code>. Use: "Use the security-reviewer subagent to check my last commit."</p>
             </div>
           </details>
@@ -726,6 +896,16 @@
                 claude mcp add-json weather '{"type":"http","url":"https://weather.example.com/mcp"}'
                 claude mcp add-from-claude-desktop   # import from Claude Desktop
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>--transport http</code> connects to a remote server by URL; you authenticate in-session with <code>/mcp</code>, or pass a token with <code>--header</code>.</li>
+                  <li><code>--transport stdio</code> starts a local process: everything after <code>--</code> is the command that launches the server (here via <code>npx</code>).</li>
+                  <li><code>--env KEY=value</code> passes environment variables, such as API keys, to the server process.</li>
+                  <li>Without <code>--scope</code>, servers are added at <code>local</code> scope (stored in <code>~/.claude.json</code>, this project only).</li>
+                  <li><code>list</code>, <code>get</code>, <code>remove</code>, <code>add-json</code> and <code>add-from-claude-desktop</code> inspect, delete, add from raw JSON, or import existing servers.</li>
+                </ol>
+              </div>
               <div class="note">On native Windows (not WSL), local servers started with <code>npx</code> may need a <code>cmd /c</code> wrapper: <code>claude mcp add --transport stdio my-server -- cmd /c npx -y some-package</code>.</div>
             </div>
           </details>
@@ -744,6 +924,14 @@
               <script type="text/plain" class="code" data-lang="bash">
                 claude mcp add --transport http github --scope project https://api.githubcopilot.com/mcp/
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>--scope project</code> writes the server to <code>.mcp.json</code> in the repo root instead of your private <code>~/.claude.json</code>.</li>
+                  <li>Commit <code>.mcp.json</code> and everyone on the project gets the same server.</li>
+                  <li>Each teammate is asked to approve project-scoped servers before Claude Code uses them.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="json">
                 {
                   "mcpServers": {
@@ -760,6 +948,15 @@
                   }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>mcpServers</code> maps a server name (<code>github</code>, <code>orders-db</code>) to its connection settings.</li>
+                  <li><code>github</code> is an <code>http</code> server: a URL plus an auth header whose token comes from <code>${GITHUB_TOKEN}</code>.</li>
+                  <li><code>orders-db</code> is a <code>stdio</code> server: Claude Code runs <code>npx</code> with the listed <code>args</code> as a local process.</li>
+                  <li><code>${ORDERS_DB_URL:-...}</code> uses the developer&#39;s environment variable, falling back to the default after <code>:-</code>, so no secrets are committed.</li>
+                </ol>
+              </div>
               <p><code>${VAR}</code> and <code>${VAR:-default}</code> expand from each developer's environment, so <b>no secrets are committed</b>. Claude Code asks each person to approve project-scoped servers before using them.</p>
             </div>
           </details>
@@ -789,6 +986,14 @@
                 /plugin                                   # browse, install, enable/disable
                 /plugin marketplace add your-org/claude-plugins   # add a marketplace (e.g. a GitHub repo)
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>/plugin</code> opens the interactive menu to browse, install, enable and disable plugins.</li>
+                  <li><code>/plugin marketplace add your-org/claude-plugins</code> registers a marketplace (here a GitHub repo) so its plugins show up in that menu.</li>
+                  <li>These are slash commands typed inside a Claude Code session, not in your normal shell.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="plaintext">
                 my-plugin/
                 ├── .claude-plugin/plugin.json   # name, version, description
@@ -797,6 +1002,14 @@
                 ├── hooks/hooks.json
                 └── .mcp.json
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>.claude-plugin/plugin.json</code> is the manifest: the plugin&#39;s name, version and description.</li>
+                  <li><code>skills/</code> and <code>agents/</code> hold the skills (run as <code>/plugin-name:skill-name</code>) and subagents it ships.</li>
+                  <li><code>hooks/hooks.json</code> and <code>.mcp.json</code> add hooks and MCP servers, so one install brings the whole setup.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -810,6 +1023,15 @@
 
                 # In GitHub: run /install-github-app once, then mention @claude in an issue or PR
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>claude -p</code> runs once without the interactive UI and exits, which is what scripts and CI need.</li>
+                  <li><code>--output-format json &gt; review.json</code> saves a machine-readable result that later steps can parse.</li>
+                  <li><code>git diff main | claude -p ...</code> pipes the diff in as input, so Claude writes release notes from the real changes.</li>
+                  <li>For GitHub, <code>/install-github-app</code> sets up the app once; afterwards mentioning <code>@claude</code> in an issue or PR triggers it.</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="yaml">
                 # .github/workflows/claude.yml (simplified)
                 on:
@@ -823,6 +1045,15 @@
                         with:
                           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>on: issue_comment: types: [created]</code> runs the workflow whenever someone posts a comment on an issue or PR.</li>
+                  <li>The <code>claude</code> job runs on a GitHub-hosted Ubuntu runner.</li>
+                  <li><code>anthropics/claude-code-action@v1</code> runs Claude Code inside the job.</li>
+                  <li><code>anthropic_api_key</code> is read from the repo&#39;s encrypted <code>secrets</code>, so the key never appears in the file.</li>
+                </ol>
+              </div>
               <p>For building your own agents in code, the <b>Claude Agent SDK</b> (TypeScript / Python) exposes the same agent loop and tools.</p>
             </div>
           </details>
@@ -870,6 +1101,15 @@
                 ├── settings.json                 # my global settings
                 ├── skills/  agents/  rules/      # personal, all projects
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Top level: <code>CLAUDE.md</code> and <code>.mcp.json</code> are committed for the team; <code>CLAUDE.local.md</code> is your gitignored notes.</li>
+                  <li><code>.claude/settings.json</code> (committed) holds team permissions and hooks; <code>settings.local.json</code> (gitignored) holds your overrides.</li>
+                  <li><code>rules/</code>, <code>skills/</code>, <code>agents/</code> and <code>hooks/</code> hold path-scoped instructions, slash commands, subagents and the guardrail scripts used earlier.</li>
+                  <li><code>~/.claude/</code> mirrors this for you personally, applying to every project.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>

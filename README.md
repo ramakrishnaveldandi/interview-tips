@@ -17,6 +17,7 @@ A fast, static website of interview questions with answers and code examples for
 | `sso.html` | SSO with OIDC / SAML (Keycloak, Okta, Entra ID) |
 | `angular.html` | Angular (signals, RxJS, routing, forms) |
 | `database.html` | SQL and database design |
+| `behavioral.html` | Behavioral & HR questions (JPMorgan, Goldman Sachs, Salesforce, Deloitte) |
 | `ai-claude-code.html` | AI basics and Claude Code 101 (CLAUDE.md, hooks, skills, MCP) |
 
 Features: dark/light theme, live search on each page, expand/collapse all, difficulty tags, copy buttons on code,

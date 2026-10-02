@@ -19,6 +19,7 @@
     { href: "angular.html", label: "Angular" },
     { href: "database.html", label: "Database" },
     { href: "ai-claude-code.html", label: "AI / Claude" },
+    { href: "behavioral.html", label: "Behavioral & HR" },
   ];
 
   /* ---------- Theme (applied early to avoid flash) ---------- */
@@ -180,10 +181,20 @@
       const level = d.dataset.level;
       const id = d.id || "q" + (i + 1);
       d.id = id;
+      const isInterview = d.dataset.tag === "interview";
       s.innerHTML =
         '<span class="qnum">Q' + (i + 1) + "</span>" +
         '<span class="qtext">' + s.innerHTML + "</span>" +
+        (isInterview ? '<span class="tag-interview" title="Real interview question">🎯 Interview</span>' : "") +
         (level ? '<span class="level ' + level + '">' + level + "</span>" : "");
+      // data-source="JPMorgan Chase" → "Reported in: JPMorgan Chase interviews" at the top of the answer
+      const answer = d.querySelector(".answer");
+      if (d.dataset.source && answer) {
+        const src = document.createElement("p");
+        src.className = "qa-source";
+        src.textContent = "🎯 Reported in " + d.dataset.source + " interviews";
+        answer.insertBefore(src, answer.firstChild);
+      }
     });
 
     // Table of contents from groups
@@ -205,23 +216,43 @@
     function updateCount(n) { if (count) count.textContent = n + " of " + items.length + " questions"; }
     updateCount(items.length);
 
-    if (search) {
-      search.addEventListener("input", function () {
-        const q = search.value.trim().toLowerCase();
-        let shown = 0;
-        items.forEach(function (d) {
-          const match = !q || d.textContent.toLowerCase().indexOf(q) !== -1;
-          d.classList.toggle("hidden", !match);
-          if (match) shown++;
-        });
-        document.querySelectorAll(".qa-group").forEach(function (g) {
-          if (!g.querySelector("details.qa")) return; // sections without questions (e.g. comparison tables) stay visible
-          g.classList.toggle("hidden", !g.querySelector("details.qa:not(.hidden)"));
-        });
-        if (empty) empty.classList.toggle("hidden", shown !== 0);
-        updateCount(shown);
+    // "Interview only" toggle, added only on pages that have tagged questions
+    let interviewOnly = false;
+    const toolbar = document.querySelector(".toolbar");
+    if (toolbar && items.some(function (d) { return d.dataset.tag === "interview"; })) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "tool-btn interview-filter";
+      btn.textContent = "🎯 Interview questions only";
+      btn.setAttribute("aria-pressed", "false");
+      btn.addEventListener("click", function () {
+        interviewOnly = !interviewOnly;
+        btn.classList.toggle("active", interviewOnly);
+        btn.setAttribute("aria-pressed", String(interviewOnly));
+        applyFilters();
       });
+      toolbar.insertBefore(btn, count || null);
     }
+
+    function applyFilters() {
+      const q = search ? search.value.trim().toLowerCase() : "";
+      let shown = 0;
+      items.forEach(function (d) {
+        const match = (!q || d.textContent.toLowerCase().indexOf(q) !== -1) &&
+                      (!interviewOnly || d.dataset.tag === "interview");
+        d.classList.toggle("hidden", !match);
+        if (match) shown++;
+      });
+      const filtering = q || interviewOnly;
+      document.querySelectorAll(".qa-group").forEach(function (g) {
+        if (!g.querySelector("details.qa")) { g.classList.toggle("hidden", !!interviewOnly); return; } // tables stay unless "interview only"
+        g.classList.toggle("hidden", !!filtering && !g.querySelector("details.qa:not(.hidden)"));
+      });
+      if (empty) empty.classList.toggle("hidden", shown !== 0);
+      updateCount(shown);
+    }
+
+    if (search) search.addEventListener("input", applyFilters);
 
     const expand = document.getElementById("expand-all");
     const collapse = document.getElementById("collapse-all");

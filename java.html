@@ -62,6 +62,15 @@
                     @Override public int hashCode() { return Objects.hash(x, y); }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>this == o</code> is a cheap shortcut: an object is always equal to itself.</li>
+                  <li><code>instanceof</code> rejects <code>null</code> and other types, so the cast on the next line can never throw <code>ClassCastException</code>.</li>
+                  <li>Two points are equal when both coordinates match, and <code>Objects.hash(x, y)</code> is built from exactly those same fields, so equal points always get equal hash codes.</li>
+                  <li>The class is <code>final</code> with <code>final</code> fields, so the hash can never change after the object is put in a <code>HashSet</code>/<code>HashMap</code>.</li>
+                </ol>
+              </div>
               <div class="tip">Use fields that never change in <code>hashCode()</code>. Mutating a key after inserting it into a <code>HashMap</code> makes it unreachable.</div>
             </div>
           </details>
@@ -82,6 +91,15 @@
                 System.out.println(a == c);           // false
                 System.out.println(a == c.intern());  // true
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>String literals are interned at class-load time, so <code>a</code> and <code>b</code> point to the same pooled object and <code>a == b</code> is <code>true</code>.</li>
+                  <li><code>new String("java")</code> always allocates a fresh heap object, so <code>a == c</code> compares two different references and is <code>false</code> (even though the text is equal).</li>
+                  <li><code>c.intern()</code> returns the canonical pooled instance for that text, which is the same object as <code>a</code>, so the last line prints <code>true</code>.</li>
+                  <li>Lesson: <code>==</code> compares references; use <code>equals()</code> to compare text.</li>
+                </ol>
+              </div>
               <div class="tip">Use <code>StringBuilder</code> for concatenation in loops; it is mutable and not synchronized (<code>StringBuffer</code> is the synchronized legacy version).</div>
             </div>
           </details>
@@ -96,6 +114,15 @@
                 System.out.println(p == q);      // false (different objects)
                 System.out.println(p.equals(q)); // true
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Integer x = 127</code> is autoboxed via <code>Integer.valueOf(127)</code>, which returns a cached object for values -128..127.</li>
+                  <li>So <code>x</code> and <code>y</code> refer to the same cached object and <code>x == y</code> is <code>true</code>.</li>
+                  <li>128 is outside the cache, so <code>valueOf</code> creates two separate objects and <code>p == q</code> is <code>false</code>.</li>
+                  <li><code>p.equals(q)</code> compares the wrapped int values (128 vs 128), so it is <code>true</code>. Always use <code>equals()</code> for wrapper types.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="easy">
@@ -136,6 +163,15 @@
                 modify(s);
                 System.out.println(s);            // hello world
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Java copies the <em>reference</em> value into the parameter <code>sb</code>; caller variable <code>s</code> and <code>sb</code> now point to the same object.</li>
+                  <li><code>sb.append(" world")</code> mutates that shared object, so the caller sees the change.</li>
+                  <li><code>sb = new StringBuilder("x")</code> only re-points the local copy of the reference; <code>s</code> still points to the original object.</li>
+                  <li>Therefore the output is <code>hello world</code>: Java is always pass-by-value, and for objects the value passed is a reference.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -168,6 +204,14 @@
                 └── ConcurrentMap ................. ConcurrentHashMap
                     └── ConcurrentNavigableMap .... ConcurrentSkipListMap
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>List</code>, <code>Set</code> and <code>Queue</code> all extend <code>Collection</code>, which extends <code>Iterable</code>, so all of them work in a for-each loop.</li>
+                  <li>Java 21 inserted the <code>Sequenced*</code> interfaces for types with a defined encounter order, giving them <code>getFirst()</code>, <code>getLast()</code> and <code>reversed()</code>.</li>
+                  <li><code>Map</code> is a separate hierarchy because it stores key/value pairs; you iterate it through <code>keySet()</code>, <code>values()</code> or <code>entrySet()</code>.</li>
+                </ol>
+              </div>
               <ul>
                 <li><b>List</b> — ordered by index, allows duplicates.</li>
                 <li><b>Set</b> — no duplicates (decided by <code>equals</code>/<code>hashCode</code>, or by a comparator for sorted sets).</li>
@@ -248,6 +292,14 @@
                 System.out.println(list); // => [a, X, c, d]
                 System.out.println(list.get(1) + " " + list.indexOf("d") + " " + list.contains("z")); // => X 3 false
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>add(2, "X")</code> inserts at index 2, so <code>c</code> and <code>d</code> are copied one slot right (an O(n) array copy) giving <code>[a, b, X, c, d]</code>.</li>
+                  <li><code>remove("b")</code> finds the first element equal to <code>"b"</code> (O(n) scan) and shifts the rest left, giving <code>[a, X, c, d]</code>.</li>
+                  <li><code>get(1)</code> is O(1) direct array access, so it returns <code>X</code>; <code>indexOf("d")</code> is 3 because indexes start at 0; <code>contains("z")</code> is <code>false</code> after a full scan.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -286,6 +338,15 @@
                 while (it.hasNext()) if (it.next() == 3) it.add(99);   // O(1) insert at the iterator position
                 System.out.println(ll); // => [2, 3, 99, 4]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>addFirst</code>/<code>addLast</code> just relink the head/tail nodes, O(1), giving <code>[1, 2, 3, 4, 5]</code>.</li>
+                  <li>String concatenation evaluates left to right: <code>removeFirst()</code> returns 1, then <code>removeLast()</code> returns 5, and only then is the list printed as <code>[2, 3, 4]</code>.</li>
+                  <li><code>it.next() == 3</code> works because the <code>Integer</code> is unboxed when compared to the int literal 3.</li>
+                  <li><code>it.add(99)</code> inserts right after 3 (before 4) by relinking nodes; the iterator then continues to 4 without visiting 99, so the result is <code>[2, 3, 99, 4]</code> and no <code>ConcurrentModificationException</code> is thrown.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -300,6 +361,13 @@
                 nums.remove(Integer.valueOf(1));      // removes the VALUE 1
                 System.out.println(nums); // => [10, 30]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>nums.remove(1)</code>: the compiler picks <code>remove(int index)</code> because an exact primitive match beats autoboxing, so it removes index 1 (the value 20) giving <code>[10, 30, 1]</code>.</li>
+                  <li><code>Integer.valueOf(1)</code> is an object, so <code>remove(Object)</code> is chosen; it removes the first element equal to 1, giving <code>[10, 30]</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -325,6 +393,15 @@
                 }
                 System.out.println(listeners); // => [audit, email, sms, sms]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>synchronizedList</code> locks each single method call, but a for-each loop is many calls (<code>hasNext</code>/<code>next</code>), so you must hold the list's own lock for the whole loop yourself.</li>
+                  <li><code>CopyOnWriteArrayList</code> iterators walk a snapshot of the array taken when the loop started (2 elements).</li>
+                  <li>Each <code>add("sms")</code> copies the array and appends, but the running loop still sees only the old 2-element snapshot, so it runs exactly twice: <code>[audit, email, sms, sms]</code>.</li>
+                  <li>Writes cost O(n) copies, so COW suits read-mostly lists such as listeners.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -359,6 +436,16 @@
 
                 System.out.println(EnumSet.range(java.time.DayOfWeek.MONDAY, java.time.DayOfWeek.FRIDAY)); // => [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Duplicates are dropped because <code>add</code> on a set ignores an element that is already equal to one present. <code>HashSet</code> order depends on hash buckets and is not guaranteed (it just happens to match here); <code>LinkedHashSet</code> keeps insertion order; <code>TreeSet</code> sorts, giving <code>[apple, banana, cherry]</code>.</li>
+                  <li>In the sorted scores {40, 55, 62, 75, 90}: <code>floor(60)</code> is the greatest &lt;= 60 (55), <code>ceiling(60)</code> the least &gt;= 60 (62), and <code>higher(90)</code> must be strictly greater than 90, so it is <code>null</code>.</li>
+                  <li><code>headSet(62)</code> excludes 62, <code>tailSet(62)</code> includes it, and <code>descendingSet()</code> is a reversed view.</li>
+                  <li>A <code>TreeSet</code> uses its comparator, not <code>equals()</code>, to detect duplicates: case-insensitively "JAVA" compares as 0 to "Java", so it is rejected and the first one stays.</li>
+                  <li><code>EnumSet.range</code> is a bit-vector set that always iterates in enum declaration order.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -390,6 +477,15 @@
                 key.add("b");                           // hashCode of the key changes
                 System.out.println(m.get(key) + " " + m.size()); // => null 1
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>BadPoint</code> overrides <code>equals</code> but inherits <code>Object.hashCode()</code>, which is identity-based, so the two equal points land in different buckets.</li>
+                  <li><code>HashSet</code> only calls <code>equals</code> on entries in the same bucket, so it never notices the duplicate: size is 2.</li>
+                  <li>A <code>record</code> generates <code>equals</code> and <code>hashCode</code> from its components, so a new <code>Point(1, 2)</code> hashes to the same bucket and <code>contains</code> is <code>true</code>.</li>
+                  <li>For the mutable key, adding "b" changes the list's <code>hashCode</code>; <code>get(key)</code> now looks in a different bucket and returns <code>null</code>, while the stale entry is still stored, so size is 1.</li>
+                </ol>
+              </div>
               <div class="tip">Use immutable keys: <code>String</code>, boxed numbers, records with immutable fields, or enums.</div>
             </div>
           </details>
@@ -422,6 +518,14 @@
                 ...
                 [15] → ("java", 3)
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The bucket index is computed from the key's hash (spread as <code>h ^ (h &gt;&gt;&gt; 16)</code>) AND <code>(capacity - 1)</code>; a <code>null</code> key always goes to bucket 0.</li>
+                  <li>"Aa" and "BB" have the same <code>hashCode</code>, so they share a bucket and are chained; <code>equals()</code> tells them apart on lookup.</li>
+                  <li>When one bucket's chain reaches 8 entries (and the table has at least 64 slots) it is converted into a red-black tree, making worst-case lookups O(log n) instead of O(n).</li>
+                </ol>
+              </div>
               <script type="text/plain" class="code" data-lang="java" data-test="c7">
                 System.out.println("Aa".hashCode() + " " + "BB".hashCode()); // => 2112 2112   (same hash, different keys)
 
@@ -435,6 +539,16 @@
                 // Size the map up front to avoid resizes: Java 19+ factory accounts for the load factor
                 Map<String, Integer> sized = HashMap.newHashMap(1000);
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>String hash is <code>s[0]*31 + s[1]</code>: 'A'(65)*31 + 'a'(97) = 2112 and 'B'(66)*31 + 'B'(66) = 2112, a real collision.</li>
+                  <li>"BB" goes into the same bucket as "Aa", but <code>equals</code> is false, so both entries are kept.</li>
+                  <li><code>put("Aa", 10)</code> finds an equal key and replaces the value (returning the old value 1); size does not grow.</li>
+                  <li><code>HashMap</code> allows one <code>null</code> key, so the map holds Aa, BB and null: output <code>10 2 0 3</code>.</li>
+                  <li><code>HashMap.newHashMap(1000)</code> picks a capacity big enough that 1000 entries fit under the 0.75 load factor, so no resizing happens while filling it.</li>
+                </ol>
+              </div>
               <div class="note"><code>HashMap</code> is <b>not thread-safe</b>. Concurrent <code>put</code>s can lose entries or corrupt the structure (in Java 7, concurrent resizing could even create a cycle and an infinite loop). Use <code>ConcurrentHashMap</code> for shared maps.</div>
             </div>
           </details>
@@ -463,6 +577,16 @@
                 stock.remove("kiwi", 999);                            // removes only if the value matches
                 System.out.println(new TreeMap<>(stock)); // => {apple=70, kiwi=10, pear=20}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>getOrDefault</code> returns 0 because "pear" is absent (the map is not changed); <code>putIfAbsent</code> then adds pear=3.</li>
+                  <li><code>merge("apple", 2, Integer::sum)</code> combines the old value 5 with 2, so apple=7; <code>computeIfPresent</code> turns pear 3 into 2; <code>compute</code> sees <code>null</code> for kiwi and stores 1.</li>
+                  <li><code>computeIfAbsent</code> creates the list only the first time a key is seen and returns the existing list afterwards, so both IT names end up in one list.</li>
+                  <li><code>replaceAll</code> multiplies every value by 10 (70, 10, 20); <code>remove("kiwi", 999)</code> does nothing because kiwi's value is 10, not 999.</li>
+                  <li>Wrapping in a <code>TreeMap</code> just sorts the keys so the printed output is predictable.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -491,6 +615,15 @@
                 ordered.put("first", 1); ordered.put("second", 2); ordered.put("third", 3);
                 System.out.println(ordered.firstEntry() + " " + ordered.lastEntry() + " " + ordered.reversed()); // => first=1 third=3 {third=3, second=2, first=1}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The third constructor argument <code>true</code> switches to access order: every <code>get</code>/<code>put</code> moves that entry to the end of the internal linked list.</li>
+                  <li>After inserting a, b, c the order is a, b, c; <code>get("a")</code> moves a to the end, so the order is b, c, a.</li>
+                  <li><code>put("d")</code> makes size 4; <code>removeEldestEntry</code> is called after the insert, returns <code>true</code>, and the head (b, the least recently used) is evicted: <code>{c=3, a=1, d=4}</code>.</li>
+                  <li>The second map uses the default insertion order; Java 21 <code>firstEntry()</code>, <code>lastEntry()</code> and <code>reversed()</code> come from <code>SequencedMap</code>.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -521,6 +654,15 @@
                 for (String w : List.of("java", "go", "kotlin", "scala")) byLength.put(w, w.length());
                 System.out.println(byLength); // => {kotlin=6, scala=5, java=4, go=2}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Keys are kept sorted in a red-black tree, so every navigation call is O(log n).</li>
+                  <li><code>floorEntry(850_000)</code> gives the greatest key &lt;= 850000, i.e. the 700000 slab with 10%; <code>ceilingKey</code> gives the next slab start, 1000000.</li>
+                  <li><code>headMap(k)</code> excludes k, <code>tailMap(k, true)</code> includes it, and <code>subMap(from, to)</code> is from-inclusive, to-exclusive, which is why 1000000 is not in the subMap output.</li>
+                  <li>The custom comparator sorts by length descending, then alphabetically, giving kotlin(6), scala(5), java(4), go(2). Keys that compare as 0 would be treated as duplicates.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -564,6 +706,14 @@
                 counts.put(Status.NEW, 7);
                 System.out.println(counts); // => {NEW=7, SHIPPED=4}   (always in declaration order)
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>k1</code> and <code>k2</code> are equal strings but different objects. <code>IdentityHashMap</code> compares keys with <code>==</code>, so it stores both: size 2.</li>
+                  <li>A normal <code>HashMap</code> uses <code>equals()</code>, so looking up <code>k2</code> finds the entry stored under <code>k1</code>: <code>true</code>.</li>
+                  <li><code>EnumMap</code> is backed by an array indexed by <code>ordinal()</code>, so it always prints in declaration order (NEW before SHIPPED) no matter the insertion order.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -590,6 +740,14 @@
                 Thread C: put("z") → bin 9 has nodes  → synchronized(bin 9 head) { append }   ← runs in parallel with B
                 Thread D: get("y") → bin 7            → volatile read, never blocks, sees a consistent node
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>An empty bin is filled with a lock-free CAS (compare-and-swap); if two threads race, one CAS fails and that thread retries.</li>
+                  <li>A non-empty bin is locked by synchronizing on its first node only, so threads writing to different bins (B and C) never block each other.</li>
+                  <li>Reads use volatile reads of the table and nodes, so <code>get</code> never takes a lock and always sees a fully published node.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -639,6 +797,15 @@
                     System.out.println("ConcurrentHashMap rejects null keys"); // => ConcurrentHashMap rejects null keys
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The function starts 4 tasks, each doing 10,000 <code>merge</code> calls; the try-with-resources <code>close()</code> on the <code>ExecutorService</code> (Java 19+) waits for all tasks before the sum is computed.</li>
+                  <li>With a plain <code>HashMap</code>, <code>merge</code> is a non-atomic read-modify-write: two threads can read the same old value and both write old+1, so increments are lost (or the internal structure gets corrupted), making the total &lt;= 40000.</li>
+                  <li><code>ConcurrentHashMap.merge</code> is atomic per key, so no update is lost and the total is exactly 4 &times; 10,000 = 40000.</li>
+                  <li><code>ConcurrentHashMap</code> rejects <code>null</code> keys and values (so <code>get</code> returning <code>null</code> unambiguously means &quot;absent&quot;), hence the <code>NullPointerException</code>.</li>
+                </ol>
+              </div>
 
               <p><b>Iteration difference</b>:</p>
               <script type="text/plain" class="code" data-lang="java" data-test="c13">
@@ -653,6 +820,14 @@
                 for (String k : chm.keySet()) chm.put("c", 3);        // fine: weakly consistent iterator
                 System.out.println("ConcurrentHashMap size: " + chm.size()); // => ConcurrentHashMap size: 3
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Adding the new key "c" during the for-each is a structural change that increments the map's <code>modCount</code>.</li>
+                  <li>On the next <code>next()</code> the fail-fast iterator sees that <code>modCount</code> differs from the value it recorded and throws <code>ConcurrentModificationException</code>.</li>
+                  <li><code>ConcurrentHashMap</code> iterators are weakly consistent: they never throw CME and may or may not see changes made during iteration. Repeated <code>put("c", 3)</code> just overwrites, so size is 3.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -681,6 +856,15 @@
                 // Optimistic update with compare-and-set semantics
                 counts.replace(word, 5, 6);       // only if the current value is still 5
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Each single CHM call is atomic, but <code>containsKey</code> followed by <code>put</code> is two calls: two threads can both see &quot;absent&quot; and both open a connection.</li>
+                  <li><code>computeIfAbsent</code> does the check and insert as one atomic step, running the function at most once per key (keep that function short; it runs while the bin is locked).</li>
+                  <li>Same for counting: <code>get</code> then <code>put</code> can lose increments, while <code>merge(word, 1, Integer::sum)</code> is atomic.</li>
+                  <li><code>replace(word, 5, 6)</code> changes the value only if it is still 5, the same idea as CAS on an <code>AtomicInteger</code>.</li>
+                </ol>
+              </div>
               <ul>
                 <li>Keep the function passed to <code>compute*</code>/<code>merge</code> <b>short</b> and <b>never modify the same map inside it</b> — the bin stays locked while it runs (doing so can throw <code>IllegalStateException: Recursive update</code>).</li>
                 <li>Operations spanning <b>several keys</b> (e.g. transfer from key A to key B) are not atomic; you need external locking or a different design.</li>
@@ -729,6 +913,15 @@
                 leaderboard.put(870, "Ravi"); leaderboard.put(990, "Asha"); leaderboard.put(910, "John");
                 System.out.println(leaderboard.firstEntry() + " " + leaderboard.headMap(900)); // => 990=Asha {990=Asha, 910=John}   (headMap = keys BEFORE 900 in this descending order)
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The threshold <code>Long.MAX_VALUE</code> means &quot;never parallelise&quot;, so the bulk operations run on the calling thread. <code>reduceValues</code> sums 10+250+900+120 = 1280.</li>
+                  <li><code>search</code> returns the first non-null result of the function; only bag (900) is above 500, so it returns <code>bag</code>.</li>
+                  <li><code>newKeySet()</code> returns a concurrent <code>Set</code> backed by a CHM; the second <code>add("asha")</code> is ignored.</li>
+                  <li>With <code>Comparator.reverseOrder()</code> the skip list is sorted 990, 910, 870. <code>firstEntry()</code> is 990=Asha, and <code>headMap(900)</code> means &quot;keys that come before 900 in this order&quot;, i.e. 990 and 910.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -759,6 +952,14 @@
                 queue.offer("first"); queue.offer("second");          // FIFO
                 System.out.println(queue.poll() + " " + queue.poll() + " " + queue.poll()); // => first second null
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>push</code> adds to the head, so after a, b, c the deque is [c, b, a]; <code>pop</code> removes the head (c), and <code>peek</code> looks at the new head (b) without removing it, leaving [b, a].</li>
+                  <li><code>offer</code> adds to the tail and <code>poll</code> removes from the head, so a queue returns items in FIFO order: first, then second.</li>
+                  <li>The third <code>poll()</code> on an empty queue returns <code>null</code> instead of throwing (<code>remove()</code> would throw <code>NoSuchElementException</code>).</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -786,6 +987,15 @@
                 tasks.add(new Task("email", 1)); tasks.add(new Task("outage", 10)); tasks.add(new Task("report", 5));
                 System.out.println(tasks.poll().name()); // => outage
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>A <code>PriorityQueue</code> is a binary min-heap: <code>poll()</code> always removes the smallest element in O(log n), so draining gives sorted order [3, 7, 19, 25, 42] (printing the queue directly would not be sorted).</li>
+                  <li>For the top 3, keep a min-heap of size 3: after each offer, if size exceeds 3, drop the smallest. What remains are the 3 largest (12, 9, 8). Time O(n log k), space O(k).</li>
+                  <li>The heap is copied to a <code>TreeSet</code> only to print it in descending order.</li>
+                  <li>The reversed comparator turns it into a max-heap on priority, so <code>outage</code> (10) comes out first.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -831,6 +1041,15 @@
                 } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
                 System.out.println(consumed); // => [10, 20, 30, 40, 50]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The queue has capacity 2: the first two <code>offer</code> calls succeed, the third returns <code>false</code> immediately because <code>offer</code> never blocks; <code>remainingCapacity()</code> is then 0.</li>
+                  <li>The producer thread uses <code>put</code>, which blocks while the queue is full, and finally sends -1 as a poison pill.</li>
+                  <li>The main thread's <code>take</code> blocks while the queue is empty and stops when it sees -1. The queue is FIFO, so items arrive in order and are multiplied by 10: [10, 20, 30, 40, 50].</li>
+                  <li>The queue does all locking and signalling, so no explicit <code>synchronized</code>/<code>wait</code>/<code>notify</code> is needed.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -858,6 +1077,14 @@
                 Queue<String> lockFree = new ConcurrentLinkedQueue<>(List.of("x", "y"));
                 System.out.println(lockFree.poll() + " " + lockFree.poll() + " " + lockFree.poll()); // => x y null
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>After offerFirst(urgent), offerLast(normal), offerFirst(critical) the deque is [critical, urgent, normal].</li>
+                  <li><code>pollFirst</code> returns critical, <code>pollLast</code> returns normal, leaving [urgent].</li>
+                  <li><code>ConcurrentLinkedQueue</code> is a lock-free, unbounded FIFO queue (it does not block), so polls return x, y and then <code>null</code> when empty.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -888,6 +1115,15 @@
                 for (Iterator<Integer> it = b.iterator(); it.hasNext(); ) if (it.next() % 2 == 0) it.remove();  // correct
                 System.out.println(b); // => [1, 3, 5]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>nums.remove(n)</code> (with an <code>Integer</code>, so <code>remove(Object)</code>) changes <code>modCount</code> when it removes 2; the hidden iterator's next <code>next()</code> detects this and throws CME.</li>
+                  <li><code>removeIf</code> iterates and removes internally in one pass, safely, giving [1, 3, 5].</li>
+                  <li><code>Iterator.remove()</code> removes the last returned element and updates the iterator's expected <code>modCount</code>, so it is also safe.</li>
+                  <li>Fail-fast detection is best-effort, not a thread-safety mechanism.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -917,6 +1153,15 @@
                 try { asList.add("z"); } catch (UnsupportedOperationException e) { System.out.println("asList is fixed-size"); }   // prints: asList is fixed-size
                 try { List.of("a").add("b"); } catch (UnsupportedOperationException e) { System.out.println("List.of is immutable"); }   // prints: List.of is immutable
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>unmodifiableList</code> is a read-only <em>view</em> wrapping <code>source</code>, so when <code>source</code> gets "c" the view shows it too.</li>
+                  <li><code>List.copyOf</code> made an independent immutable copy, so it still shows [a, b].</li>
+                  <li><code>Arrays.asList</code> is a fixed-size list backed by the array: <code>set</code> writes through (arr[0] becomes CHANGED) but <code>add</code> throws <code>UnsupportedOperationException</code>.</li>
+                  <li><code>List.of</code> is fully immutable, so any mutator throws <code>UnsupportedOperationException</code>.</li>
+                </ol>
+              </div>
               <div class="note"><code>Set.of</code> and <code>Map.of</code> have <b>randomised iteration order</b> (it changes between JVM runs) and throw <code>IllegalArgumentException</code> on duplicate elements/keys. Also note: unmodifiable is <b>shallow</b> — the elements themselves can still be mutable.</div>
             </div>
           </details>
@@ -939,6 +1184,14 @@
                 map.putFirst("first", 0);
                 System.out.println(map.firstEntry() + " " + map.pollLastEntry() + " " + map); // => first=0 x=1 {first=0}
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>addFirst(0)</code>/<code>addLast(4)</code> give [0, 1, 2, 3, 4]; <code>getFirst</code>/<code>getLast</code> return 0 and 4; <code>reversed()</code> is a reversed view, not a copy.</li>
+                  <li><code>LinkedHashSet.addFirst</code> places "a" at the front (moving it there if already present), giving [a, b, c] and reversed [c, b, a].</li>
+                  <li><code>putFirst</code> puts first=0 before x=1. Concatenation runs left to right: <code>firstEntry()</code> is first=0, then <code>pollLastEntry()</code> removes and returns x=1, so the map printed last is {first=0}.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -965,6 +1218,15 @@
                 emps.sort(Comparator.comparingInt(Emp::salary).reversed().thenComparing(Emp::name));
                 System.out.println(emps.stream().map(Emp::name).toList()); // => [Asha, John, Ravi]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>After sorting, nums is [1, 3, 5, 7, 9]; <code>binarySearch</code> finds 7 at index 3 in O(log n). On an unsorted list its result is undefined.</li>
+                  <li><code>max</code> is 9, <code>min</code> is 1, and 1 occurs twice in [1, 2, 1], so <code>frequency</code> is 2.</li>
+                  <li><code>reverse</code> gives [9, 7, 5, 3, 1]; <code>swap(0, 4)</code> exchanges the ends to give [1, 7, 5, 3, 9]. <code>nCopies</code>, <code>emptyList</code> and <code>singletonList</code> return immutable lists.</li>
+                  <li>The comparator sorts by salary descending (Asha 1200 first), then breaks the 900 tie by name ascending (John before Ravi): [Asha, John, Ravi].</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -997,6 +1259,14 @@
                     throw new DataAccessException("lookup failed", e);
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Resources declared in the <code>try(...)</code> header are closed automatically in reverse order: <code>rs</code> first, then <code>ps</code>, then <code>con</code>, even if an exception or <code>return</code> happens.</li>
+                  <li>If the body throws and a <code>close()</code> also throws, the close exception is attached to the main one as a <em>suppressed</em> exception instead of replacing it; <code>getSuppressed()</code> reads them.</li>
+                  <li>The <code>SQLException</code> is wrapped in a domain exception with the original as its cause, so the stack trace is preserved.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -1042,6 +1312,15 @@
                 Optional<Double> second = employees.stream().map(Employee::salary)
                     .distinct().sorted(Comparator.reverseOrder()).skip(1).findFirst();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>flatMap</code> turns each employee's skill list into a stream and flattens all of them into one <code>Stream&lt;String&gt;</code>; <code>distinct</code> and <code>sorted</code> then de-duplicate and order them.</li>
+                  <li><code>groupingBy(dept, averagingDouble(salary))</code> puts employees into buckets by department and reduces each bucket to its average salary.</li>
+                  <li><code>partitioningBy</code> always returns a map with exactly two keys, <code>true</code> and <code>false</code>.</li>
+                  <li>Second-highest: take distinct salaries, sort descending, skip the top one, take the next. It returns an <code>Optional</code> because there may be fewer than two distinct salaries. Sorting makes it O(n log n).</li>
+                </ol>
+              </div>
               <div class="tip">Streams are lazy: intermediate operations run only when a terminal operation (<code>collect</code>, <code>forEach</code>, <code>findFirst</code>) is invoked, and a stream can be consumed only once.</div>
             </div>
           </details>
@@ -1058,6 +1337,14 @@
                 User u = userRepo.findById(id)
                     .orElseThrow(() -> new UserNotFoundException(id));
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>findById</code> returns an <code>Optional&lt;User&gt;</code>; each <code>map</code> runs only if a value is present.</li>
+                  <li>If any step returns <code>null</code> (e.g. no address), <code>map</code> produces an empty <code>Optional</code> and the chain short-circuits, so there is no <code>NullPointerException</code>.</li>
+                  <li><code>orElse("Unknown")</code> supplies the fallback; <code>orElseThrow</code> takes a supplier, so the exception object is only created when the value is missing.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -1071,6 +1358,14 @@
                     @Override public String hi() { return A.super.hi(); }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Both interfaces provide a default <code>hi()</code>, so the compiler cannot pick one and forces <code>C</code> to override it (otherwise compilation fails).</li>
+                  <li><code>A.super.hi()</code> explicitly calls interface A's default implementation, so <code>new C().hi()</code> returns "A".</li>
+                  <li>Rule of thumb: a class method always wins over an interface default, and a more specific sub-interface wins over its parent.</li>
+                </ol>
+              </div>
               <p>Resolution rules: class methods win over interface defaults; a more specific interface wins over a less specific one.</p>
             </div>
           </details>
@@ -1084,6 +1379,14 @@
                 ZonedDateTime ist = Instant.now().atZone(ZoneId.of("Asia/Kolkata"));
                 String s = ist.format(DateTimeFormatter.ofPattern("dd-MMM-yyyy HH:mm"));
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>LocalDate</code> is immutable: <code>plusDays(30)</code> returns a new date (2026-11-01) instead of modifying the original.</li>
+                  <li><code>ChronoUnit.DAYS.between</code> counts whole days between today and the due date (negative if the date has passed).</li>
+                  <li><code>Instant</code> is a UTC point on the timeline; <code>atZone</code> views it in the Asia/Kolkata zone, and the formatter (thread-safe, unlike <code>SimpleDateFormat</code>) renders it. <code>MMM</code> month names depend on the default locale.</li>
+                </ol>
+              </div>
               <div class="tip">Store <code>Instant</code> / UTC in the database; convert to a zone only for display.</div>
             </div>
           </details>
@@ -1104,6 +1407,15 @@
 
                 CompletableFuture.allOf(userF, ordersF).join();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Both <code>supplyAsync</code> calls start immediately on the pool, so the user and orders calls run in parallel.</li>
+                  <li><code>thenCombine</code> waits for both results and passes them to <code>Dashboard::new</code>; <code>thenCompose</code> chains another async call and flattens the nested future (like <code>flatMap</code>).</li>
+                  <li><code>orTimeout</code> fails the future with <code>TimeoutException</code> after 2 s, and <code>exceptionally</code> turns any failure in the chain into an empty dashboard.</li>
+                  <li><code>allOf(...).join()</code> blocks the caller until both original futures finish; it returns <code>Void</code>, so results are read from each future.</li>
+                </ol>
+              </div>
               <p><code>thenApply</code> = map, <code>thenCompose</code> = flatMap, <code>thenCombine</code> = zip two futures. Always pass your own executor for blocking I/O — the default is the common <code>ForkJoinPool</code>.</p>
             </div>
           </details>
@@ -1132,6 +1444,14 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>tryLock(1, SECONDS)</code> waits at most one second for the lock and returns <code>false</code> instead of blocking forever, which <code>synchronized</code> cannot do. It can throw <code>InterruptedException</code>.</li>
+                  <li>The <code>try</code> starts only after the lock is acquired, and <code>unlock()</code> is in <code>finally</code>, so the lock is released even if the critical section throws.</li>
+                  <li>If the lock was not obtained, the method skips the work; real code should report or retry instead of silently doing nothing.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -1146,6 +1466,14 @@
                 private final AtomicInteger counter = new AtomicInteger();
                 counter.incrementAndGet();                  // atomic
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Writing a <code>volatile</code> field makes the new value visible to other threads, so the worker loop reading <code>running</code> sees <code>false</code> soon after <code>stop()</code> is called and exits.</li>
+                  <li>Without <code>volatile</code>, the JIT may hoist the read out of the loop and spin forever.</li>
+                  <li><code>volatile</code> does not make <code>count++</code> atomic (it is read, add, write). <code>AtomicInteger.incrementAndGet</code> uses CAS to do the whole update atomically.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -1163,6 +1491,15 @@
                 pool.shutdown();
                 if (!pool.awaitTermination(30, TimeUnit.SECONDS)) pool.shutdownNow();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The pool keeps 4 core threads, grows to 8 only when the 500-slot bounded queue is full, and extra threads die after 60 s idle.</li>
+                  <li>When both the queue and max threads are full, <code>CallerRunsPolicy</code> runs the task on the submitting thread, slowing the producer down (backpressure).</li>
+                  <li><code>f.get(5, SECONDS)</code> waits for the result and throws <code>TimeoutException</code> if it takes longer; task exceptions arrive wrapped in <code>ExecutionException</code>.</li>
+                  <li><code>shutdown()</code> stops new submissions and lets queued work finish; if it is still not done after 30 s, <code>shutdownNow()</code> interrupts running tasks.</li>
+                </ol>
+              </div>
               <p>Avoid <code>Executors.newCachedThreadPool()</code> / unbounded queues under load. Size CPU-bound pools ≈ number of cores; I/O-bound pools larger (or use virtual threads on Java 21+).</p>
             </div>
           </details>
@@ -1182,6 +1519,14 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>A deadlock needs a circular wait: thread 1 locks A then waits for B while thread 2 locks B then waits for A.</li>
+                  <li>Here both threads compute the same order (lower id first) no matter which direction the transfer goes, so they always lock in the same sequence and a cycle is impossible.</li>
+                  <li>The second thread simply waits on the first lock until the first thread finishes both blocks. This assumes account ids are unique.</li>
+                </ol>
+              </div>
               <p>Other techniques: <code>tryLock</code> with timeout, minimise lock scope, prefer higher-level concurrency utilities. Detect with <code>jstack &lt;pid&gt;</code> ("Found one Java-level deadlock").</p>
             </div>
           </details>
@@ -1211,6 +1556,15 @@
                     vexec.submit(() -> callRemoteApi());
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Subclassing <code>Thread</code> works, but uses up your only superclass and mixes the task with the thread.</li>
+                  <li>A <code>Runnable</code> passed to <code>new Thread</code> separates task from thread, but cannot return a value or throw a checked exception, and creating an OS thread per task is expensive.</li>
+                  <li><code>submit</code> with a <code>Callable</code> returns a <code>Future</code>; <code>get(2, SECONDS)</code> waits for the result, and the pool reuses its 4 threads.</li>
+                  <li>The virtual-thread executor creates a cheap new virtual thread per task, and its <code>close()</code> (end of try-with-resources) waits for submitted tasks to finish.</li>
+                </ol>
+              </div>
               <p>Creating a platform thread is expensive (≈1 MB stack reserved, a kernel thread, OS scheduling). An executor
                 <b>reuses</b> threads, <b>bounds</b> concurrency, queues excess work, and gives you lifecycle control
                 (<code>shutdown</code>, <code>awaitTermination</code>) and results via <code>Future</code>.</p>
@@ -1252,6 +1606,14 @@
                     Thread.ofPlatform().name("order-worker-", 0).factory(),   // ThreadFactory (Java 21+ builder)
                     new ThreadPoolExecutor.CallerRunsPolicy());                // RejectedExecutionHandler
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>4 core threads stay alive even when idle; up to 16 threads can exist; the 12 extra ones are removed after 30 s of idleness.</li>
+                  <li>The bounded <code>ArrayBlockingQueue(500)</code> caps memory use; an unbounded queue would mean the pool never grows past core and requests pile up silently.</li>
+                  <li>The <code>ThreadFactory</code> names threads order-worker-0, order-worker-1, ..., which makes thread dumps and logs readable; <code>CallerRunsPolicy</code> handles overflow.</li>
+                </ol>
+              </div>
               <p>The submission algorithm (this surprises many candidates — the queue fills <b>before</b> extra threads are created):</p>
               <script type="text/plain" class="code" data-lang="plaintext">
                 execute(task)
@@ -1260,6 +1622,14 @@
                   ├─ running threads < maximumPoolSize ? → start a NEW non-core thread
                   └─ otherwise                         → RejectedExecutionHandler.rejectedExecution()
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The counter-intuitive part: the pool fills the <em>queue</em> before creating threads beyond core.</li>
+                  <li>So with a large or unbounded queue, extra (non-core) threads are rarely or never created.</li>
+                  <li>Only when the queue is full AND <code>maximumPoolSize</code> is reached does the rejection handler run.</li>
+                </ol>
+              </div>
               <ul>
                 <li>With an <b>unbounded</b> queue, <code>maximumPoolSize</code> is never reached — the extra threads never start.</li>
                 <li><code>allowCoreThreadTimeOut(true)</code> lets core threads die when idle too.</li>
@@ -1304,6 +1674,14 @@
                     throw new RejectedExecutionException("Order pool saturated: queue=" + executor.getQueue().size());
                 };
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>A <code>RejectedExecutionHandler</code> is called by the submitting thread when the pool cannot accept a task.</li>
+                  <li>This one increments a metric for alerting, then throws <code>RejectedExecutionException</code>, so <code>execute()</code>/<code>submit()</code> fail immediately in the caller.</li>
+                  <li>The caller can catch that and return HTTP 503 instead of queuing forever; including the queue size in the message helps debugging.</li>
+                </ol>
+              </div>
               <div class="note"><code>CallerRunsPolicy</code> on a Tomcat request thread means the request thread does the work itself — fine for backpressure, but it increases that request's latency.</div>
             </div>
           </details>
@@ -1321,6 +1699,13 @@
               <script type="text/plain" class="code" data-lang="java">
                 int cores = Runtime.getRuntime().availableProcessors();   // container-aware since Java 10
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>availableProcessors()</code> returns the CPUs the JVM may use, and respects container CPU limits, so it is the starting point for sizing.</li>
+                  <li>For CPU-bound work use about that many threads; for I/O-bound work use more, roughly cores &times; (1 + wait time / compute time).</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1346,6 +1731,15 @@
                 // Java 19+: inspect a finished Future without try/catch
                 if (f.state() == Future.State.FAILED) log.error("failed", f.exceptionNow());
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>With <code>submit</code>, the thrown exception is captured inside the <code>Future</code> instead of reaching the thread's uncaught-exception handler, so nothing is logged unless you call <code>get</code>.</li>
+                  <li><code>get</code> rethrows it wrapped in <code>ExecutionException</code>; <code>getCause()</code> is the original <code>IllegalStateException</code>.</li>
+                  <li>On timeout, <code>cancel(true)</code> interrupts the worker; on <code>InterruptedException</code> we restore the interrupt flag so callers can still see it.</li>
+                  <li>Java 19 added <code>state()</code> and <code>exceptionNow()</code> to inspect a completed future without the try/catch.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1379,6 +1773,15 @@
                     pool.submit(task2);
                 }   // close() waits for both tasks
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>shutdown()</code> rejects new tasks but lets running and queued ones finish; <code>awaitTermination</code> waits up to 30 s for that.</li>
+                  <li>If time runs out, <code>shutdownNow()</code> interrupts running tasks and returns the queued ones that never started, so you can log how many were dropped.</li>
+                  <li>If the waiting thread itself is interrupted, it forces shutdown and restores the interrupt flag.</li>
+                  <li>Since Java 19, <code>ExecutorService</code> is <code>AutoCloseable</code>: <code>close()</code> calls shutdown and waits for both tasks.</li>
+                </ol>
+              </div>
               <div class="note">A pool of non-daemon threads that is never shut down keeps the JVM alive after <code>main</code> ends. Tasks must respond to interruption (check <code>Thread.interrupted()</code>, or use blocking calls that throw <code>InterruptedException</code>) for <code>shutdownNow()</code> to work.</div>
             </div>
           </details>
@@ -1399,6 +1802,14 @@
                     display(q);
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Each provider call is submitted to the pool; the <code>ExecutorCompletionService</code> puts every finished future into an internal queue.</li>
+                  <li><code>cs.take()</code> blocks until the <em>next</em> completed task, so quotes are displayed in completion order, fastest first, instead of submission order.</li>
+                  <li>The loop runs exactly <code>providers.size()</code> times, one <code>take()</code> per submitted task; <code>get()</code> would rethrow a failed task's exception.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1417,6 +1828,14 @@
                     .exceptionally(ex -> Dashboard.empty())
                     .join();
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Without an executor argument, <code>supplyAsync</code> uses the shared <code>ForkJoinPool.commonPool()</code>, which has only about (cores - 1) threads; blocking I/O there starves everything else using it.</li>
+                  <li>Passing <code>io</code> runs both remote calls in parallel on a dedicated pool.</li>
+                  <li><code>thenCombine</code> merges the two results; <code>orTimeout</code> fails after 2 s and <code>exceptionally</code> turns failure into an empty dashboard, so <code>join()</code> returns either a real or an empty result.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1443,6 +1862,15 @@
                 }
                 long total = ForkJoinPool.commonPool().invoke(new SumTask(data, 0, data.length));
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>If the range has at most 10,000 elements, the task sums it directly; otherwise it splits the range in half (<code>&gt;&gt;&gt; 1</code> avoids int overflow when computing the midpoint).</li>
+                  <li><code>left.fork()</code> pushes the left half onto this worker's deque, where idle workers can steal it; the right half is computed directly on the current thread.</li>
+                  <li><code>left.join()</code> waits for (or runs) the left half, and the two partial sums are added.</li>
+                  <li>Total work is O(n); with P workers the time is about O(n / P + log n). The threshold avoids creating too many tiny tasks.</li>
+                </ol>
+              </div>
               <div class="tip">Parallel streams and <code>CompletableFuture</code>'s default use the common pool. Virtual threads are also scheduled by a dedicated <code>ForkJoinPool</code> of carrier threads.</div>
             </div>
           </details>
@@ -1464,6 +1892,14 @@
                 }
                 pool.execute(withMdc(() -> process(order)));
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>MDC</code> is backed by a <code>ThreadLocal</code>, so a pool worker does not see the submitter's values (and may see leftovers from a previous task).</li>
+                  <li><code>withMdc</code> copies the context on the <em>submitting</em> thread at wrap time.</li>
+                  <li>Inside the worker it saves the worker's current context, installs the captured one, runs the task, and in <code>finally</code> restores the previous context, so nothing leaks to the next task on that thread.</li>
+                </ol>
+              </div>
               <div class="note">Spring offers <code>TaskDecorator</code> for <code>ThreadPoolTaskExecutor</code>, and <code>DelegatingSecurityContextExecutorService</code> for the security context. With virtual threads on Java 25, prefer <code>ScopedValue</code> — immutable and automatically scoped.</div>
             </div>
           </details>
@@ -1480,6 +1916,14 @@
                 // Micrometer: exposes executor.active, executor.queued, executor.pool.size ... via Actuator
                 ExecutorService monitored = ExecutorServiceMetrics.monitor(meterRegistry, pool, "order-pool");
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>getActiveCount</code> is threads busy now, <code>getPoolSize</code> is threads that exist, <code>getQueue().size()</code> is waiting tasks, and <code>getLargestPoolSize</code> is the peak thread count.</li>
+                  <li>A steadily growing queue with active == max means the pool is saturated.</li>
+                  <li>Micrometer's <code>ExecutorServiceMetrics.monitor</code> wraps the pool and publishes these numbers as metrics, so you can graph and alert on them instead of reading logs.</li>
+                </ol>
+              </div>
               <p>Alert on a <b>growing queue</b>, a pool stuck at max size, rising rejections, and task latency. Take a thread dump (<code>jcmd &lt;pid&gt; Thread.print</code>) when a pool hangs — look for threads all <code>WAITING</code> on the same lock or future.</p>
             </div>
           </details>
@@ -1505,6 +1949,14 @@
                                         |     |     |     |
                 OS threads:          kernel thread per carrier
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Virtual threads are ordinary Java objects on the heap, so millions can exist; only a few carrier (platform) threads, by default about one per core, actually run them.</li>
+                  <li>When a virtual thread blocks on I/O or <code>sleep</code>, its stack is saved to the heap and the carrier is freed to run another virtual thread.</li>
+                  <li>When the I/O completes, the virtual thread is scheduled again, possibly on a different carrier.</li>
+                </ol>
+              </div>
               <div class="tip">Virtual threads improve <b>throughput</b> (more concurrent requests), not the latency of a single request. They make the simple blocking, thread-per-request style scale like reactive code.</div>
             </div>
           </details>
@@ -1528,6 +1980,15 @@
 
                 Thread.currentThread().isVirtual();   // true inside a virtual thread
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>startVirtualThread</code> creates and starts one virtual thread; <code>Thread.ofVirtual()</code> is a builder that can set names (vt-0, vt-1, ...) or produce a <code>ThreadFactory</code>.</li>
+                  <li><code>newVirtualThreadPerTaskExecutor</code> starts a new virtual thread for each submitted task, so every <code>fetch</code> runs concurrently.</li>
+                  <li><code>f.get()</code> blocks the main thread in submission order; <code>close()</code> at the end of the try block waits for all tasks.</li>
+                  <li><code>isVirtual()</code> tells you which kind of thread you are on.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1564,6 +2025,14 @@
                 java -XX:StartFlightRecording=filename=app.jfr,settings=profile -jar app.jar
                 jfr print --events jdk.VirtualThreadPinned app.jfr
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The first command starts the app with Java Flight Recorder enabled and writes events to <code>app.jfr</code>.</li>
+                  <li><code>jfr print --events jdk.VirtualThreadPinned</code> lists each time a virtual thread could not unmount from its carrier while blocking, with stack traces showing where.</li>
+                  <li>Since Java 24 (JEP 491), <code>synchronized</code> no longer pins; remaining causes include native code/JNI frames.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1587,6 +2056,14 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>A fixed pool of 50 virtual threads only runs 50 tasks at a time, throwing away the main benefit of virtual threads.</li>
+                  <li>Instead, create one virtual thread per task and protect the scarce resource with a <code>Semaphore</code> of 20 permits.</li>
+                  <li><code>acquire()</code> blocks (cheaply, on a virtual thread) once 20 calls are in flight; <code>release()</code> in <code>finally</code> returns the permit even if the call throws, so permits never leak.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1607,6 +2084,15 @@
                 String user = RequestContext.USER.get();                 // throws if unbound
                 String safe = RequestContext.USER.orElse("anonymous");   // Java 25 API
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>ScopedValue.newInstance()</code> creates a key; <code>where(USER, value).run(...)</code> binds the value only for the duration of that <code>run</code> call.</li>
+                  <li>Any code called inside <code>run</code>, however deep, reads it with <code>USER.get()</code>; when <code>run</code> returns the binding disappears automatically, so nothing needs cleaning up (unlike <code>ThreadLocal.remove()</code>).</li>
+                  <li>The value is immutable for the scope, and child threads forked in a <code>StructuredTaskScope</code> inherit it cheaply.</li>
+                  <li><code>get()</code> throws <code>NoSuchElementException</code> when unbound, so <code>orElse</code> is the safe read.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1634,6 +2120,15 @@
                     return scope.join();
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>StructuredTaskScope.open()</code> creates a scope whose default policy needs all subtasks to succeed; each <code>fork</code> starts a subtask in a new virtual thread.</li>
+                  <li><code>scope.join()</code> waits for both; if one fails, the other is cancelled and <code>join</code> throws <code>FailedException</code>.</li>
+                  <li>After a successful join, <code>user.get()</code> and <code>orders.get()</code> return results, and leaving the try block guarantees no subtask outlives the method.</li>
+                  <li>With <code>anySuccessfulResultOrThrow</code>, the first mirror to succeed wins, the others are cancelled, and <code>join()</code> returns that result.</li>
+                </ol>
+              </div>
               <div class="note">The API changed between previews (Java 21–24 used <code>new StructuredTaskScope.ShutdownOnFailure()</code>); in interviews, mention that it is still preview in 25.</div>
             </div>
           </details>
@@ -1647,6 +2142,14 @@
                     virtual:
                       enabled: true     # Boot 3.2+, Java 21+
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>This single property makes Spring Boot 3.2+ run web requests (Tomcat/Jetty), <code>@Async</code> and similar task executors on virtual threads.</li>
+                  <li>It only works on Java 21+; on older JDKs the property is ignored.</li>
+                  <li>Your code does not change; but watch for pinning, large <code>ThreadLocal</code> use, and downstream limits like the DB connection pool, which now becomes the bottleneck.</li>
+                </ol>
+              </div>
               <p>Tomcat/Jetty request handling, <code>@Async</code>, <code>@Scheduled</code>, Kafka/RabbitMQ listeners and the
                 auto-configured <code>SimpleAsyncTaskExecutor</code> then run on virtual threads.</p>
               <ul>
@@ -1683,6 +2186,14 @@
                 # Thread dump that includes virtual threads (jstack does not show them all)
                 jcmd <pid> Thread.dump_to_file -format=json threads.json
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>parallelism</code> sets how many carrier threads run virtual threads at once (defaults to CPU count).</li>
+                  <li><code>maxPoolSize</code> caps how many extra carriers the scheduler may add temporarily to compensate for carriers stuck in pinned or blocking operations.</li>
+                  <li><code>jcmd ... Thread.dump_to_file -format=json</code> produces a dump that includes virtual threads, grouped by container, which a classic <code>jstack</code> dump does not fully show.</li>
+                </ol>
+              </div>
               <p>Debuggers (IntelliJ, Eclipse) and JFR support virtual threads. JFR events: <code>jdk.VirtualThreadStart</code>, <code>jdk.VirtualThreadEnd</code>, <code>jdk.VirtualThreadPinned</code>, <code>jdk.VirtualThreadSubmitFailed</code>.</p>
             </div>
           </details>
@@ -1756,6 +2267,16 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The constructor starts N worker threads that all run <code>workerLoop</code>, sharing one bounded <code>BlockingQueue</code>.</li>
+                  <li>Workers use <code>poll(100 ms)</code> instead of <code>take()</code> so they wake up regularly to re-check the <code>volatile shutdown</code> flag; they exit only when shut down AND the queue is empty, so queued tasks still finish.</li>
+                  <li>Each task runs inside its own try/catch, so one failing task does not kill the worker thread.</li>
+                  <li><code>submit</code> uses <code>put</code>, which blocks the caller when the queue is full (backpressure). <code>shutdownNow</code> clears the queue and interrupts workers.</li>
+                  <li>In <code>main</code>, 8 tasks are spread over 3 threads in a non-deterministic order; <code>awaitTermination</code> joins all workers, so "All tasks done" always prints last.</li>
+                </ol>
+              </div>
               <div class="tip">Talking points: why <code>poll</code> with a timeout (so workers notice shutdown), why catch <code>RuntimeException</code> per task, and why the bounded queue gives backpressure. Follow-ups: add <code>Future</code> support by wrapping a <code>Callable</code> in <code>FutureTask</code>.</div>
             </div>
           </details>
@@ -1798,6 +2319,15 @@
                 ThreadPoolExecutor orders = Pools.newBoundedPool("orders", 4, 8, 100);
                 orders.submit(() -> { throw new IllegalStateException("bad order"); });  // now logged
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The <code>ThreadFactory</code> names threads orders-0, orders-1, ... and installs an uncaught-exception handler for errors thrown from <code>execute()</code> tasks.</li>
+                  <li><code>submit()</code> wraps the task in a <code>FutureTask</code> that catches the exception, so <code>afterExecute</code> receives <code>t == null</code>. The override checks whether <code>r</code> is a completed <code>Future</code> and calls <code>get()</code> to pull the hidden exception out.</li>
+                  <li>Because the future is already done, <code>get()</code> returns immediately; <code>ExecutionException</code> gives the real cause, which is then logged.</li>
+                  <li><code>CallerRunsPolicy</code> provides backpressure, and <code>prestartAllCoreThreads</code> creates core threads up front so the first requests are not slowed by thread creation.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1829,6 +2359,15 @@
                     System.out.println(fetchPrices(List.of("Amazon", "Flipkart", "Croma", "Reliance", "Tata"), pool));
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Each shop becomes a <code>Callable</code> that sleeps 100 to 1500 ms to simulate a slow call; the explicit <code>&lt;Callable&lt;Price&gt;&gt;</code> type witness helps the compiler infer the lambda type.</li>
+                  <li><code>invokeAll(tasks, 1, SECONDS)</code> waits at most 1 s; any task not finished by then is cancelled. The returned futures are all done (completed or cancelled).</li>
+                  <li><code>state() == SUCCESS</code> keeps only completed tasks and <code>resultNow()</code> (Java 19) reads them without checked exceptions; the result is sorted by price.</li>
+                  <li>Output is random: typically 3 or 4 of the 5 shops, cheapest first.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1857,6 +2396,15 @@
                 // Platform pool (200): ~50,000 ms   (10,000 tasks / 200 threads × 1 s)
                 // Virtual threads:     ~1,000 ms    (all 10,000 sleep concurrently)
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Each of the 10,000 tasks sleeps for 1 s; <code>try (exec)</code> closes the executor at the end, which waits for every task, so the timing covers all of them.</li>
+                  <li>The fixed pool has only 200 threads, so tasks run in 50 waves of 200: about 50 s.</li>
+                  <li>Every task gets its own virtual thread; sleeping unmounts it from its carrier, so all 10,000 sleep at the same time on a handful of carriers: about 1 s.</li>
+                  <li>Virtual threads help with blocking/waiting work; for CPU-bound work they give no speed-up.</li>
+                </ol>
+              </div>
               <div class="note">Swap the <code>sleep</code> for a CPU-heavy loop and the advantage disappears — that is exactly the "when not to use virtual threads" point.</div>
             </div>
           </details>
@@ -1896,6 +2444,15 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>1,000 tasks are submitted, each on its own virtual thread, so all of them start almost immediately.</li>
+                  <li><code>API_PERMITS.acquire()</code> lets only 10 threads past at once; the other 990 block cheaply until someone calls <code>release()</code>.</li>
+                  <li><code>inFlight</code> counts calls currently inside the section, and <code>accumulateAndGet(now, Math::max)</code> atomically records the highest count seen, which proves the cap: 10.</li>
+                  <li><code>release()</code> is in <code>finally</code>, so a failing call never leaks a permit. Total time is about 1,000 / 10 &times; 50 ms = 5 s.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1928,6 +2485,15 @@
                     // Profile[user=user-42, orders=[ORD-1, ORD-2], rewardPoints=0]  (~500 ms, not 3 s)
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>All three calls start at once on virtual threads. <code>rewards</code> sleeps 3 s, but <code>completeOnTimeout(0, 500 ms)</code> completes it with 0 after 500 ms.</li>
+                  <li><code>exceptionally(ex -&gt; 0)</code> would also turn a failure into 0, so one bad service does not break the profile.</li>
+                  <li><code>allOf</code> completes when all three are done (about 500 ms); inside <code>thenApply</code> the <code>join()</code> calls return immediately because the futures are already complete.</li>
+                  <li><code>orTimeout(2 s)</code> is a safety net for the whole operation. Output: rewardPoints=0, after about 500 ms rather than 3 s.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -1963,6 +2529,15 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>startSignal</code> (count 1) is a gate: every worker calls <code>await()</code> and blocks until the main thread calls <code>countDown()</code>.</li>
+                  <li>When the main thread prints "Releasing all workers" and counts down to 0, all 5 workers are released at about the same moment, in an unpredictable print order.</li>
+                  <li>Each worker calls <code>done.countDown()</code> in <code>finally</code>, so <code>done</code> reaches 0 even if a worker fails.</li>
+                  <li><code>done.await(5, SECONDS)</code> returns <code>true</code> once all 5 have counted down, so it prints "All finished: true". A latch cannot be reset; use <code>CyclicBarrier</code> for that.</li>
+                </ol>
+              </div>
               <div class="table-wrap"><table>
                 <thead><tr><th>Tool</th><th>Reusable?</th><th>Use for</th></tr></thead>
                 <tbody>
@@ -1996,6 +2571,14 @@
                     }
                 }, 0, 10, TimeUnit.SECONDS);
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>A single daemon thread named health-check runs the task first immediately (initial delay 0), then again 10 s after each run <em>finishes</em> (fixed delay).</li>
+                  <li><code>scheduleAtFixedRate</code> would instead aim for start times every 10 s; if a run takes longer, the next one starts right after (runs never overlap).</li>
+                  <li>The try/catch is essential: if the task throws, the scheduler silently stops all future runs.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -2014,6 +2597,15 @@
 
                 System.out.println(parent.get() + parent2.get());   // never prints
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The pool has 2 threads. In the usual interleaving, <code>parent</code> and <code>parent2</code> each take one of them.</li>
+                  <li>Both parents submit child tasks that go into the queue, then call <code>get()</code> and block, waiting for those children.</li>
+                  <li>The children can only run on a pool thread, but both threads are blocked waiting for them: nobody can make progress, so <code>parent.get()</code> never returns.</li>
+                  <li>Fix: never block on tasks submitted to the same bounded pool. Use a separate pool, non-blocking composition like <code>thenCompose</code>, or virtual threads.</li>
+                </ol>
+              </div>
               <p>Both pool threads run parent tasks that block on <code>get()</code>; the child tasks sit in the queue and can never run because no thread is free. This is a <b>thread-starvation deadlock</b> — no lock involved.</p>
               <p><b>Fixes:</b></p>
               <ul>
@@ -2063,6 +2655,15 @@
                 // Trip[flight=flight-OK, hotel=hotel-OK, car=car-OK]
                 // Booking failed fast: car unavailable      (after ~100 ms, not 1 s)
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Three subtasks start together in the scope; the default policy requires all of them to succeed.</li>
+                  <li>In <code>book(false)</code> all succeed; <code>join()</code> returns after about 1 s (the slowest, hotel), and the <code>Trip</code> is built from the three results.</li>
+                  <li>In <code>book(true)</code> the car call fails at about 100 ms; the scope cancels (interrupts) flight and hotel straight away, and <code>join()</code> throws <code>FailedException</code> whose cause is the original exception.</li>
+                  <li><code>main</code> catches it and prints "car unavailable" after about 100 ms instead of waiting 1 s.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>
@@ -2083,6 +2684,14 @@
                 java -Xms512m -Xmx2g -XX:MaxMetaspaceSize=256m -Xss1m \
                      -XX:+HeapDumpOnOutOfMemoryError -jar app.jar
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>-Xms512m</code>/<code>-Xmx2g</code> set the initial and maximum heap; <code>-XX:MaxMetaspaceSize</code> caps class metadata, which lives in native memory outside the heap.</li>
+                  <li><code>-Xss1m</code> sets each thread's stack size; deep recursion beyond it causes <code>StackOverflowError</code>.</li>
+                  <li><code>-XX:+HeapDumpOnOutOfMemoryError</code> writes a heap dump when the heap runs out, so you can find the leak afterwards.</li>
+                </ol>
+              </div>
             </div>
           </details>
           <details class="qa" data-level="medium">
@@ -2134,6 +2743,15 @@
                     return true;
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>reverse</code> uses two pointers from both ends, swapping characters until they meet: O(n) time, O(n) for the char array.</li>
+                  <li><code>isPalindrome</code> also uses two pointers, but skips characters that are not letters or digits, and compares the rest case-insensitively.</li>
+                  <li><code>s.charAt(i++)</code> reads the character and then moves the pointer, so each comparison advances both sides. On the first mismatch it returns <code>false</code>.</li>
+                  <li>No copy of the string is made, so it is O(n) time and O(1) extra space.</li>
+                </ol>
+              </div>
               <div class="tip">Follow-up: mention <code>null</code>/empty input, and that surrogate pairs (emoji) break naive char reversal — use <code>s.codePoints()</code> if that matters.</div>
             </div>
           </details>
@@ -2156,6 +2774,15 @@
 
                 firstUnique("swiss");   // Optional[w]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>s.chars()</code> streams each character as an int; it is cast back to <code>char</code> and boxed.</li>
+                  <li><code>groupingBy</code> with <code>LinkedHashMap::new</code> counts occurrences while keeping first-seen order; a plain <code>HashMap</code> would lose the order and could give a wrong answer.</li>
+                  <li>Scanning entries in order and taking the first with count 1: for "swiss", s=3, w=1, i=1, so the answer is <code>w</code>.</li>
+                  <li>Time O(n), space O(k) for k distinct characters; it returns an empty <code>Optional</code> if every character repeats.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -2175,6 +2802,15 @@
                     .filter(n -> !seen.add(n))          // add() returns false if already present
                     .collect(Collectors.toSet());       // [1, 4]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>split("\\s+")</code> splits on one or more whitespace characters; <code>groupingBy(identity, TreeMap::new, counting())</code> counts each word and keeps keys sorted, giving {angular=1, java=3, spring=2}.</li>
+                  <li>For duplicates, <code>Set.add</code> returns <code>false</code> when the element is already present, so <code>!seen.add(n)</code> keeps only the second and later occurrences (4, 1).</li>
+                  <li>Collecting to a set removes repeated duplicates; the printed order of a <code>HashSet</code> is not guaranteed.</li>
+                  <li>This filter changes outside state (<code>seen</code>), so it is unsafe with <code>parallel()</code>; <code>groupingBy</code> + filter count &gt; 1 is the pure alternative.</li>
+                </ol>
+              </div>
               <div class="note">The <code>seen.add</code> trick uses a stateful lambda — fine for sequential streams, but not safe with <code>parallelStream()</code>. The groupingBy + <code>filter(count &gt; 1)</code> version is safe in both.</div>
             </div>
           </details>
@@ -2197,6 +2833,15 @@
 
                 isAnagram("listen", "silent");  // true
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Strings with different lengths cannot be anagrams, so that check returns early.</li>
+                  <li>One pass adds 1 for each character of <code>a</code> and subtracts 1 for each character of <code>b</code> in a 26-slot array (<code>ch - 'a'</code> maps a to 0, ..., z to 25).</li>
+                  <li>If every counter ends at 0, both strings have the same letters with the same counts: "listen" and "silent" give <code>true</code>.</li>
+                  <li>O(n) time and O(1) space; it assumes lowercase a to z (use a <code>Map</code> for Unicode).</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -2217,6 +2862,15 @@
 
                 twoSum(new int[]{2, 7, 11, 15}, 9);   // [0, 1]
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>For each number, the needed partner is <code>target - nums[i]</code>; the map stores numbers already seen and their indexes.</li>
+                  <li>At i=0 (2), partner 7 is not seen yet, so store 2 at index 0. At i=1 (7), partner 2 is in the map at index 0, so return [0, 1].</li>
+                  <li>Checking before inserting stops an element from pairing with itself.</li>
+                  <li>Time O(n) with one pass and O(1) hash lookups, space O(n), much better than the O(n&sup2;) nested-loop solution.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -2255,6 +2909,16 @@
                 Map<Boolean, List<Employee>> split = emps.stream()
                     .collect(Collectors.partitioningBy(e -> e.salary() > 80_000));
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>groupingBy(dept, mapping(name, toList()))</code> groups employees and changes each group to just names: e.g. IT=[Asha, Ravi].</li>
+                  <li><code>maxBy</code> returns <code>Optional&lt;Employee&gt;</code> per department; wrap it with <code>collectingAndThen(..., Optional::get)</code> if you want the employee directly.</li>
+                  <li><code>averagingDouble</code> gives IT 107500.0, HR 76000.0 and Sales 60000.0.</li>
+                  <li>Second-highest: distinct salaries sorted descending are 120000, 95000, ...; <code>skip(1)</code> drops 120000, so the result is <code>Optional[95000.0]</code>.</li>
+                  <li><code>partitioningBy</code> splits into <code>true</code> (Asha, Ravi, John) and <code>false</code> (Meena, Kiran).</li>
+                </ol>
+              </div>
               <div class="tip">These are the most-asked Java 8 stream questions in service-company interviews — practise them until you can write them without an IDE.</div>
             </div>
           </details>
@@ -2283,6 +2947,15 @@
                 cache.get(1);        // 1 becomes most recent
                 cache.put(3, "c");   // evicts 2
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>super(capacity, 0.75f, true)</code> turns on access order: each <code>get</code> or <code>put</code> moves the entry to the end (most recent).</li>
+                  <li>After put 1, put 2, and get(1), the order from oldest to newest is 2, 1.</li>
+                  <li><code>put(3)</code> makes size 3 &gt; 2, so <code>removeEldestEntry</code> returns <code>true</code> and the head (2) is evicted, leaving {1=a, 3=c}.</li>
+                  <li>All operations are O(1). It is not thread-safe; even <code>get</code> changes the order, so wrap or lock it for concurrent use.</li>
+                </ol>
+              </div>
               <div class="note">If the interviewer says "without LinkedHashMap", build it with a <code>HashMap&lt;K, Node&gt;</code> plus a doubly linked list (head = most recent, tail = eviction candidate). For thread safety, wrap with locks or use Caffeine in real projects.</div>
             </div>
           </details>
@@ -2321,6 +2994,15 @@
                     public long nextId() { return next.incrementAndGet(); }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Double-checked locking: the first <code>null</code> check avoids locking once the instance exists; the second check inside <code>synchronized</code> stops two threads that both passed the first check from creating two objects.</li>
+                  <li><code>volatile</code> stops another thread from seeing a reference to a half-constructed object; the <code>local</code> variable avoids reading the volatile field twice.</li>
+                  <li>Holder idiom: the JVM initialises <code>Holder</code> only when <code>getInstance()</code> first touches it, and class initialisation is guaranteed thread-safe, so it is lazy with no locking.</li>
+                  <li>Enum singleton: the JVM guarantees one <code>INSTANCE</code>, and serialization and reflection cannot create a second one; <code>AtomicLong</code> makes <code>nextId()</code> thread-safe.</li>
+                </ol>
+              </div>
               <div class="tip">In Spring apps you rarely write this yourself — beans are singletons per container by default.</div>
             </div>
           </details>
@@ -2353,6 +3035,15 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Both threads call the same <code>synchronized</code> method on the shared object <code>p</code>, so only one of them runs it at a time.</li>
+                  <li>Each thread waits while it is not its turn (odd thread waits when <code>current</code> is even, and the reverse); <code>wait()</code> releases the lock so the other thread can enter.</li>
+                  <li>The thread whose turn it is prints <code>current</code>, increments it, and calls <code>notifyAll()</code> to wake the other thread, so the output strictly alternates odd -&gt; 1, even -&gt; 2, ... up to 10.</li>
+                  <li><code>wait()</code> is inside a <code>while</code> loop to handle spurious wake-ups, and the <code>current &lt;= MAX</code> checks plus the final <code>notifyAll</code> let both threads exit cleanly.</li>
+                </ol>
+              </div>
               <div class="note">Alternatives worth mentioning: two <code>Semaphore</code>s, or <code>ReentrantLock</code> with two <code>Condition</code>s.</div>
             </div>
           </details>
@@ -2390,6 +3081,15 @@
                     }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The producer <code>put</code>s 1 to 20; when the 5-slot queue is full, <code>put</code> blocks until the consumer takes an item (backpressure).</li>
+                  <li>The consumer's <code>take()</code> blocks while the queue is empty, so it never spins or reads missing data; FIFO order means it prints Consumed 1 ... 20 in order.</li>
+                  <li>The poison pill -1 is put after the real items, so the consumer stops only after processing all of them. With several consumers you need one pill per consumer.</li>
+                  <li><code>join()</code> makes <code>main</code> wait until both threads finish.</li>
+                </ol>
+              </div>
             </div>
           </details>
 
@@ -2418,6 +3118,15 @@
                     public OrderV2 { items = List.copyOf(items); }
                 }
               </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The class is <code>final</code> (no subclass can add mutable state) and all fields are <code>private final</code> with no setters.</li>
+                  <li><code>List.copyOf</code> copies the caller's list into an unmodifiable list, so later changes to the original list cannot affect the <code>Order</code>; <code>items()</code> can return it directly because nobody can modify it.</li>
+                  <li><code>Date</code> is mutable, so it is copied on the way in and again on the way out; otherwise a caller could call <code>setTime()</code> and change the order's date.</li>
+                  <li>The record's compact constructor reassigns <code>items</code> to an immutable copy before the fields are set; <code>Instant</code> is already immutable, so it needs no copying.</li>
+                </ol>
+              </div>
             </div>
           </details>
         </section>

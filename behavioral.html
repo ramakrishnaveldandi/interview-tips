@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Behavioral &amp; HR Interview Questions — Tech Interview Hub</title>
+  <meta name="description" content="Behavioral and experienced-professional interview questions reported from JPMorgan Chase, Goldman Sachs, Salesforce and Deloitte, with answer frameworks, plus the best questions to ask the interviewer.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="assets/js/app.js"></script>
+</head>
+<body id="top">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <section class="page-hero">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Behavioral &amp; HR</div>
+      <h1>🗣️ Behavioral &amp; HR Interview Questions</h1>
+      <p>Experienced-professional questions reported from <b>JPMorgan Chase, Goldman Sachs, Salesforce and Deloitte</b>
+        interviews, grouped by theme. These rounds test ownership, judgement, communication and how you handle production
+        pressure — not syntax. Each answer explains what the interviewer is looking for and how to structure your response,
+        with sample answers from a Java full-stack developer's point of view. Replace the examples with your own real stories.</p>
+    </section>
+
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search… (e.g. production, conflict, deadline, Goldman)">
+      <button id="expand-all" class="tool-btn">Expand all</button>
+      <button id="collapse-all" class="tool-btn">Collapse all</button>
+      <span id="count" class="count"></span>
+    </div>
+
+    <div class="layout">
+      <aside id="toc" class="toc"></aside>
+      <div>
+        <p id="empty" class="empty hidden">No questions match your search.</p>
+
+        <section class="qa-group">
+          <h2>How to answer behavioral questions</h2>
+
+          <details class="qa" data-level="easy" open>
+            <summary>What is the STAR method, and how should an experienced developer use it?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Step</th><th>What to say</th><th>Time</th></tr></thead>
+                <tbody>
+                  <tr><td><b>S</b>ituation</td><td>The context: system, team, business stakes — one or two sentences</td><td>~10%</td></tr>
+                  <tr><td><b>T</b>ask</td><td>What <i>you</i> were responsible for</td><td>~10%</td></tr>
+                  <tr><td><b>A</b>ction</td><td>What <i>you</i> did and why — decisions, trade-offs, how you worked with others</td><td>~60%</td></tr>
+                  <tr><td><b>R</b>esult</td><td>Measurable outcome (latency, incidents, cost, time saved) and what you learned</td><td>~20%</td></tr>
+                </tbody>
+              </table></div>
+              <ul>
+                <li>Say <b>"I"</b> for your actions and <b>"we"</b> for the team — interviewers want to know what you personally owned.</li>
+                <li><b>Quantify</b>: "p95 latency from 2.1 s to 300 ms", "incidents dropped from 6 a month to 1", "saved ~10 hours a week".</li>
+                <li>Prepare <b>6–8 stories</b> (a complex project, a production incident, a performance fix, a conflict, a mistake, an improvement you drove). Most questions on this page can be answered by adapting one of them.</li>
+                <li>Keep each answer to about <b>2 minutes</b>; let them ask follow-ups.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <!-- ================================================= PROJECTS & OWNERSHIP -->
+        <section class="qa-group">
+          <h2>Projects &amp; ownership</h2>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="JPMorgan Chase">
+            <summary>Walk me through the most complex project you have worked on.</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> whether you understand the <i>why</i> behind the system, can explain complexity clearly, and owned real decisions.</p>
+              <ul>
+                <li>Start with the <b>business problem</b> and who it served, then the <b>architecture</b> at a high level.</li>
+                <li>Explain what made it complex: scale, integrations, consistency, regulation, legacy constraints.</li>
+                <li>Focus on <b>2–3 decisions you owned</b> and the trade-offs behind them.</li>
+                <li>Close with a <b>measurable result</b> and one thing you'd do differently.</li>
+              </ul>
+              <div class="tip"><b>Sample:</b> "We replaced a nightly batch that reconciled 4 million card transactions with an event-driven pipeline. I owned the reconciliation service in Spring Boot with Kafka consumers. The hard parts were exactly-once processing and late-arriving events — I designed idempotent consumers keyed on the transaction ID and an outbox table for publishing. Reconciliation went from T+1 to under 5 minutes, and duplicate-payment tickets fell to zero. In hindsight I'd have invested in contract tests with upstream teams earlier."</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Goldman Sachs">
+            <summary>Explain a project where you had significant ownership.</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> end-to-end accountability — from requirements through design, delivery, production and support — not just "I wrote some code".</p>
+              <ul>
+                <li>Define the scope you owned clearly ("the pricing API and its database").</li>
+                <li>Show ownership behaviours: you clarified requirements, made design calls, coordinated with other teams, handled the release and stayed on for support.</li>
+                <li>Mention a moment where you went beyond the ticket: added monitoring, fixed a risk nobody had assigned, documented a runbook.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview" data-source="Deloitte">
+            <summary>Explain your role in your current project. What do you personally own?</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> a clear line between what the team does and what <i>you</i> are accountable for.</p>
+              <ul>
+                <li>One sentence on the project, then: "Personally, I own…" — modules, services, integrations, on-call duties, code reviews, mentoring.</li>
+                <li>Mention the <b>decisions</b> you make day to day and the <b>outcomes</b> you're measured on.</li>
+                <li>Avoid listing technologies only; tie each responsibility to impact.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Salesforce">
+            <summary>Explain your current project without mentioning technology names.</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> real understanding of the business and the system's design, not buzzwords. It also tests how well you'd explain things to non-engineers.</p>
+              <ul>
+                <li>Who are the users and what problem does it solve for them?</li>
+                <li>What are the main parts and how do they talk to each other? ("a web screen sends orders to a service that checks stock, reserves it, then notifies the warehouse")</li>
+                <li>What do you own, and what changed for the business because of it?</li>
+              </ul>
+              <div class="tip">Practise this one out loud — it's harder than it sounds. Replace "Kafka" with "a message queue that lets systems hand work to each other reliably".</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Goldman Sachs">
+            <summary>Tell me about the toughest technical problem you have solved.</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> problem-solving depth — how you break down ambiguity, evaluate options and verify a fix.</p>
+              <ul>
+                <li>Explain <b>why</b> it was hard (non-obvious cause, concurrency, scale, missing data).</li>
+                <li>Show your method: hypotheses, experiments, tools used (profiler, heap dump, thread dump, query plans).</li>
+                <li>Compare the alternatives you considered and why you chose one.</li>
+                <li>End with the measurable result.</li>
+              </ul>
+              <div class="tip"><b>Sample:</b> "Our order API froze every few days. Thread dumps showed all Tomcat threads waiting on HikariCP connections. The cause was a <code>@Transactional</code> method that called a slow external API while holding a DB connection. I moved the external call outside the transaction, added timeouts and a circuit breaker, and set a Hikari leak-detection threshold. The freezes stopped and pool usage dropped by about 70%."</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="JPMorgan Chase">
+            <summary>Tell me about a technical decision you made that had a major impact.</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> structured decision-making — options, trade-offs, evidence — and the ability to own the consequences.</p>
+              <ul>
+                <li>The decision and its context (e.g. caching strategy, sync vs async, database choice, build vs buy).</li>
+                <li>The options you evaluated and the criteria: reliability, performance, cost, team skills, maintainability.</li>
+                <li>Why you chose one, how you got buy-in, and the measured impact.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Salesforce">
+            <summary>Tell me about a time you improved an existing system instead of building something new.</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> pragmatism — improving what exists is often cheaper and safer than a rewrite.</p>
+              <ul>
+                <li>The limitation and how you <b>measured</b> it (slow queries, error rate, manual effort).</li>
+                <li>What you changed: indexes, caching, refactoring a hot path, removing N+1 queries, splitting a batch job.</li>
+                <li><b>Before vs after</b> numbers.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview" data-source="Deloitte">
+            <summary>Tell me about a process you automated or improved.</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> initiative and impact beyond your assigned tickets.</p>
+              <ul>
+                <li>Describe the manual pain and its cost (hours a week, error rate, release delays).</li>
+                <li>What you built: a CI/CD pipeline, a test-data script, automated DB migrations (Flyway), alerting, a code generator.</li>
+                <li>Quantify the result: "release prep went from half a day to 15 minutes".</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview" data-source="JPMorgan Chase">
+            <summary>What is one thing you would improve in your current project?</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> critical thinking without negativity, and whether you think in terms of impact and cost.</p>
+              <ul>
+                <li>Pick a <b>real</b> limitation (flaky tests, missing observability, a tightly coupled module, manual deployments).</li>
+                <li>Explain its impact, propose a practical fix, and discuss the trade-offs and how you'd roll it out.</li>
+                <li>Don't criticise people; talk about the system.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <!-- ================================================= PRODUCTION & TROUBLESHOOTING -->
+        <section class="qa-group">
+          <h2>Production issues &amp; troubleshooting</h2>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="JPMorgan Chase">
+            <summary>Tell me about a critical production issue you handled.</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> calm, structured incident handling: <b>impact first</b>, then mitigation, root cause and prevention.</p>
+              <ol>
+                <li><b>Impact</b>: who was affected, how badly, how you found out (alert, customer report).</li>
+                <li><b>Mitigation</b>: what you did to stop the bleeding (rollback, feature flag, scaling, failover).</li>
+                <li><b>Root cause</b>: how you found it — logs, metrics, traces, recent deployments.</li>
+                <li><b>Prevention</b>: tests, alerts, runbooks, design changes; a blameless post-mortem.</li>
+              </ol>
+              <div class="tip"><b>Sample:</b> "After a release, 15% of payments failed. I rolled back within 10 minutes, then traced it with correlation IDs to a changed date format in a partner integration. I added a contract test and a canary release step, so that type of breakage is now caught before full rollout."</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="JPMorgan Chase">
+            <summary>How do you troubleshoot an issue when the root cause is unclear?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Reproduce and isolate</b>: narrow it to an environment, user, endpoint or time window.</li>
+                <li><b>Check what changed</b>: deployments, config, data, traffic, dependencies.</li>
+                <li><b>Use evidence</b>: logs with correlation IDs, metrics (latency, error rate, saturation), traces, thread/heap dumps, DB slow-query logs.</li>
+                <li><b>Form hypotheses and eliminate them one at a time</b>, cheapest test first. Write down what you've ruled out.</li>
+                <li>Escalate or pull in other teams early if evidence points to their component.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard" data-tag="interview" data-source="Salesforce">
+            <summary>How would you handle an intermittent issue that you cannot reproduce easily?</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> that you don't guess. Intermittent issues are solved by improving <b>observability</b> and finding patterns.</p>
+              <ul>
+                <li>Add targeted logging/metrics/tracing around the suspected area (with correlation IDs).</li>
+                <li>Correlate failures with time, load, specific instances, data shapes, dependency latency, GC pauses or deployments.</li>
+                <li>Collect evidence from every affected case and look for what they have in common.</li>
+                <li>Typical culprits: race conditions, connection-pool exhaustion, timeouts, caching, clock/timezone issues, one bad node.</li>
+                <li>Once you have a theory, write a test or load test that reproduces it before fixing.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Salesforce">
+            <summary>Tell me about a recurring issue you permanently fixed.</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> that you go past the quick fix to the underlying cause, and prevent recurrence.</p>
+              <ul>
+                <li>The symptom and how often it recurred (and the cost: on-call pages, manual restarts).</li>
+                <li>Why previous fixes only treated symptoms.</li>
+                <li>The root cause you found and the permanent fix — plus monitoring or automation so it can't silently return.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard" data-tag="interview" data-source="Goldman Sachs">
+            <summary>How would you investigate a sudden performance degradation?</summary>
+            <div class="answer">
+              <ol>
+                <li><b>Compare with the baseline</b>: which endpoints, since when, how much slower (p50 vs p99)?</li>
+                <li><b>Check recent changes</b>: deployments, config, data volume, traffic pattern, dependency versions.</li>
+                <li><b>Find the slow component</b> with distributed tracing: application code, database, external API, network?</li>
+                <li><b>Look at saturation</b>: CPU, memory/GC, thread pools, DB connections, locks, disk I/O.</li>
+                <li><b>Confirm with data</b> (query plans, profiler, flame graphs) before optimising — and verify the fix against the baseline.</li>
+              </ol>
+            </div>
+          </details>
+        </section>
+
+        <!-- ================================================= PERFORMANCE, SCALE & DESIGN -->
+        <section class="qa-group">
+          <h2>Performance, scale &amp; safe change</h2>
+
+          <details class="qa" data-level="hard" data-tag="interview" data-source="JPMorgan Chase">
+            <summary>How do you handle a system that works normally but fails under heavy load?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Reproduce with a load test</b> (JMeter, Gatling, k6) at realistic traffic patterns.</li>
+                <li><b>Find the bottleneck</b>: measure latency, throughput, CPU, memory/GC, thread pools, DB connections, locks, downstream dependencies.</li>
+                <li><b>Classify it</b>: capacity (scale out), inefficiency (N+1 queries, missing indexes, chatty calls), dependency limits (rate limits, slow APIs), or design limits (synchronous chains, single-node state).</li>
+                <li><b>Fix and protect</b>: caching, batching, async processing with queues, connection-pool tuning, timeouts, circuit breakers, rate limiting, autoscaling.</li>
+                <li>Re-run the load test to prove the improvement.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard" data-tag="interview" data-source="Goldman Sachs">
+            <summary>Tell me about a solution that worked initially but failed at scale.</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> honesty, and that you understand <i>why</i> designs break as load grows.</p>
+              <ul>
+                <li>The original assumptions ("one instance", "a few thousand rows", "users won't do X").</li>
+                <li>What changed (traffic ×10, data growth, a new integration) and where it broke (in-memory state, offset pagination, a synchronous call chain, a single DB table lock).</li>
+                <li>How you redesigned it (keyset pagination, distributed cache, async processing, partitioning) and the result.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard" data-tag="interview" data-source="Salesforce">
+            <summary>How do you design something that can grow significantly in the future?</summary>
+            <div class="answer">
+              <ul>
+                <li>Start from <b>measurable requirements</b>: expected users, requests per second, data growth, latency targets.</li>
+                <li>Keep services <b>stateless</b> so they scale horizontally; push state to databases/caches.</li>
+                <li>Use <b>loose coupling</b>: clear APIs, events/queues between components, independent deployability.</li>
+                <li>Plan the data layer: indexes, partitioning, read replicas, caching, archiving.</li>
+                <li>Build in observability from day one.</li>
+                <li>Don't over-engineer for imagined scale — design so the <i>next</i> step (e.g. splitting a module) is easy.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="JPMorgan Chase">
+            <summary>How do you ensure your changes don't break existing functionality?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Impact analysis</b>: who calls this code, which APIs/contracts and data are affected.</li>
+                <li><b>Tests</b> at the right levels: unit, integration (Testcontainers), contract tests for APIs, regression suites.</li>
+                <li><b>Peer review</b> and static analysis in CI.</li>
+                <li><b>Controlled rollout</b>: feature flags, canary or blue-green deployments, backward-compatible DB migrations.</li>
+                <li><b>Monitoring</b> after release and a tested <b>rollback plan</b>.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard" data-tag="interview" data-source="Salesforce">
+            <summary>What do you consider before making a major change to a live system?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Area</th><th>Questions to ask</th></tr></thead>
+                <tbody>
+                  <tr><td>Users</td><td>Who is affected? Downtime? Communication needed?</td></tr>
+                  <tr><td>Compatibility</td><td>Will old clients and other services still work? Expand–contract DB migrations?</td></tr>
+                  <tr><td>Dependencies</td><td>Which upstream/downstream teams must know or change?</td></tr>
+                  <tr><td>Security &amp; performance</td><td>New attack surface? Load impact?</td></tr>
+                  <tr><td>Testing</td><td>Tested in a production-like environment with real data volumes?</td></tr>
+                  <tr><td>Deployment</td><td>Feature flag, canary, off-peak window?</td></tr>
+                  <tr><td>Monitoring &amp; rollback</td><td>What tells us it's healthy? How fast can we undo it?</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Deloitte">
+            <summary>How do you handle a solution that satisfies the requirement but creates long-term maintenance problems?</summary>
+            <div class="answer">
+              <ul>
+                <li>Raise it early and explain the <b>long-term cost</b> in business terms (slower future changes, more incidents).</li>
+                <li>Propose alternatives with effort estimates.</li>
+                <li>If the short-term solution is still chosen for good reasons, <b>document the technical debt</b>, create a ticket with an owner and a follow-up date, and contain it (isolate behind an interface).</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <!-- ================================================= DECISIONS & PRIORITISATION -->
+        <section class="qa-group">
+          <h2>Decisions, priorities &amp; requirements</h2>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Goldman Sachs">
+            <summary>How do you make a decision when two solutions are technically valid?</summary>
+            <div class="answer">
+              <p>Compare them against explicit criteria, and pick the best <b>business</b> fit, not the most impressive technology.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Criterion</th><th>Option A</th><th>Option B</th></tr></thead>
+                <tbody>
+                  <tr><td>Scalability / reliability</td><td>…</td><td>…</td></tr>
+                  <tr><td>Complexity &amp; maintainability</td><td>…</td><td>…</td></tr>
+                  <tr><td>Security &amp; compliance</td><td>…</td><td>…</td></tr>
+                  <tr><td>Cost (infra + people)</td><td>…</td><td>…</td></tr>
+                  <tr><td>Time to deliver</td><td>…</td><td>…</td></tr>
+                  <tr><td>Team skills / operability</td><td>…</td><td>…</td></tr>
+                </tbody>
+              </table></div>
+              <p>Record the decision and its reasons (an <b>Architecture Decision Record</b>), and prefer the option that is easier to reverse when the trade-off is close.</p>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="JPMorgan Chase">
+            <summary>How do you prioritise multiple critical issues at the same time?</summary>
+            <div class="answer">
+              <ul>
+                <li>Rank by <b>customer and business impact</b>, severity, number of users affected, financial/regulatory risk, and urgency.</li>
+                <li>Look at <b>dependencies</b>: fixing one may resolve others.</li>
+                <li>Mitigate quickly where possible (feature flag, workaround) to buy time for the others.</li>
+                <li>Delegate or ask for help, and <b>communicate</b> the order and reasoning to stakeholders.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Goldman Sachs">
+            <summary>How do you balance speed of delivery with quality?</summary>
+            <div class="answer">
+              <ul>
+                <li>Agree what "safe to release" means: the tests, reviews and checks that are non-negotiable.</li>
+                <li><b>Automate</b> those checks in CI so quality doesn't cost extra time.</li>
+                <li>Reduce scope rather than quality: ship a smaller increment behind a feature flag.</li>
+                <li>Avoid unnecessary complexity (YAGNI).</li>
+                <li>When you take a shortcut, make it <b>visible</b>: track it as technical debt with an owner.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Salesforce">
+            <summary>How do you approach a requirement that is technically unclear?</summary>
+            <div class="answer">
+              <ul>
+                <li>Clarify the <b>expected outcome</b> and the user problem, not just the requested feature.</li>
+                <li>List assumptions, edge cases and open questions; confirm them with the product owner.</li>
+                <li>Break it into smaller decisions; build a quick spike or prototype for the riskiest part.</li>
+                <li>Validate the approach (design review) before heavy implementation.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Deloitte">
+            <summary>How do you handle frequently changing requirements?</summary>
+            <div class="answer">
+              <ul>
+                <li>Understand the business reason and the priority of each change.</li>
+                <li>Do a quick <b>impact analysis</b> (effort, affected components, risk) and communicate the effect on timelines.</li>
+                <li>Work in small iterations with frequent demos to catch changes earlier.</li>
+                <li>Design for change where it's expected: configuration, strategy patterns, feature flags.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Deloitte">
+            <summary>What do you do when a deadline is unrealistic?</summary>
+            <div class="answer">
+              <ul>
+                <li>Break the work down and produce an <b>evidence-based estimate</b>; identify the critical path and dependencies.</li>
+                <li>Raise it <b>early</b>, not the week before.</li>
+                <li>Offer <b>options</b>: reduce scope (MVP first), add people for parallel work, or move the date. Let stakeholders decide with clear trade-offs.</li>
+                <li>Never silently cut testing or security to hit a date.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview" data-source="Salesforce">
+            <summary>How do you know whether your solution was actually successful?</summary>
+            <div class="answer">
+              <ul>
+                <li>Define <b>success criteria before building</b>: error rate, latency, throughput, incidents, manual effort, conversion, user feedback.</li>
+                <li>Measure a baseline, then compare after release using dashboards and logs.</li>
+                <li>Check for side effects (cost, other services' load) and keep monitoring for a few weeks.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <!-- ================================================= TEAMWORK -->
+        <section class="qa-group">
+          <h2>Teamwork, conflict &amp; communication</h2>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="JPMorgan Chase">
+            <summary>What would you do if you disagreed with a senior engineer's solution?</summary>
+            <div class="answer">
+              <ul>
+                <li>First <b>understand their reasoning</b> — they may know constraints you don't.</li>
+                <li>Raise concerns privately and respectfully, with <b>evidence</b>: data, a quick prototype, a benchmark, documented risks.</li>
+                <li>Propose an alternative and compare both against the same criteria.</li>
+                <li>If the decision goes the other way, <b>commit to it</b> fully ("disagree and commit") — the goal is the best outcome, not winning.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Salesforce">
+            <summary>Tell me about a disagreement within your team.</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> maturity — you focus on the shared goal and use evidence, not ego.</p>
+              <ul>
+                <li>Briefly describe the disagreement (e.g. REST vs messaging for an integration).</li>
+                <li>How you made sure both sides were understood, and how the team compared options objectively.</li>
+                <li>The outcome, and how you supported the final decision even if it wasn't yours.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Goldman Sachs">
+            <summary>How do you handle failures between dependent systems or teams?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Contain the impact</b> first: fallback, cached data, degraded mode, retry with backoff, circuit breaker.</li>
+                <li>Gather evidence (request IDs, timestamps, error payloads) and engage the owning team with facts, not blame.</li>
+                <li>Agree on a fix and timeline; keep stakeholders updated.</li>
+                <li>Afterwards add <b>safeguards</b> so one failure can't cascade: timeouts, bulkheads, contract tests, SLAs, alerts on dependency health.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Deloitte">
+            <summary>How do you handle an issue involving multiple teams?</summary>
+            <div class="answer">
+              <ul>
+                <li>Establish a clear <b>owner/coordinator</b> and a single communication channel.</li>
+                <li>Map the dependencies and gather evidence from each side.</li>
+                <li>Agree actions with owners and deadlines; track them visibly.</li>
+                <li>Keep the conversation on <b>resolution, not blame</b>; follow up with a joint post-mortem.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Deloitte">
+            <summary>How do you explain a complex technical issue to a non-technical stakeholder?</summary>
+            <div class="answer">
+              <ul>
+                <li>Drop the jargon; lead with <b>business impact</b> ("customers in the north region can't pay by card").</li>
+                <li>Use a simple analogy if helpful.</li>
+                <li>Give the <b>options</b>, their risks and timelines, and your recommendation.</li>
+                <li>Be clear about the <b>decision or action</b> you need from them.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Goldman Sachs">
+            <summary>Tell me about a mistake you made in a project.</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> ownership and learning. Choose a <b>real</b> mistake with moderate impact — not a disguised strength.</p>
+              <ul>
+                <li>What happened and its impact; take responsibility without excuses.</li>
+                <li>How you fixed it and communicated it.</li>
+                <li>The <b>lasting improvement</b>: a test, checklist, automation or design change.</li>
+              </ul>
+              <div class="tip"><b>Sample:</b> "I shipped a Flyway migration that added a NOT NULL column without a default; it locked a large table during deployment and caused 8 minutes of errors. I helped roll back and re-ran it as a three-step expand–contract migration. Since then our team's PR checklist includes a migration review, and we test migrations against a production-size copy."</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Deloitte">
+            <summary>Tell me about a project that did not go according to plan.</summary>
+            <div class="answer">
+              <ul>
+                <li>What changed (scope, a dependency, a technical surprise) and how you assessed the impact.</li>
+                <li>The corrective actions you took and how you kept stakeholders informed.</li>
+                <li>The outcome and the lessons you applied to later projects.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview" data-source="Goldman Sachs">
+            <summary>If you joined our team tomorrow, how would you understand an unfamiliar system?</summary>
+            <div class="answer">
+              <ol>
+                <li>Learn the <b>business purpose</b> and main user journeys.</li>
+                <li>Read architecture docs, ADRs and runbooks; look at dashboards and recent incidents.</li>
+                <li>Run it locally; trace one request end to end (logs, debugger).</li>
+                <li>Pick up a small bug or improvement early to learn the delivery process.</li>
+                <li>Ask experienced teammates about design decisions — and write down what you learn for the next newcomer.</li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview" data-source="Deloitte">
+            <summary>Why should we hire you as an experienced professional rather than someone with similar technical skills?</summary>
+            <div class="answer">
+              <p>Show value <b>beyond the tool list</b>, backed by one or two short proof points:</p>
+              <ul>
+                <li>You understand business problems and translate them into sound technical decisions.</li>
+                <li>You've handled production responsibility: incidents, on-call, performance.</li>
+                <li>You collaborate across teams, mentor others and communicate with stakeholders.</li>
+                <li>You own work end to end — from problem to delivery to support.</li>
+              </ul>
+              <div class="tip">End by linking to their needs: "From the job description, you need someone who can stabilise the payments platform — that's exactly what I did at …"</div>
+            </div>
+          </details>
+        </section>
+
+        <!-- ================================================= QUESTIONS TO ASK -->
+        <section class="qa-group">
+          <h2>Questions to ask the interviewer</h2>
+          <p class="group-intro">When HR or the hiring manager asks <i>"Do you have any questions for us?"</i>, never say no. Asking 2–3 of these shows genuine interest and helps you judge the role.</p>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>"What does success look like in this role in the first six months?"</summary>
+            <div class="answer"><p>Shows you're focused on delivering results, and tells you exactly what you'll be measured on. Listen for concrete goals versus vague expectations.</p></div>
+          </details>
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>"Can you tell me about the team I will be working with?"</summary>
+            <div class="answer"><p>Reveals team size, seniority mix, working style and how people collaborate (remote/hybrid, rituals, on-call).</p></div>
+          </details>
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>"What are the biggest challenges currently facing this role or team?"</summary>
+            <div class="answer"><p>Shows you're ready for the real job, not just the job description. Answers often reveal tight deadlines, shifting priorities, legacy systems or resourcing gaps — useful for deciding and for your first 90 days.</p></div>
+          </details>
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>"What growth or learning opportunities are available in this position?"</summary>
+            <div class="answer"><p>Signals long-term thinking beyond salary. Listen for learning budgets, mentoring, internal mobility and a path to senior or lead roles.</p></div>
+          </details>
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>"How do you measure performance or give feedback?"</summary>
+            <div class="answer"><p>Tells you about expectations and culture: regular one-to-ones and clear goals, or only annual reviews.</p></div>
+          </details>
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>"What would be the top priority for the person joining this role?"</summary>
+            <div class="answer"><p>Tells you where to focus first — quick wins, key responsibilities and how early success will be judged.</p></div>
+          </details>
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>"What qualities have made people successful in this team?"</summary>
+            <div class="answer"><p>Reveals what the team really values (ownership, problem solving, communication, adaptability) — and lets you connect your strengths to it in your closing remarks.</p></div>
+          </details>
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>"How does this role collaborate with other teams or departments?"</summary>
+            <div class="answer"><p>Shows you care about cross-team work, and tells you how much time goes to coordination with product, design, QA, operations or the business.</p></div>
+          </details>
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>"What does a typical day or week look like in this position?"</summary>
+            <div class="answer"><p>Gives a realistic picture beyond the job description: the balance of meetings, coding, support, planning and reporting.</p></div>
+          </details>
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>"Is there anything about my experience or skills that you'd like me to clarify further?"</summary>
+            <div class="answer"><p>A powerful closing question: it gives you one last chance to address any doubts about your experience, skills or projects before the interview ends.</p></div>
+          </details>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+</body>
+</html>

@@ -3,6 +3,15 @@
 Bump `"version"` in `version.json` and add an entry here whenever you publish a change.
 The live site's footer shows this version plus the exact commit that is deployed.
 
+## 1.6.0 — 2026-10-02
+- New page: Behavioral & HR — 36 questions reported from JPMorgan Chase, Goldman Sachs, Salesforce and Deloitte
+  (answer frameworks + sample STAR answers) and 10 questions to ask the interviewer.
+- 🎯 Interview tag: 96 questions tagged (badge, company source line, "Interview questions only" filter).
+- Spring Boot: 16 new essentials questions (Spring core, REST, validation, DTOs, logging, @Async, @Scheduled, best practices);
+  JPA: repository interfaces; Security: end-to-end JWT filter flow with 401/403 handling.
+- "🧠 How this works" step-by-step explanation under all 375 code examples.
+- Fixes: Hibernate batch flush condition; JWT example now returns 401 (not the default 403) for missing/invalid tokens.
+
 ## 1.5.0 — 2026-10-02
 - Core Java: replaced the short Collections section with an in-depth Collections Framework guide (28 questions):
   hierarchy, complexity, List/Set/Map/Queue implementations, HashMap internals, ConcurrentHashMap internals,
