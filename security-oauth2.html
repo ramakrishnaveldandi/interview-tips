@@ -152,7 +152,9 @@
               </ul>
               <script type="text/plain" class="code" data-lang="java">
                 // SPA with cookie session: expose token as XSRF-TOKEN cookie that Angular reads automatically
-                http.csrf(csrf -> csrf.spa());     // Spring Security 6.4+
+                http.csrf(csrf -> csrf.spa());     // Spring Security 7 shortcut
+                // On 6.x: csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                //             .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())  // your own class, copied from the Spring Security reference docs
 
                 // Pure bearer-token API
                 http.csrf(AbstractHttpConfigurer::disable);

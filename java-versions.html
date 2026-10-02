@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Java 8 vs 17 vs 25 — Tech Interview Hub</title>
+  <meta name="description" content="Java 8 vs Java 17 vs Java 25 comparison: feature matrix, the same problem solved in each version, most useful features per version and migration interview questions.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="assets/js/app.js"></script>
+</head>
+<body id="top">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <section class="page-hero">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Java / 8 vs 17 vs 25</div>
+      <h1>⚖️ Java 8 vs Java 17 vs Java 25</h1>
+      <p>The three LTS releases you are most likely to be asked about: Java 8 (the legacy workhorse), Java 17
+        (today's enterprise baseline) and Java 25 (the newest LTS). Compare them feature by feature, see the same
+        problem solved in each, and prepare for migration questions.</p>
+    </section>
+
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search questions… (e.g. record, migration, jakarta)">
+      <button id="expand-all" class="tool-btn">Expand all</button>
+      <button id="collapse-all" class="tool-btn">Collapse all</button>
+      <span id="count" class="count"></span>
+    </div>
+
+    <div class="layout">
+      <aside id="toc" class="toc"></aside>
+      <div>
+        <section class="qa-group" id="matrix">
+          <h2>Feature matrix</h2>
+          <p class="group-intro">Support dates are approximate and vendor-specific (Oracle shown); free OpenJDK builds such as Eclipse Temurin, Amazon Corretto and Azul Zulu have their own schedules.</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Aspect</th><th>Java 8</th><th>Java 17</th><th>Java 25</th></tr></thead>
+            <tbody>
+              <tr><td><b>Released</b></td><td>March 2014</td><td>September 2021</td><td>September 2025</td></tr>
+              <tr><td><b>LTS</b></td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+              <tr><td><b>Language</b></td><td>Lambdas, method references, default &amp; static interface methods</td><td>+ <code>var</code>, switch expressions, text blocks, records, sealed classes, <code>instanceof</code> patterns</td><td>+ pattern matching for switch, record patterns, unnamed <code>_</code>, compact source files &amp; <code>void main()</code>, flexible constructor bodies, module imports</td></tr>
+              <tr><td><b>Key APIs</b></td><td>Streams, <code>Optional</code>, <code>java.time</code>, <code>CompletableFuture</code></td><td>+ <code>List.of</code>/<code>Map.of</code>, HTTP Client, <code>Stream.toList()</code>, new String methods, <code>RandomGenerator</code></td><td>+ Sequenced collections, Stream Gatherers, FFM API, Class-File API, Scoped Values, KDF API</td></tr>
+              <tr><td><b>Default GC</b></td><td>Parallel</td><td>G1 (ZGC, Shenandoah production-ready)</td><td>G1 (generational ZGC, generational Shenandoah)</td></tr>
+              <tr><td><b>Concurrency</b></td><td>Platform threads, thread pools, <code>CompletableFuture</code></td><td>Same model (reactive frameworks for high concurrency)</td><td>Virtual threads (no pinning on <code>synchronized</code>), Scoped Values; structured concurrency in preview</td></tr>
+              <tr><td><b>Modules</b></td><td class="no">Classpath only</td><td>JPMS, strong encapsulation of JDK internals</td><td>JPMS + <code>import module</code></td></tr>
+              <tr><td><b>Spring Boot</b></td><td>Boot 2.x (javax.*)</td><td>Boot 3.x minimum (jakarta.*); Boot 4 baseline</td><td>Boot 3.5 / Boot 4 (Nov 2025) — 17 baseline, 25 recommended</td></tr>
+              <tr><td><b>Startup / memory</b></td><td>Slowest, largest footprint, container-awareness only in later updates</td><td>Container-aware, CDS by default, better G1</td><td>AOT cache (Leyden), compact object headers (−10–20% heap)</td></tr>
+              <tr><td><b>Oracle support (approx.)</b></td><td>Premier ended 2022; extended to Dec 2030</td><td>Premier to Sept 2026; extended to Sept 2029</td><td>Premier to Sept 2030; extended to Sept 2033</td></tr>
+            </tbody>
+          </table></div>
+        </section>
+
+        <p id="empty" class="empty hidden">No questions match your search.</p>
+
+        <section class="qa-group">
+          <h2>Same problem in each version</h2>
+          <details class="qa" data-level="easy">
+            <summary>A simple immutable DTO: class vs record</summary>
+            <div class="answer">
+              <p><b>Java 8</b> — ~30 lines of boilerplate (or Lombok):</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public final class UserDto {
+                    private final String name;
+                    private final String email;
+                    public UserDto(String name, String email) { this.name = name; this.email = email; }
+                    public String getName()  { return name; }
+                    public String getEmail() { return email; }
+                    @Override public boolean equals(Object o) { /* ... */ }
+                    @Override public int hashCode() { return Objects.hash(name, email); }
+                    @Override public String toString() { return "UserDto{name=" + name + ", email=" + email + "}"; }
+                }
+              </script>
+              <p><b>Java 17</b> — one line:</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public record UserDto(String name, String email) {}
+              </script>
+              <p><b>Java 25</b> — same record, plus you can deconstruct it with record patterns:</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public record UserDto(String name, String email) {}
+
+                if (obj instanceof UserDto(String name, String email) && email.endsWith("@corp.com")) {
+                    notifyInternal(name);
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>Type check and cast: <code>instanceof</code></summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                // Java 8
+                if (obj instanceof String) {
+                    String s = (String) obj;
+                    System.out.println(s.length());
+                }
+
+                // Java 17 — pattern matching for instanceof
+                if (obj instanceof String s && s.length() > 3) System.out.println(s.length());
+
+                // Java 25 — pattern switch over many types (and primitives in preview)
+                String info = switch (obj) {
+                    case null              -> "null";
+                    case String s          -> "String of " + s.length();
+                    case Integer i when i > 0 -> "positive int";
+                    case List<?> l         -> "list of " + l.size();
+                    default                -> "other";
+                };
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Branching: switch statement → switch expression → pattern switch</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                // Java 8 — statement, fall-through risk
+                String label;
+                switch (status) {
+                    case ACTIVE:  label = "On";  break;
+                    case BLOCKED:
+                    case DELETED: label = "Off"; break;
+                    default:      label = "?";
+                }
+
+                // Java 17 — expression with arrows
+                String label = switch (status) {
+                    case ACTIVE -> "On";
+                    case BLOCKED, DELETED -> "Off";
+                    case PENDING -> "?";
+                };
+
+                // Java 25 — patterns over a sealed hierarchy, exhaustive, with deconstruction
+                sealed interface Event permits Login, Purchase {}
+                record Login(String user) implements Event {}
+                record Purchase(String user, double amount) implements Event {}
+
+                String audit = switch (event) {
+                    case Login(var u)                          -> u + " logged in";
+                    case Purchase(var u, var amt) when amt > 1000 -> "REVIEW: " + u + " spent " + amt;
+                    case Purchase(var u, _)                    -> u + " purchased";
+                };
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Handling 10,000 concurrent blocking calls</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                // Java 8 / 17 — bounded platform-thread pool; threads are expensive (~1 MB stack each)
+                ExecutorService pool = Executors.newFixedThreadPool(200);
+                List<Future<String>> fs = new ArrayList<>();
+                for (String url : urls) fs.add(pool.submit(() -> fetch(url)));
+                for (Future<String> f : fs) handle(f.get());
+                pool.shutdown();
+
+                // Java 25 — one cheap virtual thread per task
+                try (var exec = Executors.newVirtualThreadPerTaskExecutor()) {
+                    urls.forEach(url -> exec.submit(() -> handle(fetch(url))));
+                }
+
+                // or with a concurrency limit, directly in a stream (Java 24+ gatherer)
+                List<String> bodies = urls.stream().gather(Gatherers.mapConcurrent(100, this::fetch)).toList();
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>Hello World / small script</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                // Java 8 / 17 — javac Hello.java && java Hello   (Java 11+: java Hello.java)
+                public class Hello {
+                    public static void main(String[] args) {
+                        System.out.println("Hello");
+                    }
+                }
+
+                // Java 25 — compact source file, run with: java Hello.java
+                void main() {
+                    IO.println("Hello");
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>Multi-line strings: concatenation vs text blocks</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                // Java 8
+                String sql = "SELECT id, name\n" +
+                             "FROM users\n" +
+                             "WHERE status = 'ACTIVE'\n";
+
+                // Java 17 / 25 — text block
+                String sql = """
+                    SELECT id, name
+                    FROM users
+                    WHERE status = 'ACTIVE'
+                    """;
+              </script>
+              <div class="note">String Templates (<code>STR."..."</code>) were previewed in 21–22 but withdrawn — they are <b>not</b> in Java 25. Use <code>formatted()</code> or <code>MessageFormat</code>.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>Working with first/last elements and immutable collections</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                // Java 8
+                List<String> list = Collections.unmodifiableList(Arrays.asList("a", "b", "c"));
+                String last = list.get(list.size() - 1);
+                List<String> evens = stream.filter(...).collect(Collectors.toList());
+
+                // Java 17
+                List<String> list = List.of("a", "b", "c");
+                List<String> evens = stream.filter(...).toList();
+
+                // Java 25 — sequenced collections
+                String first = list.getFirst();
+                String last  = list.getLast();
+                List<String> rev = list.reversed();
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Most useful features per version</h2>
+          <details class="qa" data-level="easy">
+            <summary>Top 5 Java 8 features and why they matter</summary>
+            <div class="answer">
+              <ol>
+                <li><b>Lambdas &amp; method references</b> — behaviour as data; concise callbacks.</li>
+                <li><b>Stream API</b> — declarative collection processing, easy parallelism.</li>
+                <li><b><code>Optional</code></b> — explicit "may be absent" return types.</li>
+                <li><b><code>java.time</code></b> — immutable, thread-safe date/time.</li>
+                <li><b><code>CompletableFuture</code></b> — composable async pipelines.</li>
+              </ol>
+              <script type="text/plain" class="code" data-lang="java">
+                Map<String, Long> countByDept = employees.stream()
+                    .filter(e -> e.getJoinDate().isAfter(LocalDate.now().minusYears(1)))
+                    .collect(Collectors.groupingBy(Employee::getDept, Collectors.counting()));
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>Top 5 Java 17 features and why they matter</summary>
+            <div class="answer">
+              <ol>
+                <li><b>Records</b> — DTOs, value objects, projections in one line.</li>
+                <li><b>Sealed classes</b> — closed domain hierarchies the compiler can reason about.</li>
+                <li><b>Switch expressions</b> — no fall-through bugs, returns a value.</li>
+                <li><b>Text blocks</b> — readable SQL, JSON, HTML in code.</li>
+                <li><b>Pattern matching for <code>instanceof</code></b> + helpful NPEs — less casting, faster debugging.</li>
+              </ol>
+              <script type="text/plain" class="code" data-lang="java">
+                public sealed interface Result<T> permits Ok, Err {}
+                public record Ok<T>(T value) implements Result<T> {}
+                public record Err<T>(String message) implements Result<T> {}
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Top 5 Java 25 features and why they matter</summary>
+            <div class="answer">
+              <ol>
+                <li><b>Virtual threads</b> — massive concurrency with plain blocking code (and no <code>synchronized</code> pinning since 24).</li>
+                <li><b>Pattern matching for switch + record patterns</b> — data-oriented programming with exhaustive checks.</li>
+                <li><b>Scoped Values</b> — safe, cheap request context for virtual threads.</li>
+                <li><b>Stream Gatherers</b> — custom intermediate ops: windows, scans, concurrent mapping.</li>
+                <li><b>Startup &amp; footprint</b> — AOT cache and compact object headers lower cloud cost.</li>
+              </ol>
+              <script type="text/plain" class="code" data-lang="java">
+                static final ScopedValue<String> TENANT = ScopedValue.newInstance();
+
+                try (var exec = Executors.newVirtualThreadPerTaskExecutor()) {
+                    for (var req : requests)
+                        exec.submit(() -> ScopedValue.where(TENANT, req.tenant()).run(() -> process(req)));
+                }
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Migration</h2>
+          <details class="qa" data-level="hard">
+            <summary>What problems do you hit migrating from Java 8 to 17?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Removed Java EE modules</b> (Java 11): JAXB, JAX-WS, JavaBeans Activation, CORBA — add <code>jakarta.xml.bind-api</code> etc. as dependencies.</li>
+                <li><b>Strong encapsulation</b> (JEP 403): reflection into JDK internals fails with <code>InaccessibleObjectException</code> — upgrade Lombok, Mockito, ByteBuddy, Spring, Hibernate; use <code>--add-opens</code> only as a stop-gap.</li>
+                <li><b>javax → jakarta</b>: moving to Spring Boot 3 / Hibernate 6 renames <code>javax.persistence</code>, <code>javax.servlet</code>, <code>javax.validation</code> to <code>jakarta.*</code>. OpenRewrite automates it.</li>
+                <li><b>Removed/deprecated APIs</b>: Nashorn, <code>Thread.stop</code>, applets, RMI activation; <code>finalize()</code> deprecated.</li>
+                <li><b>Build tooling</b>: upgrade Maven compiler plugin (use <code>&lt;release&gt;17&lt;/release&gt;</code>), Surefire, Gradle 7.3+, JaCoCo, and your Docker base image.</li>
+                <li><b>GC change</b>: default moved from Parallel to G1 — re-check heap settings and remove obsolete flags like <code>-XX:PermSize</code> and CMS options.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="bash">
+                jdeps --jdk-internals --multi-release 17 -cp 'lib/*' app.jar   # find internal API usage
+                jdeprscan --release 17 app.jar                                 # find deprecated API usage
+                mvn -U org.openrewrite.maven:rewrite-maven-plugin:run \
+                    -Drewrite.activeRecipes=org.openrewrite.java.migrate.UpgradeToJava17
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>What should you check when migrating from Java 17 to 25?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Security Manager</b> is permanently disabled (Java 24) — remove <code>System.setSecurityManager</code> and policy files.</li>
+                <li><b>32-bit x86</b> builds are gone; non-generational ZGC removed (<code>-XX:-ZGenerational</code> is obsolete).</li>
+                <li><b>Default charset UTF-8</b> (Java 18) — check file/console encoding assumptions, especially on Windows.</li>
+                <li><b>Virtual-thread readiness</b> — if you enable them, review <code>ThreadLocal</code> usage, connection pool sizes and native calls; pinning on <code>synchronized</code> is fixed in 24+.</li>
+                <li><b>Warnings</b> for <code>sun.misc.Unsafe</code> memory access and JNI (<code>--enable-native-access</code>), and dynamically loaded agents (JEP 451) — Mockito/ByteBuddy need <code>-javaagent</code> configured in tests.</li>
+                <li><b>Tooling</b> — Maven 3.9+, compiler plugin 3.13+, Gradle 9.x (Gradle 8.14+ runs on 25), recent Lombok, Jacoco 0.8.13+, ASM-based libraries that must understand class file version 69.</li>
+                <li><b>Framework versions</b> — Spring Boot 3.5+/4.x and Hibernate 6.6+/7 officially support Java 25.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="xml">
+                <properties>
+                    <java.version>25</java.version>
+                    <maven.compiler.release>25</maven.compiler.release>
+                </properties>
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Can you jump directly from Java 8 to Java 25?</summary>
+            <div class="answer">
+              <p>Yes — you don't have to install each intermediate release. But treat it as two logical steps: first fix everything that breaks on 17 (modules, encapsulation, jakarta), then address the 18–25 changes. Run the test suite on both, and enable new features (records, virtual threads) only after the platform upgrade is green.</p>
+              <div class="tip">Compile with <code>--release 25</code> but keep a CI job on the old JDK until cut-over so you can roll back.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Does code compiled on Java 8 run on Java 25?</summary>
+            <div class="answer">
+              <p>Generally yes — the JVM is backward compatible for bytecode (class version 52 runs on a 25 JVM). Failures come from <b>runtime behaviour</b>: removed APIs/modules, encapsulated internals, old libraries that parse class files (ASM, cglib) or rely on <code>sun.*</code> classes. The reverse is not true: class version 69 (Java 25) won't load on older JVMs (<code>UnsupportedClassVersionError</code>).</p>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Choosing a version</h2>
+          <details class="qa" data-level="easy">
+            <summary>Which Java version should a new project choose in 2026?</summary>
+            <div class="answer">
+              <p><b>Java 25</b> for new projects: newest LTS, virtual threads production-ready, best startup/footprint, and supported by Spring Boot 3.5/4.x. Choose <b>Java 21</b> or <b>17</b> only if a platform, vendor or library you depend on is not yet certified for 25. Avoid starting anything new on Java 8.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Why do enterprises still run Java 8, and how would you justify upgrading?</summary>
+            <div class="answer">
+              <p>Reasons: legacy app servers, frozen libraries, risk aversion, paid extended support. The business case for upgrading:</p>
+              <ul>
+                <li><b>Cost</b> — lower memory and faster startup reduce cloud bills; compact headers and better GCs compound this.</li>
+                <li><b>Security</b> — modern TLS, crypto APIs, faster patch availability.</li>
+                <li><b>Ecosystem</b> — Spring Boot 2.x is out of OSS support; Boot 3/4 require 17+.</li>
+                <li><b>Productivity &amp; hiring</b> — records, pattern matching and virtual threads mean less code and fewer bugs.</li>
+              </ul>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What is the Java release cadence and how often are LTS releases?</summary>
+            <div class="answer">
+              <p>A feature release every <b>6 months</b> (March and September) since Java 10. LTS releases are now every <b>2 years</b>: 11 (2018), 17 (2021), 21 (2023), 25 (2025), with 27 expected in September 2027. Non-LTS releases get updates only until the next release, so production systems usually stay on LTS.</p>
+            </div>
+          </details>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+</body>
+</html>

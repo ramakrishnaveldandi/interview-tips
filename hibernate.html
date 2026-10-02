@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hibernate Interview Questions — Tech Interview Hub</title>
+  <meta name="description" content="Hibernate interview questions: Session, caching, N+1 problem, lazy loading, batching, dirty checking, Hibernate 6 changes and performance tuning, with code examples.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="assets/js/app.js"></script>
+</head>
+<body id="top">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <section class="page-hero">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Spring &amp; Persistence / Hibernate</div>
+      <h1>🐻 Hibernate Interview Questions</h1>
+      <p>Hibernate ORM 6.x / 7.x internals and performance: sessions, dirty checking, caching, the N+1 problem,
+        lazy loading, batching and what changed in the modern releases.</p>
+    </section>
+
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search questions… (e.g. N+1, cache, lazy, batch)">
+      <button id="expand-all" class="tool-btn">Expand all</button>
+      <button id="collapse-all" class="tool-btn">Collapse all</button>
+      <span id="count" class="count"></span>
+    </div>
+
+    <div class="layout">
+      <aside id="toc" class="toc"></aside>
+      <div>
+        <p id="empty" class="empty hidden">No questions match your search.</p>
+
+        <section class="qa-group">
+          <h2>Core concepts</h2>
+          <details class="qa" data-level="easy">
+            <summary>What is the difference between <code>SessionFactory</code> and <code>Session</code>?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th><code>SessionFactory</code></th><th><code>Session</code></th></tr></thead>
+                <tbody>
+                  <tr><td>JPA equivalent</td><td><code>EntityManagerFactory</code></td><td><code>EntityManager</code></td></tr>
+                  <tr><td>Count</td><td>One per database, created at startup</td><td>One per unit of work / transaction</td></tr>
+                  <tr><td>Thread-safe</td><td class="yes">Yes</td><td class="no">No</td></tr>
+                  <tr><td>Cost</td><td>Expensive (parses mappings, metadata)</td><td>Cheap, short-lived</td></tr>
+                  <tr><td>Holds</td><td>Second-level cache, metadata, connection provider</td><td>First-level cache (persistence context)</td></tr>
+                </tbody>
+              </table></div>
+              <p>In Spring you inject <code>EntityManager</code>; unwrap with <code>em.unwrap(Session.class)</code> for Hibernate-specific APIs.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary><code>get()</code> vs <code>load()</code> — and their modern equivalents?</summary>
+            <div class="answer">
+              <ul>
+                <li><code>get()</code> / <code>find()</code> — queries immediately, returns <code>null</code> if not found.</li>
+                <li><code>load()</code> / <code>getReference()</code> — returns an uninitialized <b>proxy</b> without a query; throws <code>ObjectNotFoundException</code> / <code>EntityNotFoundException</code> on first access if the row doesn't exist.</li>
+              </ul>
+              <div class="note"><code>Session.load()</code> is deprecated in Hibernate 6 — use <code>getReference()</code>. Likewise <code>get()</code> → <code>find()</code>.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary><code>save</code>, <code>persist</code>, <code>update</code>, <code>saveOrUpdate</code>, <code>merge</code> — what's the difference?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Method</th><th>Behaviour</th><th>Status in Hibernate 6+</th></tr></thead>
+                <tbody>
+                  <tr><td><code>persist()</code></td><td>Makes transient entity managed; returns void (JPA)</td><td class="yes">Use</td></tr>
+                  <tr><td><code>merge()</code></td><td>Copies detached state into a managed instance, returns it (JPA)</td><td class="yes">Use</td></tr>
+                  <tr><td><code>save()</code></td><td>Like persist but returns the generated id immediately</td><td class="no">Deprecated (removed in 7)</td></tr>
+                  <tr><td><code>update()</code></td><td>Reattaches a detached entity; fails if already in session</td><td class="no">Deprecated (removed in 7)</td></tr>
+                  <tr><td><code>saveOrUpdate()</code></td><td>save or update depending on state</td><td class="no">Deprecated (removed in 7)</td></tr>
+                </tbody>
+              </table></div>
+              <div class="tip">Spring Data's <code>repository.save()</code> calls <code>persist()</code> if the entity is new (id null or version null) else <code>merge()</code>.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How does dirty checking work? What are flush modes?</summary>
+            <div class="answer">
+              <p>When an entity is loaded, Hibernate stores a <b>snapshot</b> of its state. On flush it compares current values with the snapshot and issues UPDATEs for changed entities — no explicit save needed.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @Transactional
+                public void raise(long id) {
+                    Employee e = repo.findById(id).orElseThrow();
+                    e.setSalary(e.getSalary().multiply(new BigDecimal("1.10")));
+                    // no save(): UPDATE runs automatically at commit
+                }
+              </script>
+              <p><b>Flush modes</b>: <code>AUTO</code> (default — flush before commit and before queries that touch dirty tables), <code>COMMIT</code> (only at commit), <code>ALWAYS</code> (before every query), <code>MANUAL</code> (only on <code>flush()</code>; used by read-only transactions).</p>
+              <div class="tip"><code>@Transactional(readOnly = true)</code> sets flush mode to MANUAL and lets Hibernate skip snapshots — a real performance gain for read paths.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>What are Hibernate proxies and when do they cause problems?</summary>
+            <div class="answer">
+              <p>For lazy <code>@ManyToOne</code> / <code>getReference()</code>, Hibernate returns a generated subclass (via ByteBuddy) that loads data on first method call. Pitfalls:</p>
+              <ul>
+                <li><code>getClass()</code> returns the proxy class — use <code>Hibernate.getClass(obj)</code> or <code>instanceof</code>.</li>
+                <li><code>final</code> classes/methods can't be proxied → association becomes eager.</li>
+                <li>Accessing a proxy after the session closes → <code>LazyInitializationException</code>.</li>
+                <li>Polymorphic proxies: a proxy of <code>Payment</code> is not an <code>instanceof CardPayment</code> — use <code>Hibernate.unproxy()</code>.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Caching</h2>
+          <details class="qa" data-level="medium">
+            <summary>Explain first-level, second-level and query cache.</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Cache</th><th>Scope</th><th>Enabled</th><th>Stores</th></tr></thead>
+                <tbody>
+                  <tr><td>First-level</td><td>Session / persistence context</td><td>Always, can't disable</td><td>Managed entity instances</td></tr>
+                  <tr><td>Second-level (L2)</td><td>SessionFactory (shared across sessions)</td><td>Opt-in per entity</td><td>Dehydrated entity state by id, collections</td></tr>
+                  <tr><td>Query cache</td><td>SessionFactory</td><td>Opt-in per query</td><td>Query parameters → list of ids (needs L2 for entities)</td></tr>
+                </tbody>
+              </table></div>
+              <p>L2 is great for read-mostly reference data (countries, product categories). Be careful in clustered deployments — use a distributed provider (Hazelcast, Infinispan, Redis via Redisson) or entries go stale.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>How do you configure the second-level cache with JCache/Ehcache?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="xml">
+                <dependency>
+                  <groupId>org.hibernate.orm</groupId>
+                  <artifactId>hibernate-jcache</artifactId>
+                </dependency>
+                <dependency>
+                  <groupId>org.ehcache</groupId>
+                  <artifactId>ehcache</artifactId>
+                  <classifier>jakarta</classifier>
+                </dependency>
+              </script>
+              <script type="text/plain" class="code" data-lang="yaml">
+                spring:
+                  jpa:
+                    properties:
+                      hibernate:
+                        cache:
+                          use_second_level_cache: true
+                          use_query_cache: true
+                          region:
+                            factory_class: jcache
+                      jakarta.persistence.sharedCache.mode: ENABLE_SELECTIVE
+              </script>
+              <script type="text/plain" class="code" data-lang="java">
+                @Entity
+                @Cacheable
+                @org.hibernate.annotations.Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
+                public class Country { @Id String code; String name; }
+
+                // Query cache
+                @QueryHints(@QueryHint(name = "org.hibernate.cacheable", value = "true"))
+                List<Country> findAllByOrderByName();
+              </script>
+              <p>Concurrency strategies: <code>READ_ONLY</code> (immutable data), <code>NONSTRICT_READ_WRITE</code>, <code>READ_WRITE</code> (soft locks), <code>TRANSACTIONAL</code> (JTA).</p>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Fetching &amp; the N+1 problem</h2>
+          <details class="qa" data-level="medium">
+            <summary>What is the N+1 select problem? How do you detect it?</summary>
+            <div class="answer">
+              <p>One query loads N parents, then accessing a lazy association on each fires N more queries.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                List<Department> depts = deptRepo.findAll();          // 1 query
+                for (Department d : depts) {
+                    System.out.println(d.getEmployees().size());      // +1 query per department = N
+                }
+              </script>
+              <p><b>Detect</b>: enable SQL logging, Hibernate statistics, or assert query counts in tests (e.g. with <i>datasource-proxy</i> or <i>Hypersistence Utils</i>' <code>SQLStatementCountValidator</code>).</p>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>What are the ways to fix N+1?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                // 1. JOIN FETCH in JPQL
+                @Query("select distinct d from Department d left join fetch d.employees")
+                List<Department> findAllWithEmployees();
+
+                // 2. Entity graph (declarative, reusable)
+                @EntityGraph(attributePaths = {"employees", "manager"})
+                List<Department> findByRegion(String region);
+
+                // 3. Batch fetching: load lazy collections IN (?, ?, ...) chunks
+                @OneToMany(mappedBy = "department")
+                @BatchSize(size = 50)
+                private List<Employee> employees;
+                // or globally: spring.jpa.properties.hibernate.default_batch_fetch_size=50
+
+                // 4. DTO projection — fetch exactly the columns needed
+                @Query("select new com.acme.DeptCount(d.name, count(e)) from Department d left join d.employees e group by d.name")
+                List<DeptCount> countPerDept();
+              </script>
+              <div class="note">Don't combine <code>JOIN FETCH</code> on a collection with pagination — Hibernate paginates in memory and logs <code>HHH90003004</code>. Page the parent ids first, then fetch.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>What causes <code>MultipleBagFetchException</code> and how do you fix it?</summary>
+            <div class="answer">
+              <p>Hibernate can't JOIN FETCH two or more <code>List</code> ("bag") collections at once — the cartesian product makes duplicates indistinguishable.</p>
+              <ul>
+                <li>Fetch one collection per query (two queries in the same transaction — the context merges results).</li>
+                <li>Change collections to <code>Set</code> (works, but still a cartesian product — watch row counts).</li>
+                <li>Use <code>@BatchSize</code> / <code>default_batch_fetch_size</code> for the second collection.</li>
+                <li>Use <code>@OrderColumn</code> to turn a bag into an indexed list.</li>
+              </ul>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What is <code>LazyInitializationException</code>? Should you enable Open Session in View?</summary>
+            <div class="answer">
+              <p>It's thrown when a lazy association is accessed after the session is closed — e.g. in a controller or during JSON serialization.</p>
+              <p>Spring Boot enables <b>Open Session in View</b> (<code>spring.jpa.open-in-view=true</code>) by default and logs a warning. It keeps the session open during view rendering, hiding the exception but causing hidden queries outside transactions and holding DB connections longer.</p>
+              <script type="text/plain" class="code" data-lang="properties">
+                spring.jpa.open-in-view=false
+              </script>
+              <p><b>Better fixes</b>: fetch what you need inside the service transaction (JOIN FETCH / entity graph), return DTOs instead of entities, or call <code>Hibernate.initialize()</code> deliberately. Avoid <code>hibernate.enable_lazy_load_no_trans</code> — it's an anti-pattern.</p>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Performance tuning</h2>
+          <details class="qa" data-level="hard">
+            <summary>How do you enable JDBC batching? Why doesn't it work with <code>IDENTITY</code>?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="yaml">
+                spring:
+                  jpa:
+                    properties:
+                      hibernate:
+                        jdbc:
+                          batch_size: 50
+                          batch_versioned_data: true
+                        order_inserts: true      # group inserts by entity type
+                        order_updates: true
+              </script>
+              <p>With <code>IDENTITY</code> the id is known only after the INSERT executes, and Hibernate must put the entity in the persistence context with its id immediately — so it executes each insert right away and <b>silently disables insert batching</b>. Use <code>SEQUENCE</code> with a pooled optimizer (<code>allocationSize</code>).</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @Transactional
+                public void importAll(List<Product> products) {
+                    for (int i = 0; i < products.size(); i++) {
+                        em.persist(products.get(i));
+                        if (i % 50 == 0) { em.flush(); em.clear(); }   // keep the context small
+                    }
+                }
+              </script>
+              <p>For PostgreSQL also add <code>reWriteBatchedInserts=true</code> to the JDBC URL.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What does <code>@DynamicUpdate</code> do? When is it useful?</summary>
+            <div class="answer">
+              <p>By default Hibernate's UPDATE includes <b>all</b> columns (a statement it can cache and batch). <code>@DynamicUpdate</code> generates SQL with only the changed columns.</p>
+              <ul>
+                <li>✅ Useful for wide tables, reducing lock contention / triggers on unchanged columns, and with optimistic locking <code>OptimisticLockType.DIRTY</code>.</li>
+                <li>❌ SQL generated per update — less statement caching and batching.</li>
+              </ul>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What is a <code>StatelessSession</code>?</summary>
+            <div class="answer">
+              <p>A lightweight session with <b>no persistence context</b>: no first-level cache, no dirty checking, no cascades, no lazy loading. Each operation executes SQL directly — ideal for bulk imports/exports and ETL.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                try (StatelessSession ss = sessionFactory.openStatelessSession()) {
+                    Transaction tx = ss.beginTransaction();
+                    for (Product p : products) ss.insert(p);
+                    tx.commit();
+                }
+              </script>
+              <p>Hibernate 6.3+ also adds <code>insertMultiple()</code>/<code>upsert()</code>, and stateless sessions are central to Hibernate 7's Jakarta Data repositories.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>How do you log SQL and see Hibernate statistics?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="yaml">
+                logging:
+                  level:
+                    org.hibernate.SQL: DEBUG                     # SQL statements
+                    org.hibernate.orm.jdbc.bind: TRACE           # bound parameters (Hibernate 6)
+                    org.hibernate.stat: DEBUG
+                spring:
+                  jpa:
+                    properties:
+                      hibernate:
+                        format_sql: true
+                        generate_statistics: true                # query counts, cache hits, timings
+                        session.events.log.LOG_QUERIES_SLOWER_THAN_MS: 200
+              </script>
+              <div class="tip">Prefer logger configuration over <code>spring.jpa.show-sql=true</code> — show-sql writes to stdout and bypasses your logging framework.</div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Modern Hibernate &amp; best practices</h2>
+          <details class="qa" data-level="medium">
+            <summary>What changed in Hibernate 6 and 7?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Jakarta namespace</b>: <code>javax.persistence</code> → <code>jakarta.persistence</code> (6.0); JPA 3.1 in 6.x, <b>JPA 3.2</b> in 7.</li>
+                <li><b>SQM</b> (Semantic Query Model): a new HQL/Criteria parser — HQL now supports set operations (<code>union</code>), window functions, CTEs, <code>filter</code> clauses and more.</li>
+                <li>Read-by-position JDBC result handling → faster result processing.</li>
+                <li>Better type system: <code>@JdbcTypeCode(SqlTypes.JSON)</code> for JSON columns, native UUID, <code>Instant</code>/<code>OffsetDateTime</code> handling.</li>
+                <li>Default <code>AUTO</code> id generation uses sequences; <code>hibernate_sequence</code> replaced by per-entity sequences.</li>
+                <li>Hibernate 7 (2025): Java 17 baseline, legacy <code>Session</code> methods removed, Jakarta Data support, Apache License 2.0.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                @Entity
+                public class Product {
+                    @Id @GeneratedValue private Long id;
+
+                    @JdbcTypeCode(SqlTypes.JSON)          // maps to jsonb on PostgreSQL
+                    private Map<String, Object> attributes;
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>How should you implement <code>equals()</code> and <code>hashCode()</code> for entities?</summary>
+            <div class="answer">
+              <p>Requirements: consistent across all lifecycle states (transient → managed → detached) and work with proxies. Options:</p>
+              <ul>
+                <li><b>Natural/business key</b> (e.g. ISBN, email) annotated <code>@NaturalId</code> — best when one exists.</li>
+                <li><b>Generated id</b> with a constant <code>hashCode()</code> — so an entity in a <code>HashSet</code> before persist isn't lost after the id is assigned.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                @Override
+                public boolean equals(Object o) {
+                    if (this == o) return true;
+                    if (o == null || Hibernate.getClass(this) != Hibernate.getClass(o)) return false;
+                    Employee other = (Employee) o;
+                    return id != null && id.equals(other.getId());   // getter: works on proxies
+                }
+
+                @Override
+                public int hashCode() {
+                    return getClass().hashCode();                    // constant across states
+                }
+              </script>
+              <div class="note">Never use Lombok's <code>@Data</code> / <code>@EqualsAndHashCode</code> on entities — it includes lazy collections (triggering loads or stack overflows on bidirectional links) and mutable fields.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>How does Hibernate support multi-tenancy?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Approach</th><th>Isolation</th><th>Hibernate support</th></tr></thead>
+                <tbody>
+                  <tr><td>Database per tenant</td><td>Strongest</td><td><code>MultiTenantConnectionProvider</code> returns a connection per tenant</td></tr>
+                  <tr><td>Schema per tenant</td><td>Strong</td><td>Connection provider switches schema (<code>SET search_path</code>)</td></tr>
+                  <tr><td>Discriminator column</td><td>Logical</td><td><code>@TenantId</code> field (Hibernate 6) — filter added to every query automatically</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java">
+                @Entity
+                public class Invoice {
+                    @Id @GeneratedValue Long id;
+                    @TenantId String tenantId;            // set & filtered automatically
+                }
+
+                @Component
+                class TenantResolver implements CurrentTenantIdentifierResolver<String> {
+                    public String resolveCurrentTenantIdentifier() { return TenantContext.get(); }
+                    public boolean validateExistingCurrentSessions() { return true; }
+                }
+              </script>
+            </div>
+          </details>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+</body>
+</html>

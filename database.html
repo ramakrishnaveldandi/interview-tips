@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Database &amp; SQL Interview Questions — Tech Interview Hub</title>
+  <meta name="description" content="Database and SQL interview questions: joins, classic queries, window functions, normalization, indexes, transactions, isolation levels, performance, NoSQL and Redis caching.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="assets/js/app.js"></script>
+</head>
+<body id="top">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <section class="page-hero">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Data / Database &amp; SQL</div>
+      <h1>🗄️ Database &amp; SQL Interview Questions</h1>
+      <p>SQL fundamentals, the classic "write a query" questions, window functions, schema design, indexing, transactions and
+        isolation levels, performance tuning, NoSQL and caching. Queries target PostgreSQL and MySQL 8; differences are noted.</p>
+    </section>
+
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search questions… (e.g. index, isolation, rank)">
+      <button id="expand-all" class="tool-btn">Expand all</button>
+      <button id="collapse-all" class="tool-btn">Collapse all</button>
+      <span id="count" class="count"></span>
+    </div>
+
+    <div class="layout">
+      <aside id="toc" class="toc"></aside>
+      <div>
+        <p id="empty" class="empty hidden">No questions match your search.</p>
+
+        <section class="qa-group">
+          <h2>SQL Basics</h2>
+          <details class="qa" data-level="easy">
+            <summary>What are DDL, DML, DCL and TCL?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Category</th><th>Purpose</th><th>Commands</th></tr></thead>
+                <tbody>
+                  <tr><td>DDL</td><td>Define structure</td><td><code>CREATE</code>, <code>ALTER</code>, <code>DROP</code>, <code>TRUNCATE</code>, <code>RENAME</code></td></tr>
+                  <tr><td>DML</td><td>Manipulate data</td><td><code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>MERGE</code></td></tr>
+                  <tr><td>DCL</td><td>Permissions</td><td><code>GRANT</code>, <code>REVOKE</code></td></tr>
+                  <tr><td>TCL</td><td>Transactions</td><td><code>COMMIT</code>, <code>ROLLBACK</code>, <code>SAVEPOINT</code></td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>Explain the different types of JOIN.</summary>
+            <div class="answer">
+              <p>Given <code>employee(id, name, dept_id)</code> and <code>department(id, name)</code>:</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Join</th><th>Returns</th><th>Venn idea</th></tr></thead>
+                <tbody>
+                  <tr><td><code>INNER JOIN</code></td><td>Only rows matching in both tables</td><td>A ∩ B</td></tr>
+                  <tr><td><code>LEFT JOIN</code></td><td>All of A, matching B or NULL</td><td>A</td></tr>
+                  <tr><td><code>RIGHT JOIN</code></td><td>All of B, matching A or NULL</td><td>B</td></tr>
+                  <tr><td><code>FULL OUTER JOIN</code></td><td>All rows from both (not in MySQL — emulate with <code>UNION</code>)</td><td>A ∪ B</td></tr>
+                  <tr><td><code>CROSS JOIN</code></td><td>Cartesian product</td><td>A × B</td></tr>
+                  <tr><td>Self join</td><td>A table joined to itself (e.g. employee → manager)</td><td>A ⋈ A</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="sql">
+                -- Employees without a department (anti-join)
+                SELECT e.name
+                FROM employee e
+                LEFT JOIN department d ON d.id = e.dept_id
+                WHERE d.id IS NULL;
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>WHERE vs HAVING? And what is the logical order of SQL execution?</summary>
+            <div class="answer">
+              <p><code>WHERE</code> filters rows <b>before</b> grouping; <code>HAVING</code> filters groups <b>after</b> aggregation.</p>
+              <p>Logical order: <code>FROM/JOIN → WHERE → GROUP BY → HAVING → SELECT → DISTINCT → ORDER BY → LIMIT/OFFSET</code>. That is why a <code>SELECT</code> alias can't be used in <code>WHERE</code>.</p>
+              <script type="text/plain" class="code" data-lang="sql">
+                SELECT dept_id, AVG(salary) AS avg_sal
+                FROM employee
+                WHERE active = true
+                GROUP BY dept_id
+                HAVING AVG(salary) > 50000
+                ORDER BY avg_sal DESC;
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>UNION vs UNION ALL? DELETE vs TRUNCATE vs DROP?</summary>
+            <div class="answer">
+              <p><code>UNION</code> removes duplicates (extra sort/hash); <code>UNION ALL</code> keeps all rows and is faster — prefer it when duplicates are impossible or acceptable.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>DELETE</th><th>TRUNCATE</th><th>DROP</th></tr></thead>
+                <tbody>
+                  <tr><td>Type</td><td>DML</td><td>DDL</td><td>DDL</td></tr>
+                  <tr><td>WHERE clause</td><td class="yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
+                  <tr><td>Removes</td><td>Selected rows</td><td>All rows, keeps structure</td><td>Table + data + indexes</td></tr>
+                  <tr><td>Triggers fire</td><td class="yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
+                  <tr><td>Rollback</td><td class="yes">Yes</td><td class="part">PostgreSQL yes; MySQL no (implicit commit)</td><td class="part">PostgreSQL yes; MySQL no</td></tr>
+                  <tr><td>Speed</td><td>Slow (row by row, logged)</td><td>Fast</td><td>Fast</td></tr>
+                  <tr><td>Identity reset</td><td>No</td><td>Yes (MySQL; PostgreSQL with <code>RESTART IDENTITY</code>)</td><td>—</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Classic Queries</h2>
+          <details class="qa" data-level="medium">
+            <summary>Find the 2nd (or Nth) highest salary — show multiple ways.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="sql">
+                -- 1. Subquery
+                SELECT MAX(salary) FROM employee
+                WHERE salary < (SELECT MAX(salary) FROM employee);
+
+                -- 2. LIMIT / OFFSET (Nth = OFFSET N-1)
+                SELECT DISTINCT salary FROM employee
+                ORDER BY salary DESC
+                LIMIT 1 OFFSET 1;
+
+                -- 3. DENSE_RANK (handles ties, works for any N)
+                SELECT salary FROM (
+                  SELECT salary, DENSE_RANK() OVER (ORDER BY salary DESC) AS rnk
+                  FROM employee
+                ) t
+                WHERE rnk = 2
+                LIMIT 1;
+
+                -- 4. Correlated subquery: N-1 distinct salaries are greater
+                SELECT DISTINCT e1.salary FROM employee e1
+                WHERE 1 = (SELECT COUNT(DISTINCT e2.salary) FROM employee e2 WHERE e2.salary > e1.salary);
+              </script>
+              <div class="tip">Ask whether ties count — <code>DENSE_RANK</code> treats equal salaries as one rank, which is usually what's expected.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How do you find and delete duplicate rows?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="sql">
+                -- Find duplicates
+                SELECT email, COUNT(*) FROM users
+                GROUP BY email
+                HAVING COUNT(*) > 1;
+
+                -- Delete duplicates, keep the lowest id (PostgreSQL & MySQL 8)
+                DELETE FROM users
+                WHERE id IN (
+                  SELECT id FROM (
+                    SELECT id, ROW_NUMBER() OVER (PARTITION BY email ORDER BY id) AS rn
+                    FROM users
+                  ) t
+                  WHERE rn > 1
+                );
+
+                -- Alternative self-join delete (MySQL syntax)
+                DELETE u1 FROM users u1
+                JOIN users u2 ON u1.email = u2.email AND u1.id > u2.id;
+              </script>
+              <div class="note">The extra derived table is needed in MySQL, which doesn't allow selecting from the table being deleted in a direct subquery. Afterwards, add a <code>UNIQUE</code> constraint to prevent recurrence.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>Find employees who earn more than their manager.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="sql">
+                SELECT e.name AS employee, e.salary, m.name AS manager, m.salary AS manager_salary
+                FROM employee e
+                JOIN employee m ON e.manager_id = m.id
+                WHERE e.salary > m.salary;
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Top 3 earners in each department and a running total.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="sql">
+                -- Top 3 per department
+                WITH ranked AS (
+                  SELECT e.*, DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rnk
+                  FROM employee e
+                )
+                SELECT dept_id, name, salary FROM ranked WHERE rnk <= 3;
+
+                -- Running total of daily sales
+                SELECT order_date,
+                       amount,
+                       SUM(amount) OVER (ORDER BY order_date
+                                         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total
+                FROM daily_sales;
+
+                -- Department average next to each employee
+                SELECT name, salary, AVG(salary) OVER (PARTITION BY dept_id) AS dept_avg FROM employee;
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Window Functions</h2>
+          <details class="qa" data-level="medium">
+            <summary>ROW_NUMBER vs RANK vs DENSE_RANK?</summary>
+            <div class="answer">
+              <p>For salaries 900, 800, 800, 700:</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Salary</th><th>ROW_NUMBER</th><th>RANK</th><th>DENSE_RANK</th></tr></thead>
+                <tbody>
+                  <tr><td>900</td><td>1</td><td>1</td><td>1</td></tr>
+                  <tr><td>800</td><td>2</td><td>2</td><td>2</td></tr>
+                  <tr><td>800</td><td>3</td><td>2</td><td>2</td></tr>
+                  <tr><td>700</td><td>4</td><td>4 (gap)</td><td>3 (no gap)</td></tr>
+                </tbody>
+              </table></div>
+              <p>Other useful window functions: <code>LAG</code>/<code>LEAD</code> (previous/next row), <code>FIRST_VALUE</code>, <code>NTILE(n)</code>, <code>SUM/AVG OVER</code>.</p>
+              <script type="text/plain" class="code" data-lang="sql">
+                -- Month-over-month growth
+                SELECT month, revenue,
+                       revenue - LAG(revenue) OVER (ORDER BY month) AS change
+                FROM monthly_revenue;
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What is a CTE? Write a recursive CTE for an org hierarchy.</summary>
+            <div class="answer">
+              <p>A <b>Common Table Expression</b> (<code>WITH</code>) is a named temporary result set that makes queries readable. A <b>recursive</b> CTE has an anchor query and a recursive part joined with <code>UNION ALL</code>.</p>
+              <script type="text/plain" class="code" data-lang="sql">
+                WITH RECURSIVE org AS (
+                  SELECT id, name, manager_id, 1 AS level
+                  FROM employee
+                  WHERE manager_id IS NULL                -- anchor: the CEO
+                  UNION ALL
+                  SELECT e.id, e.name, e.manager_id, o.level + 1
+                  FROM employee e
+                  JOIN org o ON e.manager_id = o.id         -- recursive step
+                )
+                SELECT * FROM org ORDER BY level, name;
+              </script>
+              <div class="tip">Supported in PostgreSQL and MySQL 8+. SQL Server/Oracle omit the <code>RECURSIVE</code> keyword.</div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Schema Design</h2>
+          <details class="qa" data-level="medium">
+            <summary>Explain normalization (1NF, 2NF, 3NF, BCNF) with an example.</summary>
+            <div class="answer">
+              <p>Start with <code>orders(order_id, customer_name, customer_city, products, product_price)</code> where <code>products</code> = "pen, book".</p>
+              <ul>
+                <li><b>1NF</b> — atomic values, no repeating groups: one row per product → <code>order_items(order_id, product_id, qty)</code>.</li>
+                <li><b>2NF</b> — 1NF + no partial dependency on part of a composite key: <code>product_price</code> depends only on <code>product_id</code> → move to <code>product(product_id, name, price)</code>.</li>
+                <li><b>3NF</b> — 2NF + no transitive dependency: <code>customer_city</code> depends on customer, not the order → <code>customer(customer_id, name, city)</code>, and <code>orders(order_id, customer_id, order_date)</code>.</li>
+                <li><b>BCNF</b> — every determinant is a candidate key (a stricter 3NF).</li>
+              </ul>
+              <p><b>Denormalization</b> deliberately adds redundancy (e.g. storing <code>order_total</code> or a reporting table) to avoid expensive joins in read-heavy systems, at the cost of update complexity.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>Primary, foreign, unique, composite and candidate keys? Surrogate vs natural keys?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Primary key</b> — uniquely identifies a row; NOT NULL; one per table.</li>
+                <li><b>Candidate key</b> — any column set that could be the primary key.</li>
+                <li><b>Unique key</b> — unique values; NULLs allowed (multiple NULLs in PostgreSQL/MySQL).</li>
+                <li><b>Foreign key</b> — references another table's key, enforcing referential integrity (<code>ON DELETE CASCADE / SET NULL / RESTRICT</code>).</li>
+                <li><b>Composite key</b> — key made of multiple columns, e.g. <code>(order_id, product_id)</code>.</li>
+              </ul>
+              <p><b>Surrogate</b> keys (auto-increment, UUID) have no business meaning and never change; <b>natural</b> keys (email, PAN, ISBN) carry meaning but can change. Common practice: surrogate PK + unique constraint on the natural key.</p>
+              <script type="text/plain" class="code" data-lang="sql">
+                CREATE TABLE employee (
+                  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,   -- MySQL: BIGINT AUTO_INCREMENT
+                  email      VARCHAR(255) NOT NULL UNIQUE,
+                  dept_id    BIGINT REFERENCES department(id) ON DELETE SET NULL,
+                  manager_id BIGINT REFERENCES employee(id),
+                  salary     NUMERIC(12,2) CHECK (salary >= 0)
+                );
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What are views, materialized views, stored procedures and triggers?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>View</b> — a saved query; no data stored; used for abstraction and security.</li>
+                <li><b>Materialized view</b> — stores the result physically; must be refreshed (PostgreSQL <code>REFRESH MATERIALIZED VIEW</code>; MySQL has none, emulate with tables).</li>
+                <li><b>Stored procedure</b> — precompiled logic on the DB server; reduces round trips but harder to version and test.</li>
+                <li><b>Function</b> — returns a value and can be used in SQL expressions.</li>
+                <li><b>Trigger</b> — runs automatically on INSERT/UPDATE/DELETE (audit logs, derived columns). Overuse hides logic.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="sql">
+                CREATE VIEW high_earners AS
+                SELECT id, name, salary FROM employee WHERE salary > 100000;
+
+                -- PostgreSQL audit trigger
+                CREATE FUNCTION audit_salary() RETURNS trigger AS $$
+                BEGIN
+                  INSERT INTO salary_audit(emp_id, old_sal, new_sal, changed_at)
+                  VALUES (OLD.id, OLD.salary, NEW.salary, now());
+                  RETURN NEW;
+                END $$ LANGUAGE plpgsql;
+
+                CREATE TRIGGER trg_salary AFTER UPDATE OF salary ON employee
+                FOR EACH ROW EXECUTE FUNCTION audit_salary();
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Indexes</h2>
+          <details class="qa" data-level="medium">
+            <summary>How does a B-tree index work? Clustered vs non-clustered?</summary>
+            <div class="answer">
+              <p>A <b>B+tree</b> keeps keys sorted in a balanced tree; lookups, range scans and <code>ORDER BY</code> take O(log n) page reads. Leaf nodes hold the key plus a pointer to the row (or the row itself).</p>
+              <ul>
+                <li><b>Clustered</b> — table rows are physically stored in index order; only one per table. MySQL InnoDB clusters on the primary key, so secondary indexes store the PK value.</li>
+                <li><b>Non-clustered (secondary)</b> — separate structure pointing to rows; many per table. PostgreSQL tables are heaps, so all indexes are effectively non-clustered (<code>CLUSTER</code> is a one-time reorder).</li>
+              </ul>
+              <p>Other types: <b>Hash</b> (equality only), <b>GIN</b> (JSONB, arrays, full-text), <b>GiST</b> (geo), <b>BRIN</b> (huge append-only tables), <b>partial</b> and <b>expression</b> indexes.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>What is a composite index and the leftmost-prefix rule? What is a covering index?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="sql">
+                CREATE INDEX idx_emp_dept_status_sal ON employee (dept_id, status, salary);
+
+                -- Uses the index (leftmost prefix)
+                WHERE dept_id = 10
+                WHERE dept_id = 10 AND status = 'ACTIVE'
+                WHERE dept_id = 10 AND status = 'ACTIVE' AND salary > 50000
+
+                -- Cannot seek on the index (skips the leading column)
+                WHERE status = 'ACTIVE'
+                WHERE salary > 50000
+              </script>
+              <p>Order columns by: equality filters first, then range filters, then sort columns. A <b>covering index</b> contains every column the query needs, enabling an <i>index-only scan</i> without touching the table.</p>
+              <script type="text/plain" class="code" data-lang="sql">
+                -- PostgreSQL: INCLUDE extra payload columns
+                CREATE INDEX idx_orders_cust ON orders (customer_id, created_at) INCLUDE (total);
+                SELECT created_at, total FROM orders WHERE customer_id = 42 ORDER BY created_at DESC;
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>When does an index NOT help, or even hurt?</summary>
+            <div class="answer">
+              <ul>
+                <li>Functions on the column: <code>WHERE LOWER(email) = ?</code> or <code>WHERE YEAR(created_at) = 2025</code> — use an expression index or a range (<code>created_at &gt;= '2025-01-01' AND created_at &lt; '2026-01-01'</code>).</li>
+                <li>Leading wildcard: <code>LIKE '%son'</code>.</li>
+                <li>Implicit type conversion (comparing a VARCHAR column to a number).</li>
+                <li>Low selectivity columns (e.g. boolean) — a full scan is cheaper.</li>
+                <li><code>OR</code> across different columns (may fall back to a scan).</li>
+                <li>Every index slows <code>INSERT/UPDATE/DELETE</code> and uses storage — don't over-index write-heavy tables.</li>
+              </ul>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>How do you read an EXPLAIN plan?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="sql">
+                EXPLAIN ANALYZE
+                SELECT * FROM orders WHERE customer_id = 42 AND status = 'PAID';
+              </script>
+              <script type="text/plain" class="code" data-lang="plaintext">
+                Index Scan using idx_orders_cust on orders  (cost=0.43..8.45 rows=3 width=64)
+                                                            (actual time=0.021..0.030 rows=2 loops=1)
+                  Index Cond: (customer_id = 42)
+                  Filter: (status = 'PAID')
+                  Rows Removed by Filter: 1
+                Execution Time: 0.052 ms
+              </script>
+              <ul>
+                <li><b>Seq Scan</b> on a large table → missing or unusable index.</li>
+                <li><b>Index Scan / Index Only Scan / Bitmap Heap Scan</b> → index used.</li>
+                <li>Join nodes: <b>Nested Loop</b> (small inputs), <b>Hash Join</b> (large equi-joins), <b>Merge Join</b> (sorted inputs).</li>
+                <li>Big gap between estimated and actual <code>rows</code> → stale statistics; run <code>ANALYZE</code>.</li>
+                <li>MySQL: <code>EXPLAIN</code> columns <code>type</code> (<code>ALL</code> = full scan, <code>ref</code>/<code>range</code>/<code>const</code> good), <code>key</code>, <code>rows</code>, <code>Extra</code> (<code>Using filesort</code>, <code>Using temporary</code> are warning signs).</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Transactions &amp; Concurrency</h2>
+          <details class="qa" data-level="easy">
+            <summary>What does ACID mean?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Atomicity</b> — all or nothing (undo log / rollback).</li>
+                <li><b>Consistency</b> — constraints hold before and after the transaction.</li>
+                <li><b>Isolation</b> — concurrent transactions don't see each other's partial work.</li>
+                <li><b>Durability</b> — committed data survives crashes (write-ahead / redo log).</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="sql">
+                BEGIN;
+                UPDATE account SET balance = balance - 500 WHERE id = 1;
+                UPDATE account SET balance = balance + 500 WHERE id = 2;
+                COMMIT;   -- or ROLLBACK on error
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>Explain isolation levels and the anomalies each prevents.</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Level</th><th>Dirty read</th><th>Non-repeatable read</th><th>Phantom read</th></tr></thead>
+                <tbody>
+                  <tr><td>READ UNCOMMITTED</td><td class="no">Possible</td><td class="no">Possible</td><td class="no">Possible</td></tr>
+                  <tr><td>READ COMMITTED</td><td class="yes">Prevented</td><td class="no">Possible</td><td class="no">Possible</td></tr>
+                  <tr><td>REPEATABLE READ</td><td class="yes">Prevented</td><td class="yes">Prevented</td><td class="part">Possible per standard*</td></tr>
+                  <tr><td>SERIALIZABLE</td><td class="yes">Prevented</td><td class="yes">Prevented</td><td class="yes">Prevented</td></tr>
+                </tbody>
+              </table></div>
+              <ul>
+                <li><b>Dirty read</b> — reading another transaction's uncommitted change.</li>
+                <li><b>Non-repeatable read</b> — the same row returns different values within one transaction.</li>
+                <li><b>Phantom read</b> — a re-run range query returns new rows.</li>
+              </ul>
+              <p>Defaults: <b>PostgreSQL = READ COMMITTED</b>, <b>MySQL InnoDB = REPEATABLE READ</b>. *Both prevent most phantoms at REPEATABLE READ (PostgreSQL via snapshots, InnoDB via snapshots + next-key locks).</p>
+              <div class="tip">In Spring: <code>@Transactional(isolation = Isolation.REPEATABLE_READ)</code>.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>What is MVCC and how are deadlocks handled?</summary>
+            <div class="answer">
+              <p><b>Multi-Version Concurrency Control</b> keeps multiple versions of a row so readers see a consistent snapshot and <b>readers don't block writers</b> (and vice versa). PostgreSQL stores old versions in the table (cleaned by <code>VACUUM</code>); InnoDB reconstructs them from undo logs.</p>
+              <p>A <b>deadlock</b> occurs when two transactions each hold a lock the other needs. The DB detects the cycle and aborts one (the victim) with an error — the application should retry.</p>
+              <ul>
+                <li>Access tables/rows in a consistent order.</li>
+                <li>Keep transactions short; no user interaction inside them.</li>
+                <li>Index the columns used in <code>UPDATE ... WHERE</code> to lock fewer rows.</li>
+              </ul>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Optimistic vs pessimistic locking?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>Optimistic</th><th>Pessimistic</th></tr></thead>
+                <tbody>
+                  <tr><td>Mechanism</td><td>Version column checked on update</td><td>Row locks (<code>SELECT ... FOR UPDATE</code>)</td></tr>
+                  <tr><td>Best when</td><td>Conflicts are rare, read-heavy</td><td>Conflicts are frequent, critical data (stock, balance)</td></tr>
+                  <tr><td>On conflict</td><td>Update affects 0 rows → retry / error</td><td>Other transactions wait</td></tr>
+                  <tr><td>JPA</td><td><code>@Version</code></td><td><code>@Lock(PESSIMISTIC_WRITE)</code></td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="sql">
+                -- Optimistic
+                UPDATE product SET stock = stock - 1, version = version + 1
+                WHERE id = 7 AND version = 3;     -- 0 rows updated => someone else changed it
+
+                -- Pessimistic
+                BEGIN;
+                SELECT stock FROM product WHERE id = 7 FOR UPDATE;   -- add SKIP LOCKED for job queues
+                UPDATE product SET stock = stock - 1 WHERE id = 7;
+                COMMIT;
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Performance &amp; Scaling</h2>
+          <details class="qa" data-level="medium">
+            <summary>A query is slow in production. How do you tune it?</summary>
+            <div class="answer">
+              <ol>
+                <li>Find it: slow query log (MySQL), <code>pg_stat_statements</code> (PostgreSQL), APM traces.</li>
+                <li>Run <code>EXPLAIN ANALYZE</code> and look for sequential scans, bad estimates, sorts and temp tables.</li>
+                <li>Add or fix indexes (composite order, covering); make predicates sargable.</li>
+                <li>Select only needed columns — avoid <code>SELECT *</code>.</li>
+                <li>Rewrite: <code>EXISTS</code> instead of <code>IN</code> on large subqueries, avoid correlated subqueries, push filters down.</li>
+                <li>Update statistics (<code>ANALYZE</code>), check for table bloat / locks.</li>
+                <li>Fix the application side: N+1 queries, missing batching, pagination, caching.</li>
+              </ol>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What is the N+1 query problem at the database level?</summary>
+            <div class="answer">
+              <p>Fetching a list (1 query) and then one extra query per row (N queries) — e.g. loading 100 orders and then each order's customer. It shows up as hundreds of tiny identical queries.</p>
+              <script type="text/plain" class="code" data-lang="sql">
+                -- N+1:  SELECT * FROM orders;  then  SELECT * FROM customer WHERE id = ?  (x N)
+                -- Fix with a join
+                SELECT o.id, o.total, c.name
+                FROM orders o
+                JOIN customer c ON c.id = o.customer_id;
+                -- or batch: SELECT * FROM customer WHERE id IN (1, 2, 3, ...);
+              </script>
+              <p>In JPA/Hibernate use <code>JOIN FETCH</code>, <code>@EntityGraph</code> or <code>@BatchSize</code>.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Why use connection pooling? How do you size HikariCP?</summary>
+            <div class="answer">
+              <p>Opening a DB connection is expensive (TCP + auth + session). A pool reuses a fixed set of connections. HikariCP is Spring Boot's default.</p>
+              <script type="text/plain" class="code" data-lang="yaml">
+                spring:
+                  datasource:
+                    hikari:
+                      maximum-pool-size: 10        # start small; more is not faster
+                      minimum-idle: 10
+                      connection-timeout: 30000    # ms to wait for a connection
+                      max-lifetime: 1800000        # below DB/proxy idle timeout
+                      leak-detection-threshold: 20000
+              </script>
+              <div class="tip">A common starting formula: <code>connections = (CPU cores × 2) + effective spindles</code>. Remember total = pool size × number of app instances — it must fit within the DB's <code>max_connections</code>.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>OFFSET pagination vs keyset (seek) pagination?</summary>
+            <div class="answer">
+              <p><code>OFFSET 100000</code> forces the DB to read and discard 100,000 rows, so deep pages get slower; rows can also shift between pages. <b>Keyset</b> pagination seeks directly using the last seen key.</p>
+              <script type="text/plain" class="code" data-lang="sql">
+                -- Offset (simple, supports "jump to page 50")
+                SELECT * FROM orders ORDER BY id LIMIT 20 OFFSET 1000;
+
+                -- Keyset (constant speed, ideal for infinite scroll / APIs)
+                SELECT * FROM orders
+                WHERE (created_at, id) < (:lastCreatedAt, :lastId)
+                ORDER BY created_at DESC, id DESC
+                LIMIT 20;
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>Partitioning vs sharding vs replication?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Partitioning</b> — splits one table into pieces inside one database (by range, list or hash), e.g. <code>orders</code> by month. Enables partition pruning and cheap archival (drop old partitions).</li>
+                <li><b>Sharding</b> — splits data across multiple database servers by a shard key (e.g. <code>tenant_id</code>). Scales writes, but cross-shard joins and transactions become hard.</li>
+                <li><b>Replication</b> — copies data to replicas. Primary-replica gives read scaling and failover; replicas can lag (asynchronous) so read-your-own-writes needs care. Synchronous replication trades latency for zero data loss.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="sql">
+                -- PostgreSQL declarative partitioning
+                CREATE TABLE orders (id BIGINT, created_at DATE, total NUMERIC) PARTITION BY RANGE (created_at);
+                CREATE TABLE orders_2026_q3 PARTITION OF orders FOR VALUES FROM ('2026-07-01') TO ('2026-10-01');
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>NoSQL &amp; Caching</h2>
+          <details class="qa" data-level="medium">
+            <summary>SQL vs NoSQL — and what is the CAP theorem?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>SQL (RDBMS)</th><th>NoSQL</th></tr></thead>
+                <tbody>
+                  <tr><td>Model</td><td>Tables, fixed schema</td><td>Document, key-value, wide-column, graph</td></tr>
+                  <tr><td>Examples</td><td>PostgreSQL, MySQL, Oracle</td><td>MongoDB, Redis, Cassandra, Neo4j, DynamoDB</td></tr>
+                  <tr><td>Transactions</td><td>Strong ACID</td><td>Often BASE / eventual (many now offer ACID per document or multi-doc)</td></tr>
+                  <tr><td>Scaling</td><td>Vertical + read replicas</td><td>Horizontal by design</td></tr>
+                  <tr><td>Best for</td><td>Relational data, complex queries, finance</td><td>Flexible schema, huge scale, caching, graphs</td></tr>
+                </tbody>
+              </table></div>
+              <p><b>CAP</b>: during a network <b>P</b>artition, a distributed system must choose between <b>C</b>onsistency (every read sees the latest write) and <b>A</b>vailability (every request gets a response). CP examples: HBase, MongoDB (default majority writes); AP examples: Cassandra, DynamoDB (tunable). PACELC extends this: Else (no partition) trade Latency vs Consistency.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Explain Redis caching patterns and common cache problems.</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Cache-aside</b> (most common) — app reads cache; on miss reads DB and populates cache with a TTL; on write updates DB then <i>evicts</i> the key.</li>
+                <li><b>Read-through / write-through</b> — the cache layer itself loads from / writes to the DB synchronously.</li>
+                <li><b>Write-behind</b> — writes go to cache and are flushed to the DB asynchronously (fast, risk of loss).</li>
+              </ul>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Problem</th><th>Cause</th><th>Fix</th></tr></thead>
+                <tbody>
+                  <tr><td>Cache penetration</td><td>Requests for keys that don't exist anywhere</td><td>Cache nulls briefly, Bloom filter</td></tr>
+                  <tr><td>Cache breakdown (stampede)</td><td>Hot key expires, many requests hit DB</td><td>Mutex / single-flight, early refresh</td></tr>
+                  <tr><td>Cache avalanche</td><td>Many keys expire at once</td><td>Randomised TTL jitter, warm-up</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java">
+                @Cacheable(value = "products", key = "#id")
+                public Product findById(Long id) { return repo.findById(id).orElseThrow(); }
+
+                @CacheEvict(value = "products", key = "#p.id")
+                public Product update(Product p) { return repo.save(p); }
+              </script>
+            </div>
+          </details>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+</body>
+</html>

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SSO Login Interview Questions — Tech Interview Hub</title>
+  <meta name="description" content="Single Sign-On interview questions: OIDC, SAML, Keycloak, Okta, Microsoft Entra ID, Spring Boot OIDC login, single logout and SSO for Angular SPAs.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="assets/js/app.js"></script>
+</head>
+<body id="top">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <section class="page-hero">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Security / SSO Login</div>
+      <h1>🔑 SSO Login Interview Questions</h1>
+      <p>Single Sign-On with OpenID Connect and SAML 2.0: identity providers like Keycloak, Okta and Microsoft Entra ID,
+        Spring Boot integration, role mapping, single logout and SSO for Angular single-page apps.</p>
+    </section>
+
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search questions… (e.g. OIDC, SAML, logout, Keycloak)">
+      <button id="expand-all" class="tool-btn">Expand all</button>
+      <button id="collapse-all" class="tool-btn">Collapse all</button>
+      <span id="count" class="count"></span>
+    </div>
+
+    <div class="layout">
+      <aside id="toc" class="toc"></aside>
+      <div>
+        <p id="empty" class="empty hidden">No questions match your search.</p>
+
+        <section class="qa-group">
+          <h2>SSO concepts</h2>
+          <details class="qa" data-level="easy">
+            <summary>What is Single Sign-On and what are its benefits?</summary>
+            <div class="answer">
+              <p><b>SSO</b> lets a user authenticate once with a central <b>Identity Provider (IdP)</b> and then access many applications without logging in again. Each app trusts the IdP's signed assertion/token instead of managing passwords itself.</p>
+              <ul>
+                <li><b>Users</b>: one set of credentials, fewer password resets.</li>
+                <li><b>Security</b>: MFA, password policy and lockout enforced in one place; apps never see passwords.</li>
+                <li><b>Operations</b>: central onboarding/offboarding — disable one account and access is revoked everywhere.</li>
+                <li><b>Compliance</b>: centralized audit logs of who logged in where.</li>
+              </ul>
+              <div class="note">Trade-off: the IdP becomes a single point of failure and a high-value target — it needs high availability and strong protection.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>SSO vs OAuth2 vs OpenID Connect vs SAML — what's the difference?</summary>
+            <div class="answer">
+              <p><b>SSO</b> is the user experience/goal; <b>OIDC</b> and <b>SAML</b> are protocols that implement it. <b>OAuth2</b> alone is for authorization, not login.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>OAuth 2.0</th><th>OpenID Connect</th><th>SAML 2.0</th></tr></thead>
+                <tbody>
+                  <tr><td>Purpose</td><td>Delegated authorization</td><td>Authentication (identity on top of OAuth2)</td><td>Authentication + attribute exchange</td></tr>
+                  <tr><td>Token</td><td>Access token (JWT/opaque)</td><td>ID token (JWT) + access token</td><td>XML assertion (signed)</td></tr>
+                  <tr><td>Transport</td><td>HTTP redirects, JSON</td><td>HTTP redirects, JSON/REST</td><td>Browser POST/Redirect bindings, XML</td></tr>
+                  <tr><td>Best for</td><td>API access</td><td>Modern web, SPA, mobile, APIs</td><td>Enterprise/legacy web apps</td></tr>
+                  <tr><td>Mobile/SPA friendly</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="no">Poor</td></tr>
+                  <tr><td>Year</td><td>2012</td><td>2014</td><td>2005</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What are Identity Provider, Service Provider and Relying Party?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Identity Provider (IdP)</b> — authenticates users and issues assertions/tokens (Keycloak, Okta, Microsoft Entra ID, Ping, ADFS, Google).</li>
+                <li><b>Service Provider (SP)</b> — SAML term for the application that relies on the IdP.</li>
+                <li><b>Relying Party (RP)</b> — the OIDC term for the same thing (the OAuth2 "client").</li>
+              </ul>
+              <p>Trust is established up front: in SAML by exchanging <b>metadata XML</b> (entity IDs, certificates, endpoints); in OIDC by registering a <b>client</b> (client_id, secret, redirect URIs) and using the IdP's discovery document.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Explain Keycloak concepts: realms, clients, roles, groups and identity brokering.</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Realm</b> — an isolated tenant with its own users, clients, roles and settings. The issuer is <code>https://host/realms/{realm}</code>.</li>
+                <li><b>Client</b> — an app registered in a realm (confidential with secret, or public with PKCE).</li>
+                <li><b>Realm roles</b> (global, in <code>realm_access.roles</code>) vs <b>client roles</b> (app-specific, in <code>resource_access.{client}.roles</code>).</li>
+                <li><b>Groups</b> — assign roles to many users at once; often synced from LDAP/AD.</li>
+                <li><b>Client scopes &amp; mappers</b> — control which claims go into tokens.</li>
+                <li><b>Identity brokering</b> — delegate login to Google, GitHub, another SAML/OIDC IdP; <b>User federation</b> — read users from LDAP/AD.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>OpenID Connect</h2>
+          <details class="qa" data-level="medium">
+            <summary>Describe the OIDC login flow and the discovery document.</summary>
+            <div class="answer">
+              <p>OIDC uses the OAuth2 Authorization Code flow (with PKCE) plus the <code>openid</code> scope. The token response then includes an <b>ID token</b>.</p>
+              <script type="text/plain" class="code" data-lang="plaintext">
+                1. User opens app.example.com  ──▶ app has no session
+                2. App redirects to IdP /authorize?response_type=code&scope=openid profile email
+                                              &client_id=..&redirect_uri=..&state=..&nonce=..&code_challenge=..
+                3. User authenticates at IdP (once — IdP sets its own SSO session cookie)
+                4. IdP redirects back with ?code=..&state=..
+                5. App POSTs code + code_verifier to /token  ──▶ id_token, access_token, refresh_token
+                6. App validates id_token (signature, iss, aud, exp, nonce) and creates a local session
+                7. User opens second app ──▶ redirect to IdP ──▶ IdP session already exists ──▶ no login prompt (SSO!)
+              </script>
+              <p>The <b>discovery document</b> at <code>{issuer}/.well-known/openid-configuration</code> lists all endpoints, so clients configure themselves from just the issuer URL:</p>
+              <script type="text/plain" class="code" data-lang="json">
+                {
+                  "issuer": "https://sso.example.com/realms/shop",
+                  "authorization_endpoint": "https://sso.example.com/realms/shop/protocol/openid-connect/auth",
+                  "token_endpoint": "https://sso.example.com/realms/shop/protocol/openid-connect/token",
+                  "userinfo_endpoint": "https://sso.example.com/realms/shop/protocol/openid-connect/userinfo",
+                  "jwks_uri": "https://sso.example.com/realms/shop/protocol/openid-connect/certs",
+                  "end_session_endpoint": "https://sso.example.com/realms/shop/protocol/openid-connect/logout",
+                  "scopes_supported": ["openid", "profile", "email"],
+                  "code_challenge_methods_supported": ["plain", "S256"]
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What are the important claims in an ID token?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Claim</th><th>Meaning</th><th>Validation</th></tr></thead>
+                <tbody>
+                  <tr><td><code>iss</code></td><td>Issuer URL</td><td>Must exactly match configured issuer</td></tr>
+                  <tr><td><code>sub</code></td><td>Stable unique user id at that issuer</td><td>Use <code>iss</code> + <code>sub</code> as the user key, not email</td></tr>
+                  <tr><td><code>aud</code></td><td>Audience — your client_id</td><td>Must contain your client_id</td></tr>
+                  <tr><td><code>exp</code> / <code>iat</code></td><td>Expiry / issued-at</td><td>Not expired (allow small clock skew)</td></tr>
+                  <tr><td><code>nonce</code></td><td>Value the client sent in the auth request</td><td>Must match — prevents replay</td></tr>
+                  <tr><td><code>auth_time</code>, <code>acr</code>, <code>amr</code></td><td>When/how user authenticated (e.g. <code>mfa</code>)</td><td>Check for step-up auth requirements</td></tr>
+                  <tr><td><code>sid</code></td><td>IdP session id</td><td>Used for back-channel logout</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How do you configure Spring Boot OIDC login with Keycloak?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="yaml">
+                spring:
+                  security:
+                    oauth2:
+                      client:
+                        registration:
+                          keycloak:
+                            client-id: shop-web
+                            client-secret: ${KEYCLOAK_CLIENT_SECRET}
+                            authorization-grant-type: authorization_code
+                            scope: openid, profile, email
+                            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+                        provider:
+                          keycloak:
+                            issuer-uri: https://sso.example.com/realms/shop
+                            user-name-attribute: preferred_username
+              </script>
+              <script type="text/plain" class="code" data-lang="java">
+                @Bean
+                SecurityFilterChain web(HttpSecurity http) throws Exception {
+                    http.authorizeHttpRequests(a -> a
+                            .requestMatchers("/", "/public/**").permitAll()
+                            .anyRequest().authenticated())
+                        .oauth2Login(Customizer.withDefaults());
+                    return http.build();
+                }
+
+                @GetMapping("/me")
+                Map<String, Object> me(@AuthenticationPrincipal OidcUser user) {
+                    return Map.of("name", user.getFullName(), "email", user.getEmail(), "roles", user.getAuthorities());
+                }
+              </script>
+              <p>In Keycloak create a confidential client with <b>Standard flow</b> enabled and valid redirect URI <code>https://app.example.com/login/oauth2/code/keycloak</code>.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How would you configure Okta or Microsoft Entra ID (Azure AD)?</summary>
+            <div class="answer">
+              <p>Same Spring config — only the issuer and credentials change. Vendor starters exist but plain Spring Security is enough.</p>
+              <script type="text/plain" class="code" data-lang="yaml">
+                spring:
+                  security:
+                    oauth2:
+                      client:
+                        registration:
+                          okta:
+                            client-id: ${OKTA_CLIENT_ID}
+                            client-secret: ${OKTA_CLIENT_SECRET}
+                            scope: openid, profile, email, groups
+                          entra:
+                            client-id: ${AZURE_CLIENT_ID}
+                            client-secret: ${AZURE_CLIENT_SECRET}
+                            scope: openid, profile, email
+                            authorization-grant-type: authorization_code
+                        provider:
+                          okta:
+                            issuer-uri: https://dev-123456.okta.com/oauth2/default
+                          entra:
+                            issuer-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0
+                            user-name-attribute: preferred_username
+              </script>
+              <div class="tip">Entra ID sends app roles in the <code>roles</code> claim and group object IDs in <code>groups</code> (if enabled in "Token configuration"). Multi-tenant apps use <code>/common</code> or <code>/organizations</code> and must validate the <code>tid</code> claim themselves.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>How do you map IdP roles/groups to Spring Security authorities?</summary>
+            <div class="answer">
+              <p>By default, <code>oauth2Login</code> grants <code>OIDC_USER</code> plus <code>SCOPE_*</code> authorities. To use IdP roles with <code>hasRole()</code>, register a <code>GrantedAuthoritiesMapper</code> or a custom <code>OidcUserService</code>.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @Bean
+                GrantedAuthoritiesMapper keycloakRolesMapper() {
+                    return authorities -> {
+                        Set<GrantedAuthority> mapped = new HashSet<>(authorities);
+                        for (GrantedAuthority a : authorities) {
+                            if (a instanceof OidcUserAuthority oidc) {
+                                Map<String, Object> realmAccess = oidc.getIdToken().getClaim("realm_access");
+                                if (realmAccess != null && realmAccess.get("roles") instanceof Collection<?> roles) {
+                                    roles.forEach(r -> mapped.add(new SimpleGrantedAuthority("ROLE_" + r)));
+                                }
+                            }
+                        }
+                        return mapped;
+                    };
+                }
+              </script>
+              <p>Alternative: wrap <code>OidcUserService</code>, call <code>super.loadUser()</code>, look the user up in your own database for app-specific permissions, then return a <code>DefaultOidcUser</code> with merged authorities.</p>
+              <div class="note">In Keycloak, realm roles appear in the ID token only if the "roles" client scope mapper is configured to add them — check with a token decoder.</div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>SAML 2.0</h2>
+          <details class="qa" data-level="medium">
+            <summary>What is a SAML assertion? Explain SP-initiated vs IdP-initiated SSO.</summary>
+            <div class="answer">
+              <p>A <b>SAML assertion</b> is a signed (optionally encrypted) XML document from the IdP containing: <code>Issuer</code>, <code>Subject/NameID</code>, <code>Conditions</code> (NotBefore, NotOnOrAfter, AudienceRestriction), <code>AuthnStatement</code> and <code>AttributeStatement</code> (email, groups…).</p>
+              <ul>
+                <li><b>SP-initiated</b> — user visits the app first; SP sends an <code>AuthnRequest</code> to the IdP; IdP POSTs a <code>Response</code> back to the SP's <b>Assertion Consumer Service (ACS)</b> URL. Includes <code>InResponseTo</code>, so it is more secure. <b>Preferred.</b></li>
+                <li><b>IdP-initiated</b> — user starts at the IdP portal (e.g. Okta dashboard) and clicks the app tile; an unsolicited Response is POSTed to the SP. Convenient, but more exposed to replay/login-CSRF.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="xml">
+                <saml2:Assertion ID="_a1b2" IssueInstant="2026-10-02T10:00:00Z" Version="2.0">
+                  <saml2:Issuer>https://idp.example.com</saml2:Issuer>
+                  <ds:Signature>...</ds:Signature>
+                  <saml2:Subject>
+                    <saml2:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">asha@corp.com</saml2:NameID>
+                  </saml2:Subject>
+                  <saml2:Conditions NotBefore="2026-10-02T09:59:00Z" NotOnOrAfter="2026-10-02T10:05:00Z">
+                    <saml2:AudienceRestriction><saml2:Audience>https://app.example.com/saml2/metadata</saml2:Audience></saml2:AudienceRestriction>
+                  </saml2:Conditions>
+                  <saml2:AttributeStatement>
+                    <saml2:Attribute Name="groups"><saml2:AttributeValue>HR-Admins</saml2:AttributeValue></saml2:Attribute>
+                  </saml2:AttributeStatement>
+                </saml2:Assertion>
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>How do you configure SAML SSO in Spring Boot?</summary>
+            <div class="answer">
+              <p>Add <code>spring-security-saml2-service-provider</code> (it uses OpenSAML; check the Spring docs for the required OpenSAML version and repository). Configure a relying-party registration pointing at the IdP metadata.</p>
+              <script type="text/plain" class="code" data-lang="yaml">
+                spring:
+                  security:
+                    saml2:
+                      relyingparty:
+                        registration:
+                          corp-idp:
+                            entity-id: "{baseUrl}/saml2/service-provider-metadata/{registrationId}"
+                            signing:
+                              credentials:
+                                - private-key-location: classpath:saml/sp-key.pem
+                                  certificate-location: classpath:saml/sp-cert.pem
+                            assertingparty:
+                              metadata-uri: https://idp.example.com/app/abc123/sso/saml/metadata
+              </script>
+              <script type="text/plain" class="code" data-lang="java">
+                @Bean
+                SecurityFilterChain saml(HttpSecurity http) throws Exception {
+                    http.authorizeHttpRequests(a -> a.anyRequest().authenticated())
+                        .saml2Login(Customizer.withDefaults())
+                        .saml2Logout(Customizer.withDefaults())
+                        .saml2Metadata(Customizer.withDefaults());   // serves SP metadata for the IdP admin
+                    return http.build();
+                }
+              </script>
+              <p>The ACS URL is <code>{baseUrl}/login/saml2/sso/{registrationId}</code>. The principal is a <code>Saml2AuthenticatedPrincipal</code>; read attributes with <code>getFirstAttribute("email")</code>.</p>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Logout &amp; sessions</h2>
+          <details class="qa" data-level="hard">
+            <summary>How does Single Logout (SLO) work? RP-initiated vs back-channel logout?</summary>
+            <div class="answer">
+              <p>Logging out of the app only clears the <b>local</b> session — the IdP session still exists, so the next login is silent. Real logout must also end the IdP session and notify other apps.</p>
+              <ul>
+                <li><b>RP-initiated logout</b> — app redirects the browser to the IdP's <code>end_session_endpoint</code> with <code>id_token_hint</code> and <code>post_logout_redirect_uri</code>.</li>
+                <li><b>Front-channel logout</b> — IdP loads each app's logout URL in hidden iframes (fragile: third-party cookie blocking).</li>
+                <li><b>Back-channel logout</b> — IdP POSTs a signed <b>logout token</b> (with <code>sid</code>/<code>sub</code>) server-to-server to every app. Most reliable.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                @Bean
+                SecurityFilterChain web(HttpSecurity http, ClientRegistrationRepository repo) throws Exception {
+                    var oidcLogout = new OidcClientInitiatedLogoutSuccessHandler(repo);
+                    oidcLogout.setPostLogoutRedirectUri("{baseUrl}/goodbye");
+
+                    http.authorizeHttpRequests(a -> a.anyRequest().authenticated())
+                        .oauth2Login(Customizer.withDefaults())
+                        .logout(l -> l.logoutSuccessHandler(oidcLogout))            // RP-initiated
+                        .oidcLogout(o -> o.backChannel(Customizer.withDefaults()));  // Spring Security 6.2+
+                    return http.build();
+                }
+              </script>
+              <p>Back-channel endpoint: <code>/logout/connect/back-channel/{registrationId}</code> — register it in the IdP client settings.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How are sessions managed across multiple SSO applications?</summary>
+            <div class="answer">
+              <p>There are two layers of session:</p>
+              <ol>
+                <li><b>IdP session</b> — a cookie on the IdP domain; makes subsequent logins silent. Has its own idle/max lifetimes.</li>
+                <li><b>Application session</b> — each app's own session (e.g. <code>JSESSIONID</code>) created after token validation.</li>
+              </ol>
+              <ul>
+                <li>Use <b>Spring Session</b> with Redis/JDBC so a horizontally scaled app shares sessions.</li>
+                <li>Keep app session timeout &le; IdP session timeout; use refresh tokens or re-authentication with <code>prompt=none</code> to extend.</li>
+                <li>Limit concurrent sessions via <code>sessionManagement(s -&gt; s.maximumSessions(1))</code> if required.</li>
+                <li>Protect against session fixation — Spring changes the session id on login by default.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>SPA, MFA &amp; troubleshooting</h2>
+          <details class="qa" data-level="hard">
+            <summary>How do you implement SSO for an Angular SPA with a Spring Boot API?</summary>
+            <div class="answer">
+              <p><b>Option A — public client in the browser</b> (e.g. <code>angular-auth-oidc-client</code>): Angular runs Authorization Code + PKCE, holds the access token and sends it as a bearer header; Spring Boot is a resource server.</p>
+              <script type="text/plain" class="code" data-lang="typescript">
+                // app.config.ts
+                export const appConfig: ApplicationConfig = {
+                  providers: [
+                    provideHttpClient(withInterceptors([authInterceptor()])),
+                    provideAuth({
+                      config: {
+                        authority: 'https://sso.example.com/realms/shop',
+                        clientId: 'angular-spa',
+                        redirectUrl: window.location.origin,
+                        postLogoutRedirectUri: window.location.origin,
+                        scope: 'openid profile email offline_access',
+                        responseType: 'code',          // Authorization Code + PKCE
+                        silentRenew: true,
+                        useRefreshToken: true,
+                        secureRoutes: ['https://api.example.com/'],
+                      },
+                    }),
+                  ],
+                };
+              </script>
+              <p><b>Option B — BFF (recommended)</b>: Spring Cloud Gateway is a confidential OAuth2 client with <code>oauth2Login</code>; the SPA only has a session cookie and the gateway forwards the token downstream with <code>TokenRelay</code>.</p>
+              <script type="text/plain" class="code" data-lang="yaml">
+                spring:
+                  cloud:
+                    gateway:
+                      server:
+                        webflux:            # Spring Cloud Gateway 4.3+ property prefix (older: spring.cloud.gateway.routes)
+                          default-filters:
+                            - TokenRelay=
+                            - SaveSession
+                          routes:
+                            - id: orders
+                              uri: http://orders-service:8080
+                              predicates:
+                                - Path=/api/orders/**
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How do MFA and social login fit into SSO?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>MFA</b> is configured in the IdP (TOTP, WebAuthn/passkeys, push). Apps don't implement it; they can <b>require</b> it by requesting <code>acr_values</code> and checking the <code>acr</code>/<code>amr</code> claims (step-up authentication for sensitive actions).</li>
+                <li><b>Social login</b> (Google, GitHub, Microsoft) is done either directly in Spring via multiple <code>oauth2Login</code> registrations, or — better for SSO — via <b>identity brokering</b> in Keycloak/Okta/Auth0, so apps still trust only one IdP.</li>
+                <li>Link accounts by verified email or explicit linking; never trust an unverified email claim (<code>email_verified</code>).</li>
+              </ul>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What are common SSO errors and how do you troubleshoot them?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Error</th><th>Cause</th><th>Fix</th></tr></thead>
+                <tbody>
+                  <tr><td><code>invalid redirect_uri</code></td><td>Redirect URI not registered exactly (scheme, port, trailing slash)</td><td>Register exact URI; behind a proxy set <code>server.forward-headers-strategy=framework</code> so <code>{baseUrl}</code> is https</td></tr>
+                  <tr><td><code>[invalid_id_token] ... iss</code></td><td>Issuer mismatch, e.g. internal vs public hostname</td><td>Use the same public issuer URL everywhere (Keycloak <code>KC_HOSTNAME</code>)</td></tr>
+                  <tr><td>Token "not yet valid" / expired</td><td>Clock skew between servers</td><td>Sync with NTP; allow small skew (default 60s)</td></tr>
+                  <tr><td><code>authorization_request_not_found</code></td><td>Session lost between redirect and callback (cookie blocked, multiple instances)</td><td>Sticky sessions or Spring Session; check SameSite and domain of session cookie</td></tr>
+                  <tr><td>SAML <code>Invalid signature</code></td><td>IdP certificate rotated</td><td>Use <code>metadata-uri</code> so certs refresh; update SP config</td></tr>
+                  <tr><td>Roles missing</td><td>Claim not in token</td><td>Configure IdP mappers; decode token to verify</td></tr>
+                </tbody>
+              </table></div>
+              <div class="tip">Debug with <code>logging.level.org.springframework.security=TRACE</code> and decode tokens locally — never paste production tokens into public websites.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What are SSO security best practices?</summary>
+            <div class="answer">
+              <ul>
+                <li>Use <b>OIDC Authorization Code + PKCE</b>; never implicit flow. Prefer the BFF pattern for SPAs.</li>
+                <li>Validate <code>state</code>, <code>nonce</code>, signature, <code>iss</code>, <code>aud</code> and <code>exp</code> — let the framework do it.</li>
+                <li>Register exact redirect URIs; no wildcards.</li>
+                <li>Enforce MFA / phishing-resistant passkeys at the IdP; short IdP session lifetimes for privileged users.</li>
+                <li>Implement back-channel logout and deprovision users promptly (SCIM for user sync).</li>
+                <li>Store client secrets in a vault; prefer <code>private_key_jwt</code> client authentication over shared secrets.</li>
+                <li>HTTPS everywhere; <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite</code> cookies.</li>
+                <li>For SAML: require signed assertions, validate audience and time window, prefer SP-initiated flow.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+</body>
+</html>

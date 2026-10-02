@@ -167,6 +167,7 @@
           if (match) shown++;
         });
         document.querySelectorAll(".qa-group").forEach(function (g) {
+          if (!g.querySelector("details.qa")) return; // sections without questions (e.g. comparison tables) stay visible
           g.classList.toggle("hidden", !g.querySelector("details.qa:not(.hidden)"));
         });
         if (empty) empty.classList.toggle("hidden", shown !== 0);
