@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Java 25 Interview Questions — Tech Interview Hub</title>
+  <meta name="description" content="Java 25 LTS interview questions: virtual threads, record patterns, pattern matching for switch, scoped values, stream gatherers, compact source files, flexible constructor bodies, compact object headers.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="assets/js/app.js"></script>
+</head>
+<body id="top">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <section class="page-hero">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Java / Java 25</div>
+      <h1>🚀 Java 25 (LTS) Interview Questions</h1>
+      <p>Java 25 (September 2025) is the LTS after 21 and 17. It bundles everything finalized in Java 18–25 —
+        virtual threads, pattern matching for switch, record patterns, sequenced collections, stream gatherers —
+        plus new finals in 25 such as scoped values, compact source files and flexible constructor bodies.</p>
+    </section>
+
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search questions… (e.g. virtual, gatherer, scoped)">
+      <button id="expand-all" class="tool-btn">Expand all</button>
+      <button id="collapse-all" class="tool-btn">Collapse all</button>
+      <span id="count" class="count"></span>
+    </div>
+
+    <div class="layout">
+      <aside id="toc" class="toc"></aside>
+      <div>
+        <p id="empty" class="empty hidden">No questions match your search.</p>
+
+        <section class="qa-group">
+          <h2>Overview</h2>
+          <details class="qa" data-level="easy">
+            <summary>What changed between Java 17 and Java 25? Give the timeline of finalized features.</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Version</th><th>Key finalized features (JEP)</th></tr></thead>
+                <tbody>
+                  <tr><td>18</td><td>UTF-8 by default (400), simple web server <code>jwebserver</code> (408), <code>@snippet</code> in Javadoc (413)</td></tr>
+                  <tr><td>19–20</td><td>Previews only (virtual threads, record patterns, structured concurrency)</td></tr>
+                  <tr><td>21 (LTS)</td><td>Virtual threads (444), record patterns (440), pattern matching for switch (441), sequenced collections (431), generational ZGC (439)</td></tr>
+                  <tr><td>22</td><td>Unnamed variables &amp; patterns <code>_</code> (456), Foreign Function &amp; Memory API (454), multi-file source launcher (458)</td></tr>
+                  <tr><td>23</td><td>Markdown documentation comments (467), ZGC generational by default (474)</td></tr>
+                  <tr><td>24</td><td>Stream Gatherers (485), Class-File API (484), virtual threads without pinning on <code>synchronized</code> (491), Security Manager permanently disabled (486), AOT class loading &amp; linking (483)</td></tr>
+                  <tr><td>25 (LTS)</td><td>Scoped Values (506), Module Import Declarations (511), Compact Source Files &amp; Instance Main Methods (512), Flexible Constructor Bodies (513), Compact Object Headers (519), KDF API (510), AOT ergonomics (514) &amp; method profiling (515), Generational Shenandoah (521)</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Which Java 25 features are still preview or incubator? What happened to String Templates?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Preview</b>: Structured Concurrency (JEP 505, 5th preview), Primitive Types in Patterns (507, 3rd preview), Stable Values (502), PEM encodings of cryptographic objects (470).</li>
+                <li><b>Incubator</b>: Vector API (508, 10th incubator — waiting on Project Valhalla).</li>
+                <li><b>Experimental</b>: JFR CPU-time profiling on Linux (509).</li>
+                <li><b>String Templates</b> (previewed in 21 and 22) were <b>withdrawn</b> in JDK 23 and are not in Java 25.</li>
+              </ul>
+              <p>Preview features need <code>--enable-preview</code> at both compile and run time, and can change between releases — avoid them in production code.</p>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Virtual threads &amp; concurrency</h2>
+          <details class="qa" data-level="medium">
+            <summary>What are virtual threads and how do they differ from platform threads?</summary>
+            <div class="answer">
+              <p>Virtual threads (Project Loom, final in 21) are lightweight threads managed by the JVM, not the OS. Millions can exist; when a virtual thread blocks on I/O it <b>unmounts</b> from its carrier (a small <code>ForkJoinPool</code> of platform threads) so the carrier can run another one.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                    List<Future<String>> results = IntStream.range(0, 10_000)
+                        .mapToObj(i -> executor.submit(() -> httpClient.fetch("/item/" + i)))  // blocking call is fine
+                        .toList();
+                    for (var f : results) process(f.get());
+                }   // close() waits for all tasks
+
+                Thread.ofVirtual().name("worker-", 0).start(() -> doWork());
+                Thread.startVirtualThread(() -> doWork());
+              </script>
+              <div class="tip">You keep writing simple blocking, thread-per-request code but get the scalability of reactive code.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>How do you enable virtual threads in Spring Boot?</summary>
+            <div class="answer">
+              <p>Since Spring Boot 3.2 (on Java 21+), one property switches Tomcat/Jetty request handling, <code>@Async</code>, scheduling and messaging listeners to virtual threads:</p>
+              <script type="text/plain" class="code" data-lang="properties">
+                spring.threads.virtual.enabled=true
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>When should you NOT use virtual threads?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>CPU-bound work</b> — no gain; there are still only as many carriers as cores. Use a fixed platform pool or parallel streams.</li>
+                <li><b>Pooling them</b> — never pool virtual threads; create one per task. Limit concurrency with a <code>Semaphore</code> instead.</li>
+                <li><b>Heavy <code>ThreadLocal</code> usage</b> — millions of threads × large thread-locals = memory pressure. Prefer <code>ScopedValue</code>.</li>
+                <li><b>Pinning</b> — before Java 24, blocking inside <code>synchronized</code> pinned the carrier. JEP 491 (Java 24) fixed this; native frames/JNI calls can still pin.</li>
+                <li><b>Downstream limits</b> — 10,000 concurrent virtual threads still share a DB pool of, say, 20 connections. Size resources accordingly.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="bash">
+                # Detect remaining pinning events
+                java -Djdk.tracePinnedThreads=full -jar app.jar   # older JDKs
+                jfr print --events jdk.VirtualThreadPinned recording.jfr
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What are Scoped Values and how do they compare to <code>ThreadLocal</code>?</summary>
+            <div class="answer">
+              <p><code>ScopedValue</code> (final in 25, JEP 506) shares immutable data with callees for a bounded dynamic scope — ideal for request context (user, tenant, trace id).</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>ThreadLocal</th><th>ScopedValue</th></tr></thead>
+                <tbody>
+                  <tr><td>Mutability</td><td>Mutable (<code>set</code>)</td><td>Immutable within a scope</td></tr>
+                  <tr><td>Lifetime</td><td>Until <code>remove()</code> — easy to leak in pools</td><td>Ends automatically with the scope</td></tr>
+                  <tr><td>Child threads</td><td><code>InheritableThreadLocal</code> copies</td><td>Shared cheaply with structured concurrency subtasks</td></tr>
+                  <tr><td>Cost</td><td>Per-thread map</td><td>Optimised for many virtual threads</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java">
+                static final ScopedValue<User> CURRENT_USER = ScopedValue.newInstance();
+
+                void handle(Request req) {
+                    ScopedValue.where(CURRENT_USER, authenticate(req))
+                               .run(() -> orderService.placeOrder(req.body()));
+                }
+
+                // anywhere deeper in the call stack
+                User u = CURRENT_USER.get();
+                boolean bound = CURRENT_USER.isBound();
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>What is Structured Concurrency (preview in 25)?</summary>
+            <div class="answer">
+              <p>It treats a group of concurrent subtasks as one unit of work: if one fails the others are cancelled, and the scope cannot exit before its children finish — no leaked threads.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                // javac --release 25 --enable-preview ...
+                Response handle(long id) throws InterruptedException {
+                    try (var scope = StructuredTaskScope.open()) {      // default: all must succeed
+                        Subtask<User>  user  = scope.fork(() -> findUser(id));
+                        Subtask<Order> order = scope.fork(() -> fetchOrder(id));
+                        scope.join();                                    // throws if any subtask failed
+                        return new Response(user.get(), order.get());
+                    }
+                }
+              </script>
+              <p>Other joiners: <code>Joiner.anySuccessfulResultOrThrow()</code> (race replicas), <code>Joiner.awaitAll()</code>.</p>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Pattern matching &amp; language</h2>
+          <details class="qa" data-level="medium">
+            <summary>Explain pattern matching for switch and record patterns with an example.</summary>
+            <div class="answer">
+              <p>Since Java 21, <code>switch</code> works on any type with type patterns, <b>guards</b> (<code>when</code>), <code>case null</code>, and <b>record deconstruction</b> — exhaustively checked for sealed hierarchies.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                sealed interface Shape permits Circle, Rect, Line {}
+                record Point(int x, int y) {}
+                record Circle(Point center, double r) implements Shape {}
+                record Rect(Point topLeft, Point bottomRight) implements Shape {}
+                record Line(Point a, Point b) implements Shape {}
+
+                static String describe(Shape s) {
+                    return switch (s) {
+                        case Circle(Point(var x, var y), double r) when r > 100 -> "big circle at " + x + "," + y;
+                        case Circle c                                       -> "circle r=" + c.r();
+                        case Rect(Point(int x1, int y1), Point(int x2, int y2)) -> "rect area " + Math.abs((x2 - x1) * (y2 - y1));
+                        case Line _                                         -> "a line";   // unnamed pattern (Java 22)
+                    };  // no default needed: sealed + exhaustive
+                }
+
+                if (obj instanceof Point(int x, int y) && x == y) System.out.println("diagonal");
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What are unnamed variables and patterns (<code>_</code>)?</summary>
+            <div class="answer">
+              <p>Final in Java 22 (JEP 456): use <code>_</code> for variables or pattern components you must declare but never use.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                try { Integer.parseInt(s); } catch (NumberFormatException _) { return false; }
+                for (var _ : list) count++;
+                map.forEach((_, v) -> total += v);
+                if (shape instanceof Circle(Point _, double r)) area = Math.PI * r * r;
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What are Compact Source Files and Instance Main Methods (JEP 512)?</summary>
+            <div class="answer">
+              <p>Final in Java 25. A source file can contain methods and fields without a class declaration (an implicit class), <code>main</code> needs no <code>public static</code> or <code>String[] args</code>, the new <code>java.lang.IO</code> class gives simple console I/O, and the whole <code>java.base</code> module is imported automatically.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                // Hello.java — run with:  java Hello.java
+                void main() {
+                    String name = IO.readln("Your name: ");
+                    IO.println("Hello, " + name + "!");
+                    var nums = List.of(3, 1, 2);          // no import needed
+                    IO.println(nums.stream().sorted().toList());
+                }
+              </script>
+              <div class="tip">Great for scripts, teaching and quick prototypes; combine with the multi-file source launcher (JEP 458, Java 22) to run small multi-class programs without a build tool.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What are Flexible Constructor Bodies (JEP 513)?</summary>
+            <div class="answer">
+              <p>Final in Java 25: statements may appear <b>before</b> <code>super(...)</code> / <code>this(...)</code> — for validation, computing arguments, or initializing the subclass's own fields — as long as they don't use <code>this</code> otherwise.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                class Employee extends Person {
+                    private final String dept;
+
+                    Employee(String name, int age, String dept) {
+                        if (age < 18) throw new IllegalArgumentException("too young");   // fail fast, before super()
+                        this.dept = Objects.requireNonNull(dept);                       // field init allowed
+                        super(name.strip(), age);
+                    }
+                }
+              </script>
+              <p>Benefit: no more static helper methods just to validate constructor arguments, and superclass constructors that call overridable methods now see initialized subclass fields.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What are Module Import Declarations (JEP 511)?</summary>
+            <div class="answer">
+              <p><code>import module M;</code> imports all public top-level types of every package exported by module <code>M</code> (and its transitive dependencies). Works in ordinary classpath code too.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                import module java.base;     // java.util, java.io, java.time, java.util.stream ...
+                import module java.sql;
+                import java.sql.Date;        // single-type import resolves ambiguity with java.util.Date
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What are Markdown documentation comments?</summary>
+            <div class="answer">
+              <p>Since Java 23 (JEP 467), Javadoc can be written in Markdown using <code>///</code> comments.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                /// Returns the **net** salary after tax.
+                ///
+                /// - `gross` must be positive
+                /// - see [TaxService#rateFor(String)]
+                public double net(double gross) { ... }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What are Primitive Types in Patterns (preview)?</summary>
+            <div class="answer">
+              <p>Preview in Java 25 (JEP 507): primitive types are allowed in all pattern contexts, and <code>instanceof</code>/<code>switch</code> work on all primitive types, testing whether a conversion is exact.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                int status = response.code();
+                String s = switch (status) {
+                    case 200 -> "OK";
+                    case int i when i >= 500 -> "server error " + i;
+                    case int i -> "other " + i;
+                };
+                long big = 42L;
+                if (big instanceof int i) IO.println("fits in int: " + i);   // safe narrowing check
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>APIs</h2>
+          <details class="qa" data-level="easy">
+            <summary>What are Sequenced Collections?</summary>
+            <div class="answer">
+              <p>Java 21 added <code>SequencedCollection</code>, <code>SequencedSet</code> and <code>SequencedMap</code> giving a uniform API for collections with a defined encounter order (<code>List</code>, <code>Deque</code>, <code>LinkedHashSet</code>, <code>TreeSet</code>, <code>LinkedHashMap</code>…).</p>
+              <script type="text/plain" class="code" data-lang="java">
+                List<String> list = new ArrayList<>(List.of("a", "b", "c"));
+                list.getFirst();            // "a"  (was list.get(0))
+                list.getLast();             // "c"  (was list.get(list.size() - 1))
+                list.addFirst("z");
+                list.reversed();            // reversed view: [c, b, a, z]
+
+                LinkedHashMap<String, Integer> m = new LinkedHashMap<>();
+                m.putLast("x", 1);
+                m.firstEntry(); m.pollLastEntry(); m.sequencedKeySet().reversed();
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What are Stream Gatherers? Show <code>windowFixed</code> and a custom gatherer.</summary>
+            <div class="answer">
+              <p>Final in Java 24 (JEP 485), <code>Stream.gather(Gatherer)</code> is a user-extensible <b>intermediate</b> operation — the counterpart of <code>collect</code> for terminal operations. Built-ins live in <code>Gatherers</code>.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                Stream.of(1, 2, 3, 4, 5, 6, 7)
+                      .gather(Gatherers.windowFixed(3))
+                      .toList();                        // [[1, 2, 3], [4, 5, 6], [7]]
+
+                Stream.of(1, 2, 3, 4)
+                      .gather(Gatherers.windowSliding(2))
+                      .toList();                        // [[1, 2], [2, 3], [3, 4]]
+
+                Stream.of(1, 2, 3, 4)
+                      .gather(Gatherers.scan(() -> 0, Integer::sum))
+                      .toList();                        // running total [1, 3, 6, 10]
+
+                // Call a slow service with at most 10 concurrent virtual threads
+                urls.stream().gather(Gatherers.mapConcurrent(10, this::fetch)).toList();
+
+                // Custom: distinct by key
+                static <T, K> Gatherer<T, ?, T> distinctBy(Function<T, K> key) {
+                    return Gatherer.ofSequential(
+                        HashSet<K>::new,
+                        (seen, item, down) -> !seen.add(key.apply(item)) || down.push(item));
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>What is the Foreign Function &amp; Memory API?</summary>
+            <div class="answer">
+              <p>Final in Java 22 (JEP 454), it replaces JNI for calling native libraries and safely managing off-heap memory, with no C glue code.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                Linker linker = Linker.nativeLinker();
+                MethodHandle strlen = linker.downcallHandle(
+                    linker.defaultLookup().find("strlen").orElseThrow(),
+                    FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+
+                try (Arena arena = Arena.ofConfined()) {
+                    MemorySegment str = arena.allocateFrom("Hello Java 25");
+                    long len = (long) strlen.invokeExact(str);    // 13
+                }   // memory freed deterministically
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What is the Key Derivation Function API? And what are Stable Values?</summary>
+            <div class="answer">
+              <p><b>KDF API</b> (final in 25, JEP 510) — standard API for algorithms like HKDF (and future post-quantum schemes) to derive keys from a secret.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                KDF hkdf = KDF.getInstance("HKDF-SHA256");
+                AlgorithmParameterSpec params = HKDFParameterSpec.ofExtract()
+                    .addIKM(sharedSecret).addSalt(salt)
+                    .thenExpand("session-key".getBytes(), 32);
+                SecretKey aesKey = hkdf.deriveKey("AES", params);
+              </script>
+              <p><b>Stable Values</b> (preview, JEP 502) — lazily initialized, set-at-most-once values that the JIT treats like <code>final</code> constants. Useful for deferred, expensive initialization.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                private final StableValue<Logger> logger = StableValue.of();
+                Logger log() { return logger.orElseSet(() -> Logger.create(OrderService.class)); }
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>JVM &amp; performance</h2>
+          <details class="qa" data-level="medium">
+            <summary>What are Compact Object Headers (JEP 519)?</summary>
+            <div class="answer">
+              <p>A product (non-experimental) feature in Java 25 that shrinks the object header from 12–16 bytes to <b>8 bytes</b> on 64-bit JVMs. Typical heaps shrink 10–20%, with fewer GCs and better cache locality. Opt-in:</p>
+              <script type="text/plain" class="code" data-lang="bash">
+                java -XX:+UseCompactObjectHeaders -jar app.jar
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>How do the AOT cache features (JEPs 483, 514, 515) improve startup?</summary>
+            <div class="answer">
+              <p>Project Leyden: a <b>training run</b> records which classes are loaded/linked and which methods are hot; the resulting <b>AOT cache</b> lets later runs start with classes already loaded and linked, and with profiles ready so the JIT optimizes sooner. Java 25 reduced it to a single step:</p>
+              <script type="text/plain" class="code" data-lang="bash">
+                # Java 25: training run + cache creation in one command (JEP 514)
+                java -XX:AOTCacheOutput=app.aot -jar app.jar
+
+                # Production runs
+                java -XX:AOTCache=app.aot -jar app.jar
+              </script>
+              <p>Spring Boot apps commonly see 30–40%+ faster startup with no code changes (unlike GraalVM native image, there are no closed-world restrictions).</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What GC options does Java 25 offer?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>G1</b> — default; balanced.</li>
+                <li><b>ZGC</b> — generational only (non-generational mode removed in 24); sub-millisecond pauses on multi-TB heaps.</li>
+                <li><b>Shenandoah</b> — generational mode is now a product feature (JEP 521).</li>
+                <li>Parallel and Serial — throughput / tiny containers.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="bash">
+                java -XX:+UseZGC -jar app.jar
+                java -XX:+UseShenandoahGC -XX:ShenandoahGCMode=generational -jar app.jar
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What was removed or disabled by Java 25 that can break upgrades?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Security Manager</b> permanently disabled (Java 24, JEP 486) — <code>-Djava.security.manager=allow</code> no longer works.</li>
+                <li><b>32-bit x86 port</b> removed (JEP 503).</li>
+                <li><b>Non-generational ZGC</b> removed (Java 24).</li>
+                <li><code>sun.misc.Unsafe</code> memory-access methods warn on use (JEP 498) on the path to removal; use VarHandle / FFM API.</li>
+                <li>JNI usage now emits warnings unless <code>--enable-native-access</code> is granted (JEP 472).</li>
+                <li>Default charset is UTF-8 since Java 18 — legacy code relying on platform encoding may behave differently.</li>
+              </ul>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What JFR improvements arrived in Java 25?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>CPU-time profiling</b> on Linux (JEP 509, experimental) — more accurate CPU sampling.</li>
+                <li><b>Cooperative sampling</b> (JEP 518) — safer, more stable stack sampling.</li>
+                <li><b>Method timing &amp; tracing</b> (JEP 520) — time specific methods without bytecode agents.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="bash">
+                java -XX:StartFlightRecording:jdk.MethodTiming#filter=com.app.OrderService::placeOrder,filename=rec.jfr -jar app.jar
+              </script>
+            </div>
+          </details>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+</body>
+</html>

@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spring Boot Interview Questions — Tech Interview Hub</title>
+  <meta name="description" content="Spring Boot interview questions: auto-configuration, dependency injection, configuration, REST, transactions, actuator, testing and microservices, with code examples.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="assets/js/app.js"></script>
+</head>
+<body id="top">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <section class="page-hero">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Spring &amp; Persistence / Spring Boot</div>
+      <h1>🌱 Spring Boot Interview Questions</h1>
+      <p>From auto-configuration and dependency injection to transactions, Actuator, testing and microservices.
+        Answers apply to Spring Boot 3.x (Java 17+, Jakarta EE 10) and note what changed in Spring Boot 4 (Spring Framework 7).</p>
+    </section>
+
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search questions… (e.g. transactional, actuator, profile)">
+      <button id="expand-all" class="tool-btn">Expand all</button>
+      <button id="collapse-all" class="tool-btn">Collapse all</button>
+      <span id="count" class="count"></span>
+    </div>
+
+    <div class="layout">
+      <aside id="toc" class="toc"></aside>
+      <div>
+        <p id="empty" class="empty hidden">No questions match your search.</p>
+
+        <section class="qa-group">
+          <h2>Core</h2>
+          <details class="qa" data-level="easy">
+            <summary>What is Spring Boot and how is it different from the Spring Framework?</summary>
+            <div class="answer">
+              <p><b>Spring Framework</b> provides the core (IoC container, AOP, MVC, transactions, data access). <b>Spring Boot</b> is an opinionated layer on top that removes boilerplate:</p>
+              <ul>
+                <li><b>Auto-configuration</b> — configures beans based on the classpath and properties.</li>
+                <li><b>Starters</b> — curated dependency sets with compatible versions.</li>
+                <li><b>Embedded server</b> — Tomcat/Jetty/Undertow inside an executable "fat" JAR; no WAR deployment needed.</li>
+                <li><b>Production features</b> — Actuator, metrics, health checks, externalized configuration.</li>
+              </ul>
+              <div class="tip">One-liner: Spring is the engine; Spring Boot is the car that's ready to drive.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What does <code>@SpringBootApplication</code> do?</summary>
+            <div class="answer">
+              <p>It is a meta-annotation combining three annotations:</p>
+              <ul>
+                <li><code>@SpringBootConfiguration</code> — a specialised <code>@Configuration</code>.</li>
+                <li><code>@EnableAutoConfiguration</code> — loads auto-configuration classes listed in <code>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code>.</li>
+                <li><code>@ComponentScan</code> — scans the package of the annotated class and sub-packages.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                @SpringBootApplication(exclude = DataSourceAutoConfiguration.class)
+                public class OrderServiceApplication {
+                    public static void main(String[] args) {
+                        SpringApplication.run(OrderServiceApplication.class, args);
+                    }
+                }
+              </script>
+              <div class="note">Put the main class in a root package — beans outside its package tree are not scanned.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How does auto-configuration work? Explain <code>@Conditional</code> annotations.</summary>
+            <div class="answer">
+              <p>Each auto-configuration class is a <code>@AutoConfiguration</code> guarded by conditions. Beans are created only when conditions match, and your own beans take precedence (<code>@ConditionalOnMissingBean</code>).</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @AutoConfiguration
+                @ConditionalOnClass(ObjectMapper.class)
+                @ConditionalOnProperty(prefix = "app.audit", name = "enabled", havingValue = "true", matchIfMissing = true)
+                public class AuditAutoConfiguration {
+
+                    @Bean
+                    @ConditionalOnMissingBean          // back off if user defined one
+                    AuditService auditService(ObjectMapper mapper) {
+                        return new DefaultAuditService(mapper);
+                    }
+                }
+              </script>
+              <p>Common conditions: <code>@ConditionalOnClass</code>, <code>@ConditionalOnMissingBean</code>, <code>@ConditionalOnBean</code>, <code>@ConditionalOnProperty</code>, <code>@ConditionalOnWebApplication</code>. Run with <code>--debug</code> or hit <code>/actuator/conditions</code> to see the condition evaluation report.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What are starters? Name a few.</summary>
+            <div class="answer">
+              <p>Starters are dependency descriptors that pull in everything needed for a capability, with versions managed by the Boot BOM (<code>spring-boot-dependencies</code>).</p>
+              <ul>
+                <li><code>spring-boot-starter-web</code> — Spring MVC + Jackson + embedded Tomcat</li>
+                <li><code>spring-boot-starter-webflux</code> — reactive stack on Netty</li>
+                <li><code>spring-boot-starter-data-jpa</code> — Hibernate + Spring Data JPA + HikariCP</li>
+                <li><code>spring-boot-starter-security</code>, <code>spring-boot-starter-oauth2-resource-server</code></li>
+                <li><code>spring-boot-starter-actuator</code>, <code>spring-boot-starter-validation</code>, <code>spring-boot-starter-test</code></li>
+              </ul>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>How do you change or replace the embedded server?</summary>
+            <div class="answer">
+              <p>Change the port with <code>server.port=8081</code> (<code>0</code> = random). To switch to Jetty, exclude Tomcat and add the Jetty starter:</p>
+              <script type="text/plain" class="code" data-lang="xml">
+                <dependency>
+                  <groupId>org.springframework.boot</groupId>
+                  <artifactId>spring-boot-starter-web</artifactId>
+                  <exclusions>
+                    <exclusion>
+                      <groupId>org.springframework.boot</groupId>
+                      <artifactId>spring-boot-starter-tomcat</artifactId>
+                    </exclusion>
+                  </exclusions>
+                </dependency>
+                <dependency>
+                  <groupId>org.springframework.boot</groupId>
+                  <artifactId>spring-boot-starter-jetty</artifactId>
+                </dependency>
+              </script>
+              <div class="note">Undertow support was removed in Spring Boot 4 because it doesn't yet support Servlet 6.1 — use Tomcat or Jetty.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What's new in Spring Boot 3 and Spring Boot 4?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Area</th><th>Spring Boot 3.x (Nov 2022+)</th><th>Spring Boot 4.0 (Nov 2025)</th></tr></thead>
+                <tbody>
+                  <tr><td>Framework</td><td>Spring Framework 6</td><td>Spring Framework 7</td></tr>
+                  <tr><td>Java baseline</td><td>Java 17</td><td>Java 17 (Java 25 recommended)</td></tr>
+                  <tr><td>Jakarta EE</td><td><code>javax.*</code> → <code>jakarta.*</code>, EE 9/10</td><td>Jakarta EE 11 (Servlet 6.1, JPA 3.2)</td></tr>
+                  <tr><td>Observability</td><td>Micrometer Observation API, tracing replaces Sleuth</td><td>OpenTelemetry starter</td></tr>
+                  <tr><td>Native</td><td>GraalVM native image support (AOT)</td><td>Improved AOT, smaller images</td></tr>
+                  <tr><td>Other</td><td>ProblemDetail, <code>RestClient</code> (3.2), virtual threads (3.2), <code>@ServiceConnection</code> (3.1)</td><td>Modularised auto-config jars, JSpecify null-safety, API versioning, HTTP service clients, Jackson 3, built-in resilience (<code>@Retryable</code>)</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>DI &amp; Beans</h2>
+          <details class="qa" data-level="easy">
+            <summary>What is IoC and Dependency Injection? Why prefer constructor injection?</summary>
+            <div class="answer">
+              <p><b>Inversion of Control</b>: the container, not your code, creates and wires objects. <b>DI</b> is how it supplies dependencies. Constructor injection is preferred because:</p>
+              <ul>
+                <li>Dependencies can be <code>final</code> → immutable, thread-safe.</li>
+                <li>Object is never in a half-initialised state; missing deps fail at startup.</li>
+                <li>Easy to unit test without Spring (<code>new OrderService(mockRepo)</code>).</li>
+                <li>Too many constructor parameters makes a design smell visible.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                @Service
+                public class OrderService {
+                    private final OrderRepository repo;
+                    private final PaymentClient payments;
+
+                    // single constructor → @Autowired is optional
+                    public OrderService(OrderRepository repo, PaymentClient payments) {
+                        this.repo = repo;
+                        this.payments = payments;
+                    }
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What bean scopes does Spring support?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Scope</th><th>Lifetime</th></tr></thead>
+                <tbody>
+                  <tr><td><code>singleton</code> (default)</td><td>One instance per container</td></tr>
+                  <tr><td><code>prototype</code></td><td>New instance per injection/lookup; Spring doesn't manage destruction</td></tr>
+                  <tr><td><code>request</code></td><td>One per HTTP request</td></tr>
+                  <tr><td><code>session</code></td><td>One per HTTP session</td></tr>
+                  <tr><td><code>application</code></td><td>One per <code>ServletContext</code></td></tr>
+                  <tr><td><code>websocket</code></td><td>One per WebSocket session</td></tr>
+                </tbody>
+              </table></div>
+              <div class="tip">Injecting a prototype into a singleton gives you only one instance. Use <code>ObjectProvider&lt;T&gt;</code>, <code>@Lookup</code>, or a scoped proxy to get a fresh one each time.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Explain the bean lifecycle.</summary>
+            <div class="answer">
+              <ol>
+                <li>Instantiate (constructor) → inject dependencies.</li>
+                <li><code>*Aware</code> callbacks (<code>BeanNameAware</code>, <code>ApplicationContextAware</code>).</li>
+                <li><code>BeanPostProcessor.postProcessBeforeInitialization</code>.</li>
+                <li><code>@PostConstruct</code> → <code>InitializingBean.afterPropertiesSet()</code> → custom <code>initMethod</code>.</li>
+                <li><code>BeanPostProcessor.postProcessAfterInitialization</code> (AOP proxies are created here).</li>
+                <li>Bean in use… then on shutdown: <code>@PreDestroy</code> → <code>DisposableBean.destroy()</code> → <code>destroyMethod</code>.</li>
+              </ol>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary><code>@Component</code> vs <code>@Bean</code> — when to use which?</summary>
+            <div class="answer">
+              <ul>
+                <li><code>@Component</code> (and <code>@Service</code>, <code>@Repository</code>, <code>@Controller</code>) — on your own classes, discovered by component scanning.</li>
+                <li><code>@Bean</code> — on a factory method in a <code>@Configuration</code> class; use for third-party classes you can't annotate, or when creation needs logic.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                @Configuration
+                public class HttpConfig {
+                    @Bean
+                    RestClient paymentClient(RestClient.Builder builder) {
+                        return builder.baseUrl("https://payments.internal").build();
+                    }
+                }
+              </script>
+              <p><code>@Repository</code> also enables exception translation into Spring's <code>DataAccessException</code> hierarchy.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Two beans of the same type exist. How do you resolve the ambiguity?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                @Component @Primary
+                class RazorpayGateway implements PaymentGateway {}
+
+                @Component("stripe")
+                class StripeGateway implements PaymentGateway {}
+
+                @Service
+                class CheckoutService {
+                    CheckoutService(PaymentGateway defaultGw,                    // gets @Primary
+                                    @Qualifier("stripe") PaymentGateway stripe,  // explicit
+                                    List<PaymentGateway> all,                    // all implementations
+                                    Map<String, PaymentGateway> byName) {}       // bean name -> bean
+                }
+              </script>
+              <p><code>@Qualifier</code> beats <code>@Primary</code>. Without either, startup fails with <code>NoUniqueBeanDefinitionException</code>.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>How does Spring handle circular dependencies?</summary>
+            <div class="answer">
+              <p>Since Spring Boot 2.6 circular references are <b>prohibited by default</b> and startup fails with <code>BeanCurrentlyInCreationException</code>. With constructor injection, they can never be resolved. Fixes, best first:</p>
+              <ol>
+                <li><b>Redesign</b> — extract the shared logic into a third bean, or use events (<code>ApplicationEventPublisher</code>).</li>
+                <li>Inject lazily: <code>@Lazy</code> on the constructor parameter or <code>ObjectProvider&lt;T&gt;</code>.</li>
+                <li>Last resort: <code>spring.main.allow-circular-references=true</code> (only works with setter/field injection).</li>
+              </ol>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Configuration</h2>
+          <details class="qa" data-level="easy">
+            <summary>How do profiles work? Show an <code>application.yml</code> example.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="yaml">
+                spring:
+                  application:
+                    name: order-service
+                  datasource:
+                    url: jdbc:postgresql://localhost:5432/orders
+                    username: app
+                    password: ${DB_PASSWORD}
+                ---
+                spring:
+                  config:
+                    activate:
+                      on-profile: prod
+                  datasource:
+                    url: jdbc:postgresql://prod-db:5432/orders
+                logging:
+                  level:
+                    root: WARN
+              </script>
+              <p>Activate with <code>--spring.profiles.active=prod</code> or <code>SPRING_PROFILES_ACTIVE=prod</code>. Profile-specific files <code>application-prod.yml</code> also work. Beans can be limited with <code>@Profile("!prod")</code>.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How do you bind type-safe configuration with <code>@ConfigurationProperties</code>?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                @ConfigurationProperties(prefix = "app.payment")
+                @Validated
+                public record PaymentProperties(
+                        @NotBlank String baseUrl,
+                        @DefaultValue("5s") Duration timeout,
+                        @DefaultValue("3") int retries) {}
+
+                @SpringBootApplication
+                @ConfigurationPropertiesScan          // or @EnableConfigurationProperties(PaymentProperties.class)
+                public class App {}
+              </script>
+              <script type="text/plain" class="code" data-lang="yaml">
+                app:
+                  payment:
+                    base-url: https://pay.example.com   # relaxed binding: base-url -> baseUrl
+                    timeout: 10s
+              </script>
+              <div class="tip">Prefer this over many <code>@Value</code> annotations: it's validated, grouped, immutable and IDE-autocompleted (with <code>spring-boot-configuration-processor</code>).</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What is the order of precedence for externalized configuration?</summary>
+            <div class="answer">
+              <p>Later sources override earlier ones. Simplified, from lowest to highest:</p>
+              <ol>
+                <li>Default properties (<code>SpringApplication.setDefaultProperties</code>)</li>
+                <li><code>application.yml/properties</code> inside the JAR</li>
+                <li>Profile-specific <code>application-{profile}.yml</code> inside the JAR</li>
+                <li><code>application.yml</code> outside the JAR (e.g. <code>./config/</code>)</li>
+                <li>Profile-specific files outside the JAR</li>
+                <li>OS environment variables (<code>SERVER_PORT</code>)</li>
+                <li>Java system properties (<code>-Dserver.port</code>)</li>
+                <li>Command-line arguments (<code>--server.port=9090</code>) — highest</li>
+              </ol>
+              <p><code>spring.config.import</code> can pull in extra sources such as <code>configserver:</code>, Vault or Kubernetes ConfigMaps.</p>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>REST APIs</h2>
+          <details class="qa" data-level="easy">
+            <summary>Write a REST controller with validation and proper status codes.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                public record CreateOrder(@NotBlank String sku, @Min(1) int quantity) {}
+
+                @RestController
+                @RequestMapping("/api/orders")
+                public class OrderController {
+                    private final OrderService service;
+                    public OrderController(OrderService service) { this.service = service; }
+
+                    @GetMapping("/{id}")
+                    public ResponseEntity<OrderDto> get(@PathVariable long id) {
+                        return service.find(id)
+                                .map(ResponseEntity::ok)
+                                .orElse(ResponseEntity.notFound().build());
+                    }
+
+                    @PostMapping
+                    public ResponseEntity<OrderDto> create(@Valid @RequestBody CreateOrder req) {
+                        OrderDto created = service.create(req);
+                        URI location = URI.create("/api/orders/" + created.id());
+                        return ResponseEntity.created(location).body(created);   // 201 + Location header
+                    }
+                }
+              </script>
+              <p><code>@RestController</code> = <code>@Controller</code> + <code>@ResponseBody</code>. Invalid input throws <code>MethodArgumentNotValidException</code> → 400.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How do you implement global exception handling? What is <code>ProblemDetail</code>?</summary>
+            <div class="answer">
+              <p><code>ProblemDetail</code> (Spring 6) implements RFC 9457 (formerly 7807) — a standard JSON error body. Enable defaults with <code>spring.mvc.problemdetails.enabled=true</code> or write a handler:</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @RestControllerAdvice
+                public class GlobalExceptionHandler {
+
+                    @ExceptionHandler(OrderNotFoundException.class)
+                    ProblemDetail handleNotFound(OrderNotFoundException ex) {
+                        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+                        pd.setTitle("Order not found");
+                        pd.setProperty("orderId", ex.getOrderId());
+                        return pd;
+                    }
+
+                    @ExceptionHandler(MethodArgumentNotValidException.class)
+                    ProblemDetail handleValidation(MethodArgumentNotValidException ex) {
+                        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+                        pd.setProperty("errors", ex.getFieldErrors().stream()
+                                .collect(Collectors.toMap(FieldError::getField, FieldError::getDefaultMessage, (a, b) -> a)));
+                        return pd;
+                    }
+                }
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Data &amp; Transactions</h2>
+          <details class="qa" data-level="medium">
+            <summary>Explain <code>@Transactional</code> propagation and isolation.</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Propagation</th><th>Behaviour</th></tr></thead>
+                <tbody>
+                  <tr><td><code>REQUIRED</code> (default)</td><td>Join existing transaction or start a new one</td></tr>
+                  <tr><td><code>REQUIRES_NEW</code></td><td>Suspend current, always start a new one (e.g. audit log that must persist even on rollback)</td></tr>
+                  <tr><td><code>NESTED</code></td><td>Savepoint inside current transaction</td></tr>
+                  <tr><td><code>SUPPORTS</code></td><td>Join if present, otherwise run non-transactionally</td></tr>
+                  <tr><td><code>MANDATORY</code></td><td>Must be called inside a transaction, else exception</td></tr>
+                  <tr><td><code>NOT_SUPPORTED</code> / <code>NEVER</code></td><td>Suspend / fail if a transaction exists</td></tr>
+                </tbody>
+              </table></div>
+              <p>Isolation (<code>READ_COMMITTED</code>, <code>REPEATABLE_READ</code>, <code>SERIALIZABLE</code>…) defaults to the database's level. Use <code>readOnly = true</code> on queries — Hibernate skips dirty checking.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>Why does <code>@Transactional</code> sometimes not work? (self-invocation)</summary>
+            <div class="answer">
+              <p><code>@Transactional</code> is applied via an AOP <b>proxy</b>. Calls that don't go through the proxy aren't intercepted:</p>
+              <ul>
+                <li><b>Self-invocation</b> — <code>this.save()</code> from another method in the same class.</li>
+                <li>Method is <code>private</code> or <code>final</code> (CGLIB can't override it).</li>
+                <li>Bean not managed by Spring (created with <code>new</code>).</li>
+                <li>Exception is caught and swallowed inside the method.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                @Service
+                class ReportService {
+                    public void generateAll() {
+                        for (var id : ids) this.generate(id);   // ❌ bypasses proxy → no new transaction
+                    }
+                    @Transactional(propagation = Propagation.REQUIRES_NEW)
+                    public void generate(long id) { ... }
+                }
+                // ✅ Fix: move generate() into a separate bean and inject it,
+                //    or use TransactionTemplate programmatically.
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What are the default rollback rules?</summary>
+            <div class="answer">
+              <p>By default Spring rolls back on <b>unchecked</b> exceptions (<code>RuntimeException</code>, <code>Error</code>) and <b>commits</b> on checked exceptions.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @Transactional(rollbackFor = InsufficientFundsException.class,   // checked → rollback
+                               noRollbackFor = NotificationFailedException.class)
+                public void transfer(long from, long to, BigDecimal amt) throws InsufficientFundsException { ... }
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Production readiness</h2>
+          <details class="qa" data-level="easy">
+            <summary>What is Spring Boot Actuator? Which endpoints are most useful?</summary>
+            <div class="answer">
+              <p>Actuator exposes operational endpoints: <code>/actuator/health</code> (with Kubernetes <code>liveness</code>/<code>readiness</code> groups), <code>/info</code>, <code>/metrics</code>, <code>/prometheus</code>, <code>/env</code>, <code>/loggers</code> (change log levels at runtime), <code>/threaddump</code>, <code>/heapdump</code>, <code>/conditions</code>, <code>/beans</code>, <code>/mappings</code>.</p>
+              <script type="text/plain" class="code" data-lang="yaml">
+                management:
+                  endpoints:
+                    web:
+                      exposure:
+                        include: health,info,prometheus,loggers
+                  endpoint:
+                    health:
+                      probes:
+                        enabled: true
+                      show-details: when-authorized
+              </script>
+              <div class="note">Only <code>health</code> is exposed over HTTP by default. Never expose <code>env</code> or <code>heapdump</code> publicly — secure them with Spring Security.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How do you add observability (metrics &amp; tracing)?</summary>
+            <div class="answer">
+              <p>Spring Boot 3 uses <b>Micrometer</b> for metrics and <b>Micrometer Tracing</b> (replacing Spring Cloud Sleuth) with OpenTelemetry or Brave bridges. The <b>Observation API</b> produces both metrics and spans from one instrumentation.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @Service
+                class PricingService {
+                    private final ObservationRegistry registry;
+                    PricingService(ObservationRegistry registry) { this.registry = registry; }
+
+                    BigDecimal price(String sku) {
+                        return Observation.createNotStarted("pricing.calculate", registry)
+                                .lowCardinalityKeyValue("sku.type", type(sku))
+                                .observe(() -> calculate(sku));   // timer + trace span
+                    }
+                }
+              </script>
+              <p>Or simply annotate with <code>@Observed</code> / <code>@Timed</code>. Trace IDs are added to logs automatically.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How do you enable virtual threads in Spring Boot?</summary>
+            <div class="answer">
+              <p>On Java 21+ and Spring Boot 3.2+, a single property switches Tomcat request handling, <code>@Async</code>, scheduling and other executors to virtual threads:</p>
+              <script type="text/plain" class="code" data-lang="properties">
+                spring.threads.virtual.enabled=true
+              </script>
+              <p>Great for blocking I/O-heavy services (JDBC, REST calls). It doesn't make CPU-bound code faster, and the DB connection pool still caps concurrency.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>What is a GraalVM native image and what are its trade-offs?</summary>
+            <div class="answer">
+              <p>Spring AOT processing generates bean definitions at build time, then GraalVM compiles the app ahead-of-time to a native executable.</p>
+              <script type="text/plain" class="code" data-lang="bash">
+                ./mvnw -Pnative native:compile          # native executable
+                ./mvnw -Pnative spring-boot:build-image # native container image via buildpacks
+              </script>
+              <ul>
+                <li>✅ Startup in tens of milliseconds, much lower memory — ideal for serverless and scale-to-zero.</li>
+                <li>❌ Long build times, closed-world assumption (reflection/proxies need hints via <code>RuntimeHints</code>), no runtime profile switching of <code>@Profile</code> beans, lower peak throughput without PGO.</li>
+              </ul>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>How do you containerize a Spring Boot app?</summary>
+            <div class="answer">
+              <p>Option 1 — Cloud Native Buildpacks, no Dockerfile: <code>./mvnw spring-boot:build-image</code>. Option 2 — layered JAR in a Dockerfile for better caching:</p>
+              <script type="text/plain" class="code" data-lang="dockerfile">
+                FROM eclipse-temurin:21-jre AS builder
+                WORKDIR /app
+                COPY target/*.jar app.jar
+                RUN java -Djarmode=tools -jar app.jar extract --layers --launcher
+
+                FROM eclipse-temurin:21-jre
+                WORKDIR /app
+                COPY --from=builder /app/app/dependencies/ ./
+                COPY --from=builder /app/app/spring-boot-loader/ ./
+                COPY --from=builder /app/app/snapshot-dependencies/ ./
+                COPY --from=builder /app/app/application/ ./
+                ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Testing</h2>
+          <details class="qa" data-level="medium">
+            <summary><code>@SpringBootTest</code> vs test slices (<code>@WebMvcTest</code>, <code>@DataJpaTest</code>)?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Annotation</th><th>Loads</th><th>Use for</th></tr></thead>
+                <tbody>
+                  <tr><td><code>@SpringBootTest</code></td><td>Full application context</td><td>Integration / end-to-end tests</td></tr>
+                  <tr><td><code>@WebMvcTest</code></td><td>Controllers, advice, filters, MockMvc</td><td>Web layer; mock services with <code>@MockitoBean</code></td></tr>
+                  <tr><td><code>@DataJpaTest</code></td><td>JPA repositories, EntityManager, transactional + rollback</td><td>Repository queries</td></tr>
+                  <tr><td><code>@JsonTest</code>, <code>@RestClientTest</code></td><td>Jackson / REST client</td><td>Serialization, HTTP clients</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java">
+                @WebMvcTest(OrderController.class)
+                class OrderControllerTest {
+                    @Autowired MockMvc mvc;
+                    @MockitoBean OrderService service;      // replaces deprecated @MockBean (Boot 3.4+)
+
+                    @Test
+                    void returns404WhenMissing() throws Exception {
+                        when(service.find(42L)).thenReturn(Optional.empty());
+                        mvc.perform(get("/api/orders/42")).andExpect(status().isNotFound());
+                    }
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How do you use Testcontainers with Spring Boot?</summary>
+            <div class="answer">
+              <p>Since Boot 3.1, <code>@ServiceConnection</code> wires the container's connection details automatically — no <code>@DynamicPropertySource</code> needed.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @SpringBootTest
+                @Testcontainers
+                class OrderRepositoryIT {
+                    @Container
+                    @ServiceConnection
+                    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+
+                    @Autowired OrderRepository repo;
+
+                    @Test
+                    void savesOrder() {
+                        assertThat(repo.save(new Order("SKU-1", 2)).getId()).isNotNull();
+                    }
+                }
+              </script>
+              <div class="tip">Testing against the real database catches dialect-specific bugs that H2 hides.</div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Microservices</h2>
+          <details class="qa" data-level="medium">
+            <summary>Which Spring Cloud components are used in a typical microservices setup?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Spring Cloud Gateway</b> — API gateway: routing, rate limiting, auth token relay.</li>
+                <li><b>Spring Cloud Config Server</b> — centralised, Git-backed configuration; clients use <code>spring.config.import=configserver:</code>.</li>
+                <li><b>Service discovery</b> — Eureka / Consul, or Kubernetes DNS services (often no registry needed on K8s).</li>
+                <li><b>Load balancing</b> — Spring Cloud LoadBalancer (<code>@LoadBalanced</code> client builders).</li>
+                <li><b>Resilience4j</b> — circuit breaker, retry, rate limiter, bulkhead.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="yaml">
+                spring:
+                  cloud:
+                    gateway:
+                      routes:
+                        - id: orders
+                          uri: lb://order-service
+                          predicates:
+                            - Path=/api/orders/**
+                          filters:
+                            - StripPrefix=1
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>How does a circuit breaker work? Show Resilience4j usage.</summary>
+            <div class="answer">
+              <p>States: <b>CLOSED</b> (calls flow, failures counted) → <b>OPEN</b> when failure rate exceeds threshold (calls fail fast to a fallback) → after a wait, <b>HALF_OPEN</b> lets trial calls through and closes again if they succeed.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @Service
+                class InventoryClient {
+                    @CircuitBreaker(name = "inventory", fallbackMethod = "fallback")
+                    @Retry(name = "inventory")
+                    public Stock check(String sku) {
+                        return restClient.get().uri("/stock/{sku}", sku).retrieve().body(Stock.class);
+                    }
+                    private Stock fallback(String sku, Throwable ex) {
+                        return Stock.unknown(sku);   // degrade gracefully
+                    }
+                }
+              </script>
+              <script type="text/plain" class="code" data-lang="yaml">
+                resilience4j:
+                  circuitbreaker:
+                    instances:
+                      inventory:
+                        sliding-window-size: 20
+                        failure-rate-threshold: 50
+                        wait-duration-in-open-state: 10s
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary><code>RestTemplate</code> vs <code>RestClient</code> vs <code>WebClient</code> vs OpenFeign?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Client</th><th>Style</th><th>Notes</th></tr></thead>
+                <tbody>
+                  <tr><td><code>RestTemplate</code></td><td>Blocking, template</td><td>Maintenance mode; avoid for new code</td></tr>
+                  <tr><td><code>RestClient</code> (Spring 6.1)</td><td>Blocking, fluent</td><td>Recommended default for MVC apps; pairs well with virtual threads</td></tr>
+                  <tr><td><code>WebClient</code></td><td>Non-blocking, reactive</td><td>For WebFlux / streaming / high fan-out</td></tr>
+                  <tr><td>OpenFeign</td><td>Declarative interface</td><td>Spring Cloud OpenFeign is feature-complete; prefer Spring's <code>@HttpExchange</code> interfaces</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java">
+                // Declarative HTTP interface (Spring 6+), backed by RestClient
+                @HttpExchange("/users")
+                interface UserApi {
+                    @GetExchange("/{id}") User get(@PathVariable long id);
+                }
+
+                @Bean
+                UserApi userApi(RestClient.Builder b) {
+                    RestClient client = b.baseUrl("https://users.internal").build();
+                    return HttpServiceProxyFactory.builderFor(RestClientAdapter.create(client))
+                            .build().createClient(UserApi.class);
+                }
+              </script>
+            </div>
+          </details>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+</body>
+</html>

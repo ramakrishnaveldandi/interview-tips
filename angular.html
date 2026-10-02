@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Angular Interview Questions — Tech Interview Hub</title>
+  <meta name="description" content="Angular interview questions: standalone components, signals, change detection, zoneless, RxJS, routing, guards, interceptors, forms, performance and testing.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="assets/js/app.js"></script>
+</head>
+<body id="top">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <section class="page-hero">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Frontend / Angular</div>
+      <h1>🅰️ Angular Interview Questions</h1>
+      <p>Modern Angular (v17–v20): standalone components, signals, the new control flow, zoneless change detection,
+        RxJS, routing, HTTP interceptors, forms, performance and testing — with code you can talk through in an interview.</p>
+    </section>
+
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search questions… (e.g. signal, switchMap, guard)">
+      <button id="expand-all" class="tool-btn">Expand all</button>
+      <button id="collapse-all" class="tool-btn">Collapse all</button>
+      <span id="count" class="count"></span>
+    </div>
+
+    <div class="layout">
+      <aside id="toc" class="toc"></aside>
+      <div>
+        <p id="empty" class="empty hidden">No questions match your search.</p>
+
+        <section class="qa-group">
+          <h2>Fundamentals</h2>
+          <details class="qa" data-level="easy">
+            <summary>How does Angular differ from AngularJS and React?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Aspect</th><th>AngularJS (1.x)</th><th>Angular (2+)</th><th>React</th></tr></thead>
+                <tbody>
+                  <tr><td>Type</td><td>MVC framework</td><td>Full component framework</td><td>UI library</td></tr>
+                  <tr><td>Language</td><td>JavaScript</td><td>TypeScript</td><td>JS / TS + JSX</td></tr>
+                  <tr><td>Change detection</td><td>Digest cycle / dirty checking</td><td>Zone.js or signals (zoneless)</td><td>Virtual DOM diffing</td></tr>
+                  <tr><td>Built-in</td><td>Basic routing, DI</td><td>Router, HttpClient, forms, DI, i18n, CLI</td><td>Pick your own libs</td></tr>
+                  <tr><td>Data flow</td><td>Two-way by default</td><td>One-way + opt-in two-way</td><td>One-way</td></tr>
+                  <tr><td>Status</td><td>End of life (2022)</td><td>Active, ~6-month majors</td><td>Active</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What makes up an Angular component?</summary>
+            <div class="answer">
+              <p>A TypeScript class decorated with <code>@Component</code> providing a <b>selector</b>, a <b>template</b>, optional <b>styles</b>
+                and its <b>imports</b> (other components, directives, pipes). Since v19, components are <b>standalone by default</b>.</p>
+              <script type="text/plain" class="code" data-lang="typescript">
+                import { Component, input, output, computed } from '@angular/core';
+                import { CurrencyPipe } from '@angular/common';
+
+                @Component({
+                  selector: 'app-product-card',
+                  imports: [CurrencyPipe],
+                  template: `
+                    <h3>{{ name() }}</h3>
+                    <p>{{ price() | currency:'INR' }}</p>
+                    @if (onSale()) { <span class="badge">Sale</span> }
+                    <button (click)="add.emit(name())">Add to cart</button>
+                  `,
+                  styles: `.badge { color: crimson; }`,
+                })
+                export class ProductCard {
+                  name = input.required<string>();
+                  price = input(0);
+                  add = output<string>();
+                  onSale = computed(() => this.price() < 500);
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What are the types of data binding?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Binding</th><th>Syntax</th><th>Direction</th></tr></thead>
+                <tbody>
+                  <tr><td>Interpolation</td><td><code>{{ user.name }}</code></td><td>Component → View</td></tr>
+                  <tr><td>Property</td><td><code>[disabled]="isBusy"</code></td><td>Component → View</td></tr>
+                  <tr><td>Event</td><td><code>(click)="save()"</code></td><td>View → Component</td></tr>
+                  <tr><td>Two-way</td><td><code>[(ngModel)]="name"</code> or <code>[(value)]</code> with <code>model()</code></td><td>Both</td></tr>
+                  <tr><td>Attribute / class / style</td><td><code>[attr.aria-label]</code>, <code>[class.active]</code>, <code>[style.width.px]</code></td><td>Component → View</td></tr>
+                </tbody>
+              </table></div>
+              <div class="tip">Two-way binding is just sugar: <code>[(x)]="v"</code> = <code>[x]="v" (xChange)="v = $event"</code>. A <code>model()</code> signal input generates both for you.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Explain the component lifecycle hooks in order.</summary>
+            <div class="answer">
+              <ol>
+                <li><code>constructor</code> — DI only; inputs not yet set.</li>
+                <li><code>ngOnChanges</code> — whenever a decorator-based <code>@Input</code> changes (gets <code>SimpleChanges</code>).</li>
+                <li><code>ngOnInit</code> — once, after first inputs; fetch initial data here.</li>
+                <li><code>ngDoCheck</code> — every change-detection run (custom checks; use sparingly).</li>
+                <li><code>ngAfterContentInit</code> / <code>ngAfterContentChecked</code> — projected <code>&lt;ng-content&gt;</code> ready / checked.</li>
+                <li><code>ngAfterViewInit</code> / <code>ngAfterViewChecked</code> — the component's view and children ready / checked.</li>
+                <li><code>ngOnDestroy</code> — cleanup (or use <code>DestroyRef.onDestroy()</code>).</li>
+              </ol>
+              <p>With signals, many hooks become unnecessary: use <code>computed()</code> instead of <code>ngOnChanges</code>, and
+                <code>afterNextRender()</code> / <code>afterRenderEffect()</code> for DOM work after rendering.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>Standalone components vs NgModules — what changed?</summary>
+            <div class="answer">
+              <p>Standalone components declare their own dependencies in <code>imports</code>, so no <code>@NgModule</code> is needed. Apps bootstrap with
+                <code>bootstrapApplication()</code> and configure providers through functions like <code>provideRouter()</code> and
+                <code>provideHttpClient()</code>. Since v19 <code>standalone: true</code> is the default.</p>
+              <script type="text/plain" class="code" data-lang="typescript">
+                // main.ts
+                bootstrapApplication(AppComponent, {
+                  providers: [
+                    provideZonelessChangeDetection(),
+                    provideRouter(routes, withComponentInputBinding()),
+                    provideHttpClient(withInterceptors([authInterceptor])),
+                  ],
+                });
+              </script>
+              <div class="tip">Benefits: less boilerplate, clearer dependencies, better tree-shaking and simpler lazy loading. NgModules still work for legacy code.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Structural vs attribute directives — and what replaced <code>*ngIf</code>/<code>*ngFor</code>?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Structural</b> directives change DOM structure (add/remove elements) — <code>*ngIf</code>, <code>*ngFor</code>, or custom ones using <code>TemplateRef</code> + <code>ViewContainerRef</code>.</li>
+                <li><b>Attribute</b> directives change the look/behaviour of an existing element — <code>ngClass</code>, <code>ngStyle</code>, or custom ones.</li>
+              </ul>
+              <p>Since v17 the built-in <b>control flow</b> (<code>@if</code>, <code>@for</code>, <code>@switch</code>) replaces the structural directives: it is faster, needs no imports and <code>@for</code> requires <code>track</code>.</p>
+              <script type="text/plain" class="code" data-lang="html">
+                @if (user(); as u) {
+                  <p>Welcome, {{ u.name }}</p>
+                } @else {
+                  <a routerLink="/login">Sign in</a>
+                }
+
+                @for (item of items(); track item.id; let i = $index) {
+                  <li>{{ i + 1 }}. {{ item.title }}</li>
+                } @empty {
+                  <li>No items</li>
+                }
+              </script>
+              <script type="text/plain" class="code" data-lang="typescript">
+                // Custom attribute directive
+                @Directive({ selector: '[appHighlight]', host: { '(mouseenter)': 'on()', '(mouseleave)': 'off()' } })
+                export class Highlight {
+                  private el = inject(ElementRef<HTMLElement>);
+                  color = input('yellow', { alias: 'appHighlight' });
+                  on()  { this.el.nativeElement.style.background = this.color(); }
+                  off() { this.el.nativeElement.style.background = ''; }
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Pure vs impure pipes?</summary>
+            <div class="answer">
+              <p>A <b>pure</b> pipe (default) re-runs only when its input reference or primitive value changes — cheap and cacheable.
+                An <b>impure</b> pipe (<code>pure: false</code>) runs on every change-detection cycle, needed when it depends on mutable data (e.g. <code>async</code>) but costly.</p>
+              <script type="text/plain" class="code" data-lang="typescript">
+                @Pipe({ name: 'initials' })   // pure by default
+                export class InitialsPipe implements PipeTransform {
+                  transform(name: string): string {
+                    return name.split(' ').map(p => p[0]).join('').toUpperCase();
+                  }
+                }
+              </script>
+              <div class="note">Mutating an array (<code>list.push()</code>) won't re-trigger a pure pipe — create a new array instead.</div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Signals &amp; Change Detection</h2>
+          <details class="qa" data-level="easy">
+            <summary>What are signals? Explain <code>signal</code>, <code>computed</code> and <code>effect</code>.</summary>
+            <div class="answer">
+              <p>A <b>signal</b> is a reactive value wrapper that notifies consumers when it changes, letting Angular update exactly the views that read it.</p>
+              <script type="text/plain" class="code" data-lang="typescript">
+                count = signal(0);                              // writable
+                double = computed(() => this.count() * 2);      // derived, lazy & memoised
+                constructor() {
+                  effect(() => console.log('count is', this.count()));  // side effect, re-runs on change
+                }
+                inc() { this.count.update(c => c + 1); }        // or this.count.set(5)
+              </script>
+              <ul>
+                <li><code>computed</code> is read-only and recalculates only when a dependency changes.</li>
+                <li><code>effect</code> is for side effects (logging, localStorage, DOM sync) — not for deriving state.</li>
+                <li><code>linkedSignal</code> is writable state that resets when a source changes (e.g. selected item when the list changes).</li>
+                <li><code>resource()</code> / <code>httpResource()</code> load async data into signals (still experimental in v20).</li>
+              </ul>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Signals vs Observables — when do you use which?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>Signal</th><th>Observable (RxJS)</th></tr></thead>
+                <tbody>
+                  <tr><td>Value</td><td>Always has a current value, synchronous read</td><td>Stream of values over time</td></tr>
+                  <tr><td>Subscription</td><td>Automatic dependency tracking</td><td>Manual subscribe / unsubscribe</td></tr>
+                  <tr><td>Best for</td><td>UI/component state, derived values</td><td>Events, HTTP, websockets, debouncing, complex async</td></tr>
+                  <tr><td>Operators</td><td><code>computed</code> only</td><td>100+ operators</td></tr>
+                </tbody>
+              </table></div>
+              <p>Bridge them with <code>toSignal(obs$)</code> and <code>toObservable(sig)</code> from <code>@angular/core/rxjs-interop</code>.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How does change detection work and what does <code>OnPush</code> do?</summary>
+            <div class="answer">
+              <p>With <b>Default</b> strategy, Angular checks the whole component tree after any async event (triggered by zone.js).
+                With <b>OnPush</b>, a component is checked only when:</p>
+              <ul>
+                <li>an input reference changes,</li>
+                <li>an event fires in the component or its children,</li>
+                <li>an <code>async</code> pipe emits or a signal read in the template changes,</li>
+                <li><code>markForCheck()</code> is called manually.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="typescript">
+                @Component({ selector: 'app-list', changeDetection: ChangeDetectionStrategy.OnPush, template: `...` })
+                export class ListComponent { items = input<Item[]>([]); }
+              </script>
+              <div class="tip">Combine OnPush with immutable data and signals for predictable, fast rendering.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>zone.js vs zoneless change detection?</summary>
+            <div class="answer">
+              <p><b>zone.js</b> monkey-patches browser APIs (setTimeout, events, XHR) and triggers change detection after each. It is convenient but adds bundle size, overhead and confusing stack traces.</p>
+              <p><b>Zoneless</b> (stable since v20 via <code>provideZonelessChangeDetection()</code>) schedules change detection only when Angular is notified: signal updates, template events, <code>async</code> pipe, <code>markForCheck()</code>, or input changes.</p>
+              <ul>
+                <li>Remove <code>zone.js</code> from <code>polyfills</code> in <code>angular.json</code>.</li>
+                <li>Code that mutates plain fields inside <code>setTimeout</code> or third-party callbacks won't refresh the view — use signals.</li>
+                <li>Gains: smaller bundles, fewer checks, better Core Web Vitals, easier debugging.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>RxJS</h2>
+          <details class="qa" data-level="easy">
+            <summary>Observable vs Promise?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Observable</th><th>Promise</th></tr></thead>
+                <tbody>
+                  <tr><td>Emits 0..N values</td><td>Resolves exactly one value</td></tr>
+                  <tr><td>Lazy — runs on subscribe</td><td>Eager — runs on creation</td></tr>
+                  <tr><td>Cancellable (unsubscribe)</td><td>Not cancellable</td></tr>
+                  <tr><td>Rich operators (map, retry, debounce…)</td><td><code>then</code> / <code>catch</code> only</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Subject vs BehaviorSubject vs ReplaySubject vs AsyncSubject?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Subject</b> — multicast, no initial value; late subscribers miss past values.</li>
+                <li><b>BehaviorSubject</b> — needs an initial value and replays the <i>latest</i> value to new subscribers (classic state holder).</li>
+                <li><b>ReplaySubject(n)</b> — replays the last <i>n</i> values.</li>
+                <li><b>AsyncSubject</b> — emits only the final value on completion.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="typescript">
+                @Injectable({ providedIn: 'root' })
+                export class CartService {
+                  private items$ = new BehaviorSubject<Item[]>([]);
+                  readonly count$ = this.items$.pipe(map(i => i.length));
+                  add(item: Item) { this.items$.next([...this.items$.value, item]); }
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>switchMap vs mergeMap vs concatMap vs exhaustMap?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Operator</th><th>Behaviour on new outer value</th><th>Typical use</th></tr></thead>
+                <tbody>
+                  <tr><td><code>switchMap</code></td><td>Cancels the previous inner observable</td><td>Typeahead search, route param changes</td></tr>
+                  <tr><td><code>mergeMap</code></td><td>Runs all inners in parallel</td><td>Independent parallel requests</td></tr>
+                  <tr><td><code>concatMap</code></td><td>Queues inners, one at a time in order</td><td>Ordered saves / writes</td></tr>
+                  <tr><td><code>exhaustMap</code></td><td>Ignores new values while one is running</td><td>Login / submit button double-click</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="typescript">
+                results$ = this.searchCtrl.valueChanges.pipe(
+                  debounceTime(300),
+                  distinctUntilChanged(),
+                  filter(q => q.length > 2),
+                  switchMap(q => this.http.get<Product[]>(`/api/products?q=${q}`).pipe(catchError(() => of([])))),
+                );
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How do you avoid memory leaks from subscriptions?</summary>
+            <div class="answer">
+              <ul>
+                <li><b><code>async</code> pipe</b> — subscribes and unsubscribes automatically.</li>
+                <li><b><code>toSignal()</code></b> — converts to a signal and cleans up with the injection context.</li>
+                <li><b><code>takeUntilDestroyed()</code></b> — completes the stream when the component is destroyed.</li>
+                <li>HTTP observables complete on their own, but long-lived ones (intervals, store selections, websockets, form valueChanges) do not.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="typescript">
+                export class Dashboard {
+                  private api = inject(ApiService);
+                  stats = toSignal(this.api.stats$, { initialValue: null });
+
+                  constructor() {
+                    interval(5000).pipe(takeUntilDestroyed())
+                      .subscribe(() => this.api.refresh());
+                  }
+                }
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Routing</h2>
+          <details class="qa" data-level="easy">
+            <summary>How do you lazy load routes?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="typescript">
+                export const routes: Routes = [
+                  { path: '', component: HomeComponent },
+                  { path: 'profile/:id', loadComponent: () => import('./profile/profile').then(m => m.Profile) },
+                  { path: 'admin', canMatch: [adminGuard], loadChildren: () => import('./admin/admin.routes').then(m => m.ADMIN_ROUTES) },
+                  { path: '**', loadComponent: () => import('./not-found').then(m => m.NotFound) },
+                ];
+              </script>
+              <p>Each lazy route becomes a separate chunk downloaded on first navigation, reducing the initial bundle.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How do you write a route guard in modern Angular?</summary>
+            <div class="answer">
+              <p>Class-based guards are deprecated in favour of <b>functional guards</b> that use <code>inject()</code>. Return <code>true</code>, <code>false</code>, a <code>UrlTree</code> (redirect), or an Observable/Promise of those.</p>
+              <script type="text/plain" class="code" data-lang="typescript">
+                export const authGuard: CanActivateFn = (route, state) => {
+                  const auth = inject(AuthService);
+                  const router = inject(Router);
+                  return auth.isLoggedIn()
+                    ? true
+                    : router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
+                };
+
+                export const roleGuard = (role: string): CanActivateFn => () =>
+                  inject(AuthService).hasRole(role);
+
+                // { path: 'admin', canActivate: [authGuard, roleGuard('ADMIN')], ... }
+              </script>
+              <div class="note">Guards are UX only — always enforce authorization on the backend.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What are resolvers and how do you read route params as inputs?</summary>
+            <div class="answer">
+              <p>A <b>resolver</b> fetches data before the route activates. With <code>withComponentInputBinding()</code>, path params, query params and resolved data bind directly to component inputs.</p>
+              <script type="text/plain" class="code" data-lang="typescript">
+                export const userResolver: ResolveFn<User> = (route) =>
+                  inject(UserService).getById(route.paramMap.get('id')!);
+
+                // { path: 'users/:id', component: UserDetail, resolve: { user: userResolver } }
+
+                export class UserDetail {
+                  id = input.required<string>();   // from :id
+                  user = input.required<User>();   // from resolver
+                }
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>HTTP &amp; Interceptors</h2>
+          <details class="qa" data-level="medium">
+            <summary>Write an interceptor that adds a JWT bearer token and handles 401.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="typescript">
+                export const authInterceptor: HttpInterceptorFn = (req, next) => {
+                  const auth = inject(AuthService);
+                  const router = inject(Router);
+                  const token = auth.accessToken();
+
+                  const authReq = token && req.url.startsWith('/api')
+                    ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
+                    : req;
+
+                  return next(authReq).pipe(
+                    catchError((err: HttpErrorResponse) => {
+                      if (err.status === 401) {
+                        auth.logout();
+                        router.navigate(['/login']);
+                      }
+                      return throwError(() => err);
+                    }),
+                  );
+                };
+
+                // app.config.ts
+                provideHttpClient(withInterceptors([authInterceptor]), withFetch());
+              </script>
+              <div class="tip">Requests are immutable — always <code>clone()</code>. Only attach tokens to your own API origin to avoid leaking them to third parties. For refresh-token flows, queue requests while one refresh call is in flight.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>How do you call a REST API with HttpClient and handle errors?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="typescript">
+                @Injectable({ providedIn: 'root' })
+                export class EmployeeService {
+                  private http = inject(HttpClient);
+                  list(page = 0) {
+                    return this.http.get<Page<Employee>>('/api/employees', { params: { page, size: 20 } }).pipe(
+                      retry({ count: 2, delay: 500 }),
+                      catchError(err => { console.error(err); return of({ content: [], total: 0 }); }),
+                    );
+                  }
+                  create(e: Employee) { return this.http.post<Employee>('/api/employees', e); }
+                }
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Forms</h2>
+          <details class="qa" data-level="easy">
+            <summary>Template-driven vs reactive forms?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>Template-driven</th><th>Reactive</th></tr></thead>
+                <tbody>
+                  <tr><td>Model defined in</td><td>Template (<code>ngModel</code>)</td><td>Component class (<code>FormGroup</code>)</td></tr>
+                  <tr><td>Data flow</td><td>Async, two-way</td><td>Sync, explicit</td></tr>
+                  <tr><td>Validation</td><td>Directives</td><td>Functions</td></tr>
+                  <tr><td>Testability / scale</td><td>Simple forms</td><td>Complex, dynamic, testable forms</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Show a typed reactive form with a custom validator.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="typescript">
+                export const passwordMatch: ValidatorFn = (g: AbstractControl) =>
+                  g.get('password')?.value === g.get('confirm')?.value ? null : { mismatch: true };
+
+                export class Register {
+                  private fb = inject(NonNullableFormBuilder);
+                  form = this.fb.group({
+                    email: ['', [Validators.required, Validators.email]],
+                    password: ['', [Validators.required, Validators.minLength(8)]],
+                    confirm: [''],
+                  }, { validators: passwordMatch });
+
+                  submit() {
+                    if (this.form.invalid) return this.form.markAllAsTouched();
+                    const { email, password } = this.form.getRawValue();  // typed: string
+                  }
+                }
+              </script>
+              <script type="text/plain" class="code" data-lang="html">
+                <form [formGroup]="form" (ngSubmit)="submit()">
+                  <input formControlName="email" />
+                  @if (form.controls.email.touched && form.controls.email.hasError('email')) {
+                    <small>Invalid email</small>
+                  }
+                  <input type="password" formControlName="password" />
+                  <input type="password" formControlName="confirm" />
+                  @if (form.hasError('mismatch')) { <small>Passwords do not match</small> }
+                  <button [disabled]="form.invalid">Register</button>
+                </form>
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Architecture &amp; Performance</h2>
+          <details class="qa" data-level="medium">
+            <summary>Explain Angular's dependency injection hierarchy.</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Environment injectors</b>: platform → root (<code>providedIn: 'root'</code>, <code>bootstrapApplication</code> providers) → lazy route injectors (<code>providers</code> on a route).</li>
+                <li><b>Element injectors</b>: <code>providers</code> / <code>viewProviders</code> on components and directives — a new instance per component.</li>
+                <li>Resolution walks up the element tree, then the environment tree. Modifiers: <code>{ optional, self, skipSelf, host }</code>.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="typescript">
+                export const API_URL = new InjectionToken<string>('API_URL');
+                // providers: [{ provide: API_URL, useValue: 'https://api.example.com' }]
+                private apiUrl = inject(API_URL);
+                private logger = inject(Logger, { optional: true });
+              </script>
+              <div class="tip"><code>providedIn: 'root'</code> services are singletons and tree-shakable if unused.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Smart vs presentational (dumb) components? How do you manage state?</summary>
+            <div class="answer">
+              <p><b>Smart</b> (container) components inject services, fetch data and own state. <b>Presentational</b> components receive data via inputs, emit outputs and use OnPush — easy to reuse and test.</p>
+              <p>State options, from simple to complex:</p>
+              <ul>
+                <li>Signals in a component or a service ("signal store" pattern).</li>
+                <li><b>NgRx SignalStore</b> — lightweight, signal-based store with <code>withState</code>, <code>withComputed</code>, <code>withMethods</code>.</li>
+                <li><b>NgRx Store</b> — Redux pattern (actions, reducers, effects, selectors) for large teams and auditability.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="typescript">
+                @Injectable({ providedIn: 'root' })
+                export class TodoStore {
+                  private readonly _todos = signal<Todo[]>([]);
+                  readonly todos = this._todos.asReadonly();
+                  readonly remaining = computed(() => this._todos().filter(t => !t.done).length);
+                  add(title: string) { this._todos.update(l => [...l, { id: crypto.randomUUID(), title, done: false }]); }
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>How do you optimise an Angular app's performance?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Rendering</b>: OnPush / signals / zoneless; <code>track</code> by a stable id in <code>@for</code> (formerly <code>trackBy</code>); avoid function calls in templates (use <code>computed</code> or pure pipes).</li>
+                <li><b>Loading</b>: lazy routes, <code>@defer</code> blocks, <code>NgOptimizedImage</code> (<code>ngSrc</code>, priority, lazy images).</li>
+                <li><b>Bundle</b>: production build (esbuild), budgets in <code>angular.json</code>, remove unused libraries, import RxJS operators properly, analyse with <code>source-map-explorer</code>.</li>
+                <li><b>Lists</b>: virtual scrolling (<code>cdk-virtual-scroll-viewport</code>), pagination.</li>
+                <li><b>Server</b>: SSR/SSG with hydration, HTTP caching, CDN.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="html">
+                @defer (on viewport; prefetch on idle) {
+                  <app-heavy-chart [data]="sales()" />
+                } @placeholder {
+                  <div class="skeleton"></div>
+                } @loading (minimum 300ms) {
+                  <app-spinner />
+                } @error {
+                  <p>Could not load chart</p>
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>What are SSR, hydration and incremental hydration?</summary>
+            <div class="answer">
+              <p><b>SSR</b> renders HTML on the server (<code>ng add @angular/ssr</code>) for faster first paint and SEO. <b>Hydration</b> (<code>provideClientHydration()</code>) reuses that server DOM on the client instead of re-rendering it, avoiding flicker.
+                <b>Incremental hydration</b> (<code>withIncrementalHydration()</code>, stable in v20) keeps <code>@defer</code> blocks dehydrated until a trigger such as <code>hydrate on viewport</code> or <code>hydrate on interaction</code>.</p>
+              <div class="note">Code using <code>window</code>/<code>document</code> directly breaks on the server — guard it with <code>afterNextRender()</code> or <code>isPlatformBrowser()</code>.</div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Testing</h2>
+          <details class="qa" data-level="medium">
+            <summary>How do you unit test a component and a service that calls HTTP?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="typescript">
+                describe('EmployeeService', () => {
+                  let service: EmployeeService;
+                  let http: HttpTestingController;
+
+                  beforeEach(() => {
+                    TestBed.configureTestingModule({
+                      providers: [provideHttpClient(), provideHttpClientTesting()],
+                    });
+                    service = TestBed.inject(EmployeeService);
+                    http = TestBed.inject(HttpTestingController);
+                  });
+
+                  it('creates an employee', () => {
+                    service.create({ name: 'Asha' } as Employee).subscribe(e => expect(e.id).toBe(1));
+                    const req = http.expectOne('/api/employees');
+                    expect(req.request.method).toBe('POST');
+                    req.flush({ id: 1, name: 'Asha' });
+                  });
+
+                  afterEach(() => http.verify());
+                });
+
+                it('renders product name', () => {
+                  const fixture = TestBed.createComponent(ProductCard);
+                  fixture.componentRef.setInput('name', 'Laptop');
+                  fixture.detectChanges();
+                  expect(fixture.nativeElement.querySelector('h3').textContent).toContain('Laptop');
+                });
+              </script>
+              <div class="tip">Karma is deprecated; new projects use Jest or Vitest for unit tests and Playwright or Cypress for end-to-end tests.</div>
+            </div>
+          </details>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+</body>
+</html>

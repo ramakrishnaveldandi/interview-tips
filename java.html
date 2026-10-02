@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Core Java Interview Questions — Tech Interview Hub</title>
+  <meta name="description" content="Core Java interview questions: OOP, collections, HashMap internals, exceptions, Java 8 streams and lambdas, concurrency and JVM internals, with code examples.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="assets/js/app.js"></script>
+</head>
+<body id="top">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <section class="page-hero">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Java / Core Java</div>
+      <h1>☕ Core Java Interview Questions</h1>
+      <p>The fundamentals every Java interview starts with: OOP, the collections framework, exceptions, Java 8 functional
+        programming, concurrency and the JVM. Answers are short enough to say out loud, with code to back them up.</p>
+    </section>
+
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search questions… (e.g. HashMap, volatile, stream)">
+      <button id="expand-all" class="tool-btn">Expand all</button>
+      <button id="collapse-all" class="tool-btn">Collapse all</button>
+      <span id="count" class="count"></span>
+    </div>
+
+    <div class="layout">
+      <aside id="toc" class="toc"></aside>
+      <div>
+        <p id="empty" class="empty hidden">No questions match your search.</p>
+
+        <section class="qa-group">
+          <h2>OOP &amp; basics</h2>
+          <details class="qa" data-level="easy">
+            <summary>What is the contract between <code>equals()</code> and <code>hashCode()</code>?</summary>
+            <div class="answer">
+              <ul>
+                <li>If <code>a.equals(b)</code> is true, then <code>a.hashCode() == b.hashCode()</code> <b>must</b> be true.</li>
+                <li>Equal hash codes do <b>not</b> imply equality (collisions are allowed).</li>
+                <li><code>equals</code> must be reflexive, symmetric, transitive, consistent, and <code>x.equals(null)</code> is false.</li>
+              </ul>
+              <p>Overriding <code>equals</code> without <code>hashCode</code> breaks <code>HashMap</code>/<code>HashSet</code>: two "equal" keys land in different buckets.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public final class Point {
+                    private final int x, y;
+                    public Point(int x, int y) { this.x = x; this.y = y; }
+
+                    @Override public boolean equals(Object o) {
+                        if (this == o) return true;
+                        if (!(o instanceof Point)) return false;
+                        Point p = (Point) o;
+                        return x == p.x && y == p.y;
+                    }
+                    @Override public int hashCode() { return Objects.hash(x, y); }
+                }
+              </script>
+              <div class="tip">Use fields that never change in <code>hashCode()</code>. Mutating a key after inserting it into a <code>HashMap</code> makes it unreachable.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>Why is <code>String</code> immutable, and what is the String pool?</summary>
+            <div class="answer">
+              <p>The <b>String pool</b> (in the heap since Java 7) stores one copy of each literal. Immutability makes that sharing safe and also gives:</p>
+              <ul>
+                <li><b>Security</b> — class names, file paths, URLs and DB credentials cannot be changed after validation.</li>
+                <li><b>Thread safety</b> — no synchronization needed.</li>
+                <li><b>Cached hash code</b> — ideal as <code>HashMap</code> keys.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                String a = "java";
+                String b = "java";              // same pooled object
+                String c = new String("java");  // new heap object
+                System.out.println(a == b);           // true
+                System.out.println(a == c);           // false
+                System.out.println(a == c.intern());  // true
+              </script>
+              <div class="tip">Use <code>StringBuilder</code> for concatenation in loops; it is mutable and not synchronized (<code>StringBuffer</code> is the synchronized legacy version).</div>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What is the difference between <code>==</code> and <code>equals()</code>?</summary>
+            <div class="answer">
+              <p><code>==</code> compares <b>references</b> for objects (and values for primitives). <code>equals()</code> compares <b>logical content</b> as defined by the class — <code>Object.equals</code> defaults to <code>==</code>.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                Integer x = 127, y = 127;
+                Integer p = 128, q = 128;
+                System.out.println(x == y);      // true  (Integer cache -128..127)
+                System.out.println(p == q);      // false (different objects)
+                System.out.println(p.equals(q)); // true
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>Explain <code>final</code>, <code>finally</code> and <code>finalize()</code>.</summary>
+            <div class="answer">
+              <ul>
+                <li><b><code>final</code></b> — keyword: a final variable cannot be reassigned, a final method cannot be overridden, a final class cannot be extended.</li>
+                <li><b><code>finally</code></b> — block that always runs after <code>try</code>/<code>catch</code> (unless the JVM exits), used for cleanup.</li>
+                <li><b><code>finalize()</code></b> — <code>Object</code> method called by GC before reclaiming; unpredictable, <b>deprecated since Java 9 and deprecated for removal since 18</b> (JEP 421). Use try-with-resources or <code>java.lang.ref.Cleaner</code>.</li>
+              </ul>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Abstract class vs interface — when do you use which?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>Abstract class</th><th>Interface</th></tr></thead>
+                <tbody>
+                  <tr><td>State</td><td>Instance fields, constructors</td><td>Only <code>public static final</code> constants</td></tr>
+                  <tr><td>Methods</td><td>Any access modifier</td><td>abstract, <code>default</code>, <code>static</code>, <code>private</code> (Java 9+)</td></tr>
+                  <tr><td>Inheritance</td><td>Single</td><td>A class can implement many</td></tr>
+                  <tr><td>Use for</td><td>"is-a" with shared state/code (template method)</td><td>Capability / contract ("can-do"), e.g. <code>Comparable</code></td></tr>
+                </tbody>
+              </table></div>
+              <p>Rule of thumb: program to interfaces; use an abstract class when subclasses genuinely share state or a fixed algorithm skeleton.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Is Java pass-by-value or pass-by-reference?</summary>
+            <div class="answer">
+              <p><b>Always pass-by-value.</b> For objects, the value passed is a <i>copy of the reference</i>. You can mutate the object through it, but reassigning the parameter does not affect the caller.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                static void modify(StringBuilder sb) {
+                    sb.append(" world");          // visible to caller
+                    sb = new StringBuilder("x");  // only changes the local copy
+                }
+                var s = new StringBuilder("hello");
+                modify(s);
+                System.out.println(s);            // hello world
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Collections</h2>
+          <details class="qa" data-level="hard">
+            <summary>How does <code>HashMap</code> work internally?</summary>
+            <div class="answer">
+              <ol>
+                <li>Backed by an array of buckets (<code>Node[] table</code>), default capacity 16, load factor 0.75.</li>
+                <li><code>put(k, v)</code>: compute <code>hash = h ^ (h &gt;&gt;&gt; 16)</code>, index = <code>(n - 1) &amp; hash</code>.</li>
+                <li>Empty bucket → insert node. Otherwise walk the chain: if a key is <code>equals()</code>, replace the value; else append.</li>
+                <li><b>Treeification (Java 8)</b>: when a bucket holds more than 8 nodes and capacity ≥ 64, the list becomes a red-black tree (O(log n) lookups). It reverts to a list below 6.</li>
+                <li>When <code>size &gt; capacity × loadFactor</code> the table <b>doubles</b> and entries are redistributed (each node stays at index <i>i</i> or moves to <i>i + oldCap</i>).</li>
+              </ol>
+              <p>Allows one <code>null</code> key (bucket 0) and many null values. Not thread-safe.</p>
+              <div class="tip">If you know the size, pre-size it: <code>HashMap.newHashMap(1000)</code> (Java 19+) or <code>new HashMap&lt;&gt;(1334)</code>.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How is <code>ConcurrentHashMap</code> thread-safe without locking the whole map?</summary>
+            <div class="answer">
+              <p>Since Java 8 it uses <b>CAS</b> to insert into empty buckets and <code>synchronized</code> on the <b>first node of a bucket</b> otherwise, so threads writing to different buckets never block each other. Reads are lock-free (volatile reads). Resizing is done cooperatively by multiple threads.</p>
+              <ul>
+                <li>Does not allow <code>null</code> keys or values (ambiguity between "absent" and "null").</li>
+                <li>Iterators are <b>weakly consistent</b> — never throw <code>ConcurrentModificationException</code>.</li>
+                <li>Use atomic compound operations instead of check-then-act:</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                ConcurrentHashMap<String, LongAdder> hits = new ConcurrentHashMap<>();
+                hits.computeIfAbsent(url, k -> new LongAdder()).increment();
+                counts.merge(word, 1, Integer::sum);
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary><code>ArrayList</code> vs <code>LinkedList</code>?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Operation</th><th>ArrayList</th><th>LinkedList</th></tr></thead>
+                <tbody>
+                  <tr><td><code>get(i)</code></td><td>O(1)</td><td>O(n)</td></tr>
+                  <tr><td>Add at end</td><td>Amortized O(1)</td><td>O(1)</td></tr>
+                  <tr><td>Insert/remove in middle</td><td>O(n) (array copy)</td><td>O(n) to find, O(1) to relink</td></tr>
+                  <tr><td>Memory</td><td>Compact, cache-friendly</td><td>Extra prev/next per node</td></tr>
+                </tbody>
+              </table></div>
+              <p>In practice <code>ArrayList</code> wins almost always; for queue/deque use <code>ArrayDeque</code>.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What are fail-fast and fail-safe iterators?</summary>
+            <div class="answer">
+              <p><b>Fail-fast</b> iterators (<code>ArrayList</code>, <code>HashMap</code>) check a <code>modCount</code> and throw <code>ConcurrentModificationException</code> if the collection is structurally modified during iteration (except via <code>iterator.remove()</code>).
+                <b>Fail-safe / weakly consistent</b> iterators (<code>CopyOnWriteArrayList</code>, <code>ConcurrentHashMap</code>) work on a snapshot or tolerate concurrent changes.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                List<Integer> nums = new ArrayList<>(List.of(1, 2, 3, 4));
+                for (Integer n : nums) if (n % 2 == 0) nums.remove(n);   // ConcurrentModificationException
+                nums.removeIf(n -> n % 2 == 0);                            // correct
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary><code>Comparable</code> vs <code>Comparator</code>?</summary>
+            <div class="answer">
+              <p><code>Comparable.compareTo</code> defines the <b>natural ordering</b> inside the class (one ordering). <code>Comparator</code> is an external strategy — you can define many.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                record Employee(String name, String dept, double salary) implements Comparable<Employee> {
+                    public int compareTo(Employee o) { return name.compareTo(o.name); }
+                }
+                employees.sort(Comparator.comparing(Employee::dept)
+                                         .thenComparing(Employee::salary, Comparator.reverseOrder()));
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Exceptions</h2>
+          <details class="qa" data-level="easy">
+            <summary>Checked vs unchecked exceptions?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Checked</b> (subclasses of <code>Exception</code> but not <code>RuntimeException</code>): must be caught or declared — e.g. <code>IOException</code>, <code>SQLException</code>. Represent recoverable conditions.</li>
+                <li><b>Unchecked</b> (<code>RuntimeException</code> and <code>Error</code>): programming bugs or unrecoverable states — <code>NullPointerException</code>, <code>IllegalArgumentException</code>, <code>OutOfMemoryError</code>.</li>
+              </ul>
+              <p>Spring favors unchecked exceptions (e.g. it translates <code>SQLException</code> into <code>DataAccessException</code>), and <code>@Transactional</code> rolls back on unchecked exceptions by default.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How does try-with-resources work? What are suppressed exceptions?</summary>
+            <div class="answer">
+              <p>Any <code>AutoCloseable</code> declared in the header is closed automatically in reverse order. If both the body and <code>close()</code> throw, the body's exception is thrown and the close exception is attached via <code>getSuppressed()</code>.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                try (Connection con = ds.getConnection();
+                     PreparedStatement ps = con.prepareStatement("SELECT name FROM emp WHERE id = ?")) {
+                    ps.setLong(1, id);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        return rs.next() ? rs.getString(1) : null;
+                    }
+                } catch (SQLException e) {
+                    for (Throwable s : e.getSuppressed()) log.warn("suppressed", s);
+                    throw new DataAccessException("lookup failed", e);
+                }
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Java 8 essentials</h2>
+          <details class="qa" data-level="easy">
+            <summary>What is a functional interface? Name the core ones.</summary>
+            <div class="answer">
+              <p>An interface with exactly <b>one abstract method</b> (optionally annotated <code>@FunctionalInterface</code>), so it can be the target of a lambda or method reference.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Interface</th><th>Method</th><th>Example</th></tr></thead>
+                <tbody>
+                  <tr><td><code>Function&lt;T,R&gt;</code></td><td><code>R apply(T)</code></td><td><code>String::length</code></td></tr>
+                  <tr><td><code>Predicate&lt;T&gt;</code></td><td><code>boolean test(T)</code></td><td><code>s -&gt; s.isEmpty()</code></td></tr>
+                  <tr><td><code>Consumer&lt;T&gt;</code></td><td><code>void accept(T)</code></td><td><code>System.out::println</code></td></tr>
+                  <tr><td><code>Supplier&lt;T&gt;</code></td><td><code>T get()</code></td><td><code>ArrayList::new</code></td></tr>
+                  <tr><td><code>BiFunction&lt;T,U,R&gt;</code></td><td><code>R apply(T,U)</code></td><td><code>Integer::sum</code></td></tr>
+                </tbody>
+              </table></div>
+              <p>Lambdas can capture only <b>effectively final</b> local variables.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Explain <code>map</code> vs <code>flatMap</code> and <code>groupingBy</code> with examples.</summary>
+            <div class="answer">
+              <p><code>map</code> transforms each element 1→1; <code>flatMap</code> maps each element to a stream and flattens the result 1→N.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                List<String> skills = employees.stream()
+                    .flatMap(e -> e.skills().stream())       // Stream<List<String>> -> Stream<String>
+                    .distinct()
+                    .sorted()
+                    .collect(Collectors.toList());
+
+                Map<String, Double> avgSalaryByDept = employees.stream()
+                    .collect(Collectors.groupingBy(Employee::dept, Collectors.averagingDouble(Employee::salary)));
+
+                Map<Boolean, List<Employee>> seniors = employees.stream()
+                    .collect(Collectors.partitioningBy(e -> e.salary() > 100_000));
+
+                // Second highest salary
+                Optional<Double> second = employees.stream().map(Employee::salary)
+                    .distinct().sorted(Comparator.reverseOrder()).skip(1).findFirst();
+              </script>
+              <div class="tip">Streams are lazy: intermediate operations run only when a terminal operation (<code>collect</code>, <code>forEach</code>, <code>findFirst</code>) is invoked, and a stream can be consumed only once.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>How should <code>Optional</code> be used (and not used)?</summary>
+            <div class="answer">
+              <p>Use <code>Optional</code> as a <b>return type</b> to signal "may be absent". Avoid it for fields, method parameters or collections, and never call <code>get()</code> without checking.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                String city = userRepo.findById(id)
+                    .map(User::getAddress)
+                    .map(Address::getCity)
+                    .orElse("Unknown");
+
+                User u = userRepo.findById(id)
+                    .orElseThrow(() -> new UserNotFoundException(id));
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Why were default methods added? How is the diamond problem resolved?</summary>
+            <div class="answer">
+              <p>Default methods let interfaces evolve without breaking implementors (that is how <code>Collection.stream()</code> and <code>List.sort()</code> were added). If a class inherits the same default from two interfaces it must override it and may pick one explicitly:</p>
+              <script type="text/plain" class="code" data-lang="java">
+                interface A { default String hi() { return "A"; } }
+                interface B { default String hi() { return "B"; } }
+                class C implements A, B {
+                    @Override public String hi() { return A.super.hi(); }
+                }
+              </script>
+              <p>Resolution rules: class methods win over interface defaults; a more specific interface wins over a less specific one.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>Why is <code>java.time</code> better than <code>Date</code>/<code>Calendar</code>?</summary>
+            <div class="answer">
+              <p>It is immutable and thread-safe, has clear types (<code>LocalDate</code>, <code>LocalDateTime</code>, <code>ZonedDateTime</code>, <code>Instant</code>, <code>Duration</code>, <code>Period</code>), and months are 1-based.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                LocalDate due = LocalDate.of(2026, 10, 2).plusDays(30);
+                long days = ChronoUnit.DAYS.between(LocalDate.now(), due);
+                ZonedDateTime ist = Instant.now().atZone(ZoneId.of("Asia/Kolkata"));
+                String s = ist.format(DateTimeFormatter.ofPattern("dd-MMM-yyyy HH:mm"));
+              </script>
+              <div class="tip">Store <code>Instant</code> / UTC in the database; convert to a zone only for display.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>How do you compose async calls with <code>CompletableFuture</code>?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                ExecutorService pool = Executors.newFixedThreadPool(8);
+
+                CompletableFuture<User>   userF   = CompletableFuture.supplyAsync(() -> userClient.get(id), pool);
+                CompletableFuture<Orders> ordersF = CompletableFuture.supplyAsync(() -> orderClient.get(id), pool);
+
+                CompletableFuture<Dashboard> dash = userF
+                    .thenCombine(ordersF, Dashboard::new)           // run both in parallel, merge
+                    .thenCompose(d -> enrichAsync(d))               // flatMap for futures
+                    .orTimeout(2, TimeUnit.SECONDS)                 // Java 9
+                    .exceptionally(ex -> Dashboard.empty());
+
+                CompletableFuture.allOf(userF, ordersF).join();
+              </script>
+              <p><code>thenApply</code> = map, <code>thenCompose</code> = flatMap, <code>thenCombine</code> = zip two futures. Always pass your own executor for blocking I/O — the default is the common <code>ForkJoinPool</code>.</p>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Concurrency</h2>
+          <details class="qa" data-level="medium">
+            <summary><code>synchronized</code> vs <code>ReentrantLock</code>?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Feature</th><th>synchronized</th><th>ReentrantLock</th></tr></thead>
+                <tbody>
+                  <tr><td>Release</td><td>Automatic</td><td>Manual in <code>finally</code></td></tr>
+                  <tr><td>tryLock / timeout</td><td class="no">No</td><td class="yes">Yes</td></tr>
+                  <tr><td>Interruptible wait</td><td class="no">No</td><td class="yes"><code>lockInterruptibly()</code></td></tr>
+                  <tr><td>Fairness</td><td class="no">No</td><td class="yes">Optional</td></tr>
+                  <tr><td>Multiple conditions</td><td>One (wait/notify)</td><td>Many <code>Condition</code>s</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java">
+                private final ReentrantLock lock = new ReentrantLock();
+                void transfer() {
+                    if (lock.tryLock(1, TimeUnit.SECONDS)) {
+                        try { /* critical section */ } finally { lock.unlock(); }
+                    }
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What does <code>volatile</code> guarantee — and what doesn't it?</summary>
+            <div class="answer">
+              <p><code>volatile</code> guarantees <b>visibility</b> (writes go to main memory and establish happens-before) and prevents reordering around the access. It does <b>not</b> make compound operations like <code>count++</code> atomic — use <code>AtomicInteger</code>/<code>LongAdder</code> or a lock.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                private volatile boolean running = true;   // stop flag: perfect use of volatile
+                public void stop() { running = false; }
+                public void run() { while (running) doWork(); }
+
+                private final AtomicInteger counter = new AtomicInteger();
+                counter.incrementAndGet();                  // atomic
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How do you use <code>ExecutorService</code> correctly?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                ExecutorService pool = new ThreadPoolExecutor(
+                    4, 8, 60, TimeUnit.SECONDS,
+                    new ArrayBlockingQueue<>(500),                 // bounded queue = backpressure
+                    new ThreadPoolExecutor.CallerRunsPolicy());
+
+                Future<Integer> f = pool.submit(() -> compute());
+                Integer result = f.get(5, TimeUnit.SECONDS);
+
+                pool.shutdown();
+                if (!pool.awaitTermination(30, TimeUnit.SECONDS)) pool.shutdownNow();
+              </script>
+              <p>Avoid <code>Executors.newCachedThreadPool()</code> / unbounded queues under load. Size CPU-bound pools ≈ number of cores; I/O-bound pools larger (or use virtual threads on Java 21+).</p>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>What is a deadlock and how do you prevent it?</summary>
+            <div class="answer">
+              <p>Two or more threads wait forever for locks held by each other. Required conditions: mutual exclusion, hold-and-wait, no preemption, circular wait.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                // Prevent circular wait: always acquire locks in a global order
+                void transfer(Account a, Account b, BigDecimal amt) {
+                    Account first  = a.id() < b.id() ? a : b;
+                    Account second = a.id() < b.id() ? b : a;
+                    synchronized (first) {
+                        synchronized (second) {
+                            a.debit(amt); b.credit(amt);
+                        }
+                    }
+                }
+              </script>
+              <p>Other techniques: <code>tryLock</code> with timeout, minimise lock scope, prefer higher-level concurrency utilities. Detect with <code>jstack &lt;pid&gt;</code> ("Found one Java-level deadlock").</p>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>JVM internals</h2>
+          <details class="qa" data-level="medium">
+            <summary>Describe the JVM memory areas.</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Heap</b> — all objects; shared; managed by GC (young gen: Eden + survivors, old gen).</li>
+                <li><b>Metaspace</b> (Java 8+, replaced PermGen) — class metadata in native memory.</li>
+                <li><b>Stack</b> — one per thread: frames with local variables and partial results. Overflow → <code>StackOverflowError</code>.</li>
+                <li><b>PC register</b> and <b>native method stack</b> — per thread.</li>
+                <li><b>Code cache</b> — JIT-compiled native code.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="bash">
+                java -Xms512m -Xmx2g -XX:MaxMetaspaceSize=256m -Xss1m \
+                     -XX:+HeapDumpOnOutOfMemoryError -jar app.jar
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How does class loading work? What is the parent delegation model?</summary>
+            <div class="answer">
+              <p>Phases: <b>Loading → Linking (verify, prepare, resolve) → Initialization</b> (static initializers run on first active use).</p>
+              <p>Loaders: <b>Bootstrap</b> (core <code>java.base</code>) → <b>Platform</b> → <b>Application/System</b> (classpath). A loader first delegates to its parent and only loads the class itself if the parent cannot, which prevents user code from replacing <code>java.lang.String</code>. Application servers and Spring Boot's fat-jar loader add custom loaders.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How does garbage collection work at a high level?</summary>
+            <div class="answer">
+              <p>GC finds objects unreachable from <b>GC roots</b> (stack locals, static fields, JNI refs, active threads) and reclaims them. The <b>generational hypothesis</b> — most objects die young — means new objects go to Eden; survivors are copied between survivor spaces and promoted to the old generation after several cycles.</p>
+              <ul>
+                <li><b>Minor GC</b> — young gen, frequent and fast.</li>
+                <li><b>Major/Full GC</b> — old gen / whole heap, expensive.</li>
+                <li>Collectors: Serial, Parallel, <b>G1</b> (default since Java 9), ZGC, Shenandoah.</li>
+              </ul>
+              <div class="note">Memory leaks in Java are objects that are still <i>reachable</i> but no longer needed — e.g. growing static maps, unremoved listeners, <code>ThreadLocal</code>s in pooled threads.</div>
+            </div>
+          </details>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+</body>
+</html>
