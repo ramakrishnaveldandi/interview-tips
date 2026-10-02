@@ -3,6 +3,11 @@
 Bump `"version"` in `version.json` and add an entry here whenever you publish a change.
 The live site's footer shows this version plus the exact commit that is deployed.
 
+## 1.5.0 — 2026-10-02
+- Core Java: replaced the short Collections section with an in-depth Collections Framework guide (28 questions):
+  hierarchy, complexity, List/Set/Map/Queue implementations, HashMap internals, ConcurrentHashMap internals,
+  HashMap vs ConcurrentHashMap, BlockingQueues (LinkedBlockingQueue vs ArrayBlockingQueue), immutability, Sequenced Collections.
+
 ## 1.4.0 — 2026-10-02
 - Core Java: thread pools & ExecutorService deep dive, virtual threads (Java 21 → 25), 11 thread-pool coding questions.
 - New page: Java Streams & parallel streams (concepts + 31 coding questions with real outputs).

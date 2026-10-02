@@ -141,74 +141,829 @@
         </section>
 
         <section class="qa-group">
-          <h2>Collections</h2>
-          <details class="qa" data-level="hard">
-            <summary>How does <code>HashMap</code> work internally?</summary>
-            <div class="answer">
-              <ol>
-                <li>Backed by an array of buckets (<code>Node[] table</code>), default capacity 16, load factor 0.75.</li>
-                <li><code>put(k, v)</code>: compute <code>hash = h ^ (h &gt;&gt;&gt; 16)</code>, index = <code>(n - 1) &amp; hash</code>.</li>
-                <li>Empty bucket → insert node. Otherwise walk the chain: if a key is <code>equals()</code>, replace the value; else append.</li>
-                <li><b>Treeification (Java 8)</b>: when a bucket holds more than 8 nodes and capacity ≥ 64, the list becomes a red-black tree (O(log n) lookups). It reverts to a list below 6.</li>
-                <li>When <code>size &gt; capacity × loadFactor</code> the table <b>doubles</b> and entries are redistributed (each node stays at index <i>i</i> or moves to <i>i + oldCap</i>).</li>
-              </ol>
-              <p>Allows one <code>null</code> key (bucket 0) and many null values. Not thread-safe.</p>
-              <div class="tip">If you know the size, pre-size it: <code>HashMap.newHashMap(1000)</code> (Java 19+) or <code>new HashMap&lt;&gt;(1334)</code>.</div>
-            </div>
-          </details>
-          <details class="qa" data-level="medium">
-            <summary>How is <code>ConcurrentHashMap</code> thread-safe without locking the whole map?</summary>
-            <div class="answer">
-              <p>Since Java 8 it uses <b>CAS</b> to insert into empty buckets and <code>synchronized</code> on the <b>first node of a bucket</b> otherwise, so threads writing to different buckets never block each other. Reads are lock-free (volatile reads). Resizing is done cooperatively by multiple threads.</p>
-              <ul>
-                <li>Does not allow <code>null</code> keys or values (ambiguity between "absent" and "null").</li>
-                <li>Iterators are <b>weakly consistent</b> — never throw <code>ConcurrentModificationException</code>.</li>
-                <li>Use atomic compound operations instead of check-then-act:</li>
-              </ul>
-              <script type="text/plain" class="code" data-lang="java">
-                ConcurrentHashMap<String, LongAdder> hits = new ConcurrentHashMap<>();
-                hits.computeIfAbsent(url, k -> new LongAdder()).increment();
-                counts.merge(word, 1, Integer::sum);
-              </script>
-            </div>
-          </details>
+          <h2>Collections Framework: overview</h2>
+          <p class="group-intro">A detailed tour of the Java Collections Framework — how each implementation works internally, its complexity, and when to choose it. Code outputs shown with <code>// =&gt;</code> are real results from Java 25.</p>
+
           <details class="qa" data-level="easy">
-            <summary><code>ArrayList</code> vs <code>LinkedList</code>?</summary>
+            <summary>What is the Java Collections Framework? Explain the interface hierarchy.</summary>
+            <div class="answer">
+              <p>The Collections Framework (in <code>java.util</code> and <code>java.util.concurrent</code>) is a set of <b>interfaces</b> that describe data structures, <b>implementations</b> of those interfaces, and <b>algorithms</b> (sorting, searching, shuffling) in the <code>Collections</code> utility class. Programming to the interface (<code>List&lt;String&gt; names = new ArrayList&lt;&gt;()</code>) lets you swap implementations without changing the rest of your code.</p>
+              <script type="text/plain" class="code" data-lang="plaintext">
+                Iterable
+                └── Collection
+                    ├── SequencedCollection (Java 21)
+                    │   ├── List ............ ArrayList, LinkedList, Vector, CopyOnWriteArrayList
+                    │   └── Deque ........... ArrayDeque, LinkedList, LinkedBlockingDeque, ConcurrentLinkedDeque
+                    ├── Set ................. HashSet, EnumSet, CopyOnWriteArraySet
+                    │   └── SequencedSet .... LinkedHashSet
+                    │       └── SortedSet → NavigableSet .... TreeSet, ConcurrentSkipListSet
+                    └── Queue ............... PriorityQueue, ConcurrentLinkedQueue
+                        └── BlockingQueue ... ArrayBlockingQueue, LinkedBlockingQueue, PriorityBlockingQueue,
+                                              DelayQueue, SynchronousQueue, LinkedTransferQueue
+
+                Map  (NOT a Collection — it stores key/value pairs)
+                ├── HashMap, Hashtable, WeakHashMap, IdentityHashMap, EnumMap
+                ├── SequencedMap (Java 21) ........ LinkedHashMap
+                │   └── SortedMap → NavigableMap .. TreeMap
+                └── ConcurrentMap ................. ConcurrentHashMap
+                    └── ConcurrentNavigableMap .... ConcurrentSkipListMap
+              </script>
+              <ul>
+                <li><b>List</b> — ordered by index, allows duplicates.</li>
+                <li><b>Set</b> — no duplicates (decided by <code>equals</code>/<code>hashCode</code>, or by a comparator for sorted sets).</li>
+                <li><b>Queue / Deque</b> — elements held for processing: FIFO, LIFO or by priority.</li>
+                <li><b>Map</b> — unique keys mapped to values. It is part of the framework but does not extend <code>Collection</code>, because its basic unit is a pair, not a single element.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Give the time complexity of the common operations for the main implementations.</summary>
             <div class="answer">
               <div class="table-wrap"><table>
-                <thead><tr><th>Operation</th><th>ArrayList</th><th>LinkedList</th></tr></thead>
+                <thead><tr><th>Implementation</th><th>get / contains</th><th>add / put</th><th>remove</th><th>Ordering</th><th>Nulls</th></tr></thead>
                 <tbody>
-                  <tr><td><code>get(i)</code></td><td>O(1)</td><td>O(n)</td></tr>
-                  <tr><td>Add at end</td><td>Amortized O(1)</td><td>O(1)</td></tr>
-                  <tr><td>Insert/remove in middle</td><td>O(n) (array copy)</td><td>O(n) to find, O(1) to relink</td></tr>
-                  <tr><td>Memory</td><td>Compact, cache-friendly</td><td>Extra prev/next per node</td></tr>
+                  <tr><td><code>ArrayList</code></td><td>get(i) O(1); contains O(n)</td><td>O(1) amortised at end; O(n) in middle</td><td>O(n)</td><td>Insertion / index</td><td>Yes</td></tr>
+                  <tr><td><code>LinkedList</code></td><td>get(i) O(n); contains O(n)</td><td>O(1) at ends</td><td>O(1) at ends / via iterator</td><td>Insertion / index</td><td>Yes</td></tr>
+                  <tr><td><code>ArrayDeque</code></td><td>—</td><td>O(1) amortised at both ends</td><td>O(1) at ends</td><td>Insertion</td><td>No</td></tr>
+                  <tr><td><code>PriorityQueue</code></td><td>peek O(1)</td><td>O(log n)</td><td>poll O(log n)</td><td>By priority (heap)</td><td>No</td></tr>
+                  <tr><td><code>HashSet</code> / <code>HashMap</code></td><td>O(1) average, O(log n) worst (tree bins)</td><td>O(1) average</td><td>O(1) average</td><td>None</td><td>One null key, null values</td></tr>
+                  <tr><td><code>LinkedHashMap</code> / <code>LinkedHashSet</code></td><td>O(1)</td><td>O(1)</td><td>O(1)</td><td>Insertion (or access)</td><td>Yes</td></tr>
+                  <tr><td><code>TreeMap</code> / <code>TreeSet</code></td><td>O(log n)</td><td>O(log n)</td><td>O(log n)</td><td>Sorted</td><td>No null keys (natural order)</td></tr>
+                  <tr><td><code>ConcurrentHashMap</code></td><td>O(1), lock-free reads</td><td>O(1), per-bin locking</td><td>O(1)</td><td>None</td><td><b>No</b></td></tr>
+                  <tr><td><code>ConcurrentSkipListMap</code></td><td>O(log n)</td><td>O(log n)</td><td>O(log n)</td><td>Sorted</td><td>No</td></tr>
+                  <tr><td><code>CopyOnWriteArrayList</code></td><td>O(1) get</td><td>O(n) (copies array)</td><td>O(n)</td><td>Insertion</td><td>Yes</td></tr>
                 </tbody>
               </table></div>
-              <p>In practice <code>ArrayList</code> wins almost always; for queue/deque use <code>ArrayDeque</code>.</p>
             </div>
           </details>
+
           <details class="qa" data-level="medium">
-            <summary>What are fail-fast and fail-safe iterators?</summary>
+            <summary>How do you choose the right collection?</summary>
             <div class="answer">
-              <p><b>Fail-fast</b> iterators (<code>ArrayList</code>, <code>HashMap</code>) check a <code>modCount</code> and throw <code>ConcurrentModificationException</code> if the collection is structurally modified during iteration (except via <code>iterator.remove()</code>).
-                <b>Fail-safe / weakly consistent</b> iterators (<code>CopyOnWriteArrayList</code>, <code>ConcurrentHashMap</code>) work on a snapshot or tolerate concurrent changes.</p>
-              <script type="text/plain" class="code" data-lang="java">
-                List<Integer> nums = new ArrayList<>(List.of(1, 2, 3, 4));
-                for (Integer n : nums) if (n % 2 == 0) nums.remove(n);   // ConcurrentModificationException
-                nums.removeIf(n -> n % 2 == 0);                            // correct
+              <div class="table-wrap"><table>
+                <thead><tr><th>Need</th><th>Choose</th><th>Why</th></tr></thead>
+                <tbody>
+                  <tr><td>Ordered list, read by index (the default)</td><td><code>ArrayList</code></td><td>Contiguous array: fast access, CPU-cache friendly</td></tr>
+                  <tr><td>Queue, stack or deque</td><td><code>ArrayDeque</code></td><td>Faster than <code>Stack</code> and <code>LinkedList</code></td></tr>
+                  <tr><td>Process by priority / top-K</td><td><code>PriorityQueue</code></td><td>Binary heap</td></tr>
+                  <tr><td>Unique elements, fast lookup</td><td><code>HashSet</code></td><td>Hashing</td></tr>
+                  <tr><td>Unique and keep insertion order</td><td><code>LinkedHashSet</code></td><td>Hash + linked list</td></tr>
+                  <tr><td>Unique and sorted / range queries</td><td><code>TreeSet</code></td><td>Red-black tree, navigation methods</td></tr>
+                  <tr><td>Key → value lookup</td><td><code>HashMap</code></td><td>O(1) average</td></tr>
+                  <tr><td>Map with predictable order / LRU cache</td><td><code>LinkedHashMap</code></td><td>Insertion or access order</td></tr>
+                  <tr><td>Sorted map, "nearest key", ranges</td><td><code>TreeMap</code></td><td><code>floorKey</code>, <code>subMap</code>…</td></tr>
+                  <tr><td>Enum keys</td><td><code>EnumMap</code> / <code>EnumSet</code></td><td>Array / bit vector, very fast</td></tr>
+                  <tr><td>Map shared between threads</td><td><code>ConcurrentHashMap</code></td><td>Fine-grained locking, atomic compute methods</td></tr>
+                  <tr><td>Sorted map shared between threads</td><td><code>ConcurrentSkipListMap</code></td><td>Lock-free skip list</td></tr>
+                  <tr><td>Producer–consumer hand-off</td><td><code>ArrayBlockingQueue</code> / <code>LinkedBlockingQueue</code></td><td>Blocking <code>put</code>/<code>take</code>, backpressure</td></tr>
+                  <tr><td>Read-mostly list shared between threads (listeners)</td><td><code>CopyOnWriteArrayList</code></td><td>Lock-free reads, snapshot iteration</td></tr>
+                  <tr><td>Constant data</td><td><code>List.of</code>, <code>Set.of</code>, <code>Map.of</code></td><td>Immutable, compact</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>List: ArrayList, LinkedList, Vector, CopyOnWriteArrayList</h2>
+
+          <details class="qa" data-level="medium">
+            <summary>How does <code>ArrayList</code> work internally? How does it grow?</summary>
+            <div class="answer">
+              <p><code>ArrayList</code> is a <b>resizable array</b>. It keeps an internal <code>Object[] elementData</code> and an <code>int size</code>.</p>
+              <ul>
+                <li><b>Lazy allocation</b>: <code>new ArrayList&lt;&gt;()</code> starts with a shared empty array. The first <code>add</code> allocates the default capacity of <b>10</b>.</li>
+                <li><b>Growth</b>: when the array is full, it creates a new array about <b>1.5×</b> bigger (<code>newCapacity = old + (old &gt;&gt; 1)</code>) and copies the elements across with <code>Arrays.copyOf</code>. Because growth is proportional, <code>add</code> at the end is <b>amortised O(1)</b>.</li>
+                <li><b>Access</b>: <code>get(i)</code> is a direct array index — O(1). It implements the <code>RandomAccess</code> marker interface.</li>
+                <li><b>Insert / remove in the middle</b>: elements after the index are shifted with <code>System.arraycopy</code> — O(n).</li>
+                <li><b>It never shrinks automatically</b>; call <code>trimToSize()</code> to release unused capacity.</li>
+                <li>If you know the size in advance, use <code>new ArrayList&lt;&gt;(expectedSize)</code> or <code>ensureCapacity(n)</code> to avoid repeated copying.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java" data-test="c1">
+                List<String> list = new ArrayList<>(List.of("a", "b", "c", "d"));
+                list.add(2, "X");                 // shifts c, d one place right
+                System.out.println(list); // => [a, b, X, c, d]
+                list.remove("b");                 // shifts everything after b one place left
+                System.out.println(list); // => [a, X, c, d]
+                System.out.println(list.get(1) + " " + list.indexOf("d") + " " + list.contains("z")); // => X 3 false
               </script>
             </div>
           </details>
-          <details class="qa" data-level="easy">
-            <summary><code>Comparable</code> vs <code>Comparator</code>?</summary>
+
+          <details class="qa" data-level="medium">
+            <summary>How does <code>LinkedList</code> work, and when is it actually better than <code>ArrayList</code>?</summary>
             <div class="answer">
-              <p><code>Comparable.compareTo</code> defines the <b>natural ordering</b> inside the class (one ordering). <code>Comparator</code> is an external strategy — you can define many.</p>
-              <script type="text/plain" class="code" data-lang="java">
-                record Employee(String name, String dept, double salary) implements Comparable<Employee> {
-                    public int compareTo(Employee o) { return name.compareTo(o.name); }
+              <p><code>LinkedList</code> is a <b>doubly linked list</b>. Each element lives in a <code>Node</code> object with three references: <code>item</code>, <code>prev</code> and <code>next</code>. The list keeps references to <code>first</code> and <code>last</code>. It implements both <code>List</code> and <code>Deque</code>.</p>
+              <ul>
+                <li>Adding or removing at the <b>head or tail</b> is O(1) — just relink nodes.</li>
+                <li><code>get(i)</code> is <b>O(n)</b>: it walks from the nearer end (the first half from <code>first</code>, the second from <code>last</code>).</li>
+                <li>Inserting "in the middle" is O(1) <i>only if you are already there</i> with a <code>ListIterator</code>; finding the position is O(n).</li>
+                <li>Memory: each element costs a whole node object (roughly 24–32 bytes of overhead), and nodes are scattered in memory, so iteration is cache-unfriendly.</li>
+              </ul>
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th><code>ArrayList</code></th><th><code>LinkedList</code></th></tr></thead>
+                <tbody>
+                  <tr><td>Structure</td><td>Resizable array</td><td>Doubly linked nodes</td></tr>
+                  <tr><td><code>get(i)</code></td><td>O(1)</td><td>O(n)</td></tr>
+                  <tr><td>Add at end</td><td>Amortised O(1)</td><td>O(1)</td></tr>
+                  <tr><td>Add/remove at start</td><td>O(n) (shift)</td><td>O(1)</td></tr>
+                  <tr><td>Memory per element</td><td>One reference (~4–8 bytes)</td><td>A node (~24–32 bytes)</td></tr>
+                  <tr><td>Iteration speed</td><td>Fast (contiguous)</td><td>Slower (pointer chasing)</td></tr>
+                  <tr><td>Also a Deque?</td><td>No</td><td>Yes</td></tr>
+                </tbody>
+              </table></div>
+              <div class="tip">In practice <code>ArrayList</code> wins almost every benchmark, even for many middle inserts, because <code>System.arraycopy</code> is extremely fast. For a queue or stack, <code>ArrayDeque</code> beats <code>LinkedList</code>. Good interview answer: "I'd default to ArrayList, use ArrayDeque for queues, and pick LinkedList only if I measured a need for it."</div>
+              <script type="text/plain" class="code" data-lang="java" data-test="c2">
+                LinkedList<Integer> ll = new LinkedList<>(List.of(2, 3, 4));
+                ll.addFirst(1);
+                ll.addLast(5);
+                System.out.println(ll); // => [1, 2, 3, 4, 5]
+                System.out.println(ll.removeFirst() + " " + ll.removeLast() + " " + ll); // => 1 5 [2, 3, 4]
+
+                // Removing while iterating: use the iterator (or removeIf), never list.remove inside a for-each
+                ListIterator<Integer> it = ll.listIterator();
+                while (it.hasNext()) if (it.next() == 3) it.add(99);   // O(1) insert at the iterator position
+                System.out.println(ll); // => [2, 3, 99, 4]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>What is the <code>remove(int)</code> vs <code>remove(Object)</code> trap in <code>List&lt;Integer&gt;</code>?</summary>
+            <div class="answer">
+              <p><code>List</code> has two overloads. With an <code>int</code> argument the compiler picks <code>remove(int index)</code> — no boxing is needed — so it removes by <b>position</b>, not by value.</p>
+              <script type="text/plain" class="code" data-lang="java" data-test="c3">
+                List<Integer> nums = new ArrayList<>(List.of(10, 20, 30, 1));
+                nums.remove(1);                       // removes the element at INDEX 1 (20)
+                System.out.println(nums); // => [10, 30, 1]
+                nums.remove(Integer.valueOf(1));      // removes the VALUE 1
+                System.out.println(nums); // => [10, 30]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary><code>Vector</code>, <code>Stack</code> and <code>Collections.synchronizedList</code> vs <code>CopyOnWriteArrayList</code> — which thread-safe list should you use?</summary>
+            <div class="answer">
+              <ul>
+                <li><b><code>Vector</code></b> (Java 1.0) is like <code>ArrayList</code> but every method is <code>synchronized</code>, and it grows by 2× instead of 1.5×. All threads contend on one lock, and compound actions ("check, then add") are still not atomic. Legacy — avoid.</li>
+                <li><b><code>Stack</code></b> extends <code>Vector</code> (synchronized, and it exposes index methods a stack shouldn't have). Use <code>ArrayDeque</code> with <code>push</code>/<code>pop</code> instead.</li>
+                <li><b><code>Collections.synchronizedList(list)</code></b> wraps any list with one lock. You must still lock manually while iterating, otherwise you can get <code>ConcurrentModificationException</code>.</li>
+                <li><b><code>CopyOnWriteArrayList</code></b> makes a <b>fresh copy of the array on every write</b>. Reads need no lock, and iterators work on a <b>snapshot</b>, so they never throw <code>ConcurrentModificationException</code>. Writes are O(n) and generate garbage, so it suits <b>read-mostly</b> data: event listeners, configuration, plug-in registries.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java" data-test="c4">
+                List<String> syncList = Collections.synchronizedList(new ArrayList<>(List.of("a", "b")));
+                synchronized (syncList) {                 // required while iterating
+                    for (String s : syncList) System.out.print(s);
                 }
-                employees.sort(Comparator.comparing(Employee::dept)
-                                         .thenComparing(Employee::salary, Comparator.reverseOrder()));
+                System.out.println();
+
+                List<String> listeners = new CopyOnWriteArrayList<>(List.of("audit", "email"));
+                for (String l : listeners) {
+                    listeners.add("sms");                 // allowed: the loop iterates over the old snapshot
+                }
+                System.out.println(listeners); // => [audit, email, sms, sms]
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Set: HashSet, LinkedHashSet, TreeSet, EnumSet</h2>
+
+          <details class="qa" data-level="medium">
+            <summary>How does <code>HashSet</code> guarantee uniqueness? How do <code>LinkedHashSet</code> and <code>TreeSet</code> differ?</summary>
+            <div class="answer">
+              <ul>
+                <li><b><code>HashSet</code></b> is backed by a <code>HashMap</code>: each element is stored as a <b>key</b>, with a dummy shared value (<code>PRESENT</code>). <code>add(e)</code> is <code>map.put(e, PRESENT) == null</code>, so uniqueness comes from the map's key rules — <code>hashCode()</code> picks the bucket, then <code>equals()</code> decides whether it's a duplicate. No ordering guarantee.</li>
+                <li><b><code>LinkedHashSet</code></b> is backed by a <code>LinkedHashMap</code>: same O(1) operations, plus a doubly linked list through the entries, so iteration follows <b>insertion order</b>. Ideal for "remove duplicates but keep order".</li>
+                <li><b><code>TreeSet</code></b> is backed by a <code>TreeMap</code> (red-black tree). Elements are kept <b>sorted</b> by natural order (<code>Comparable</code>) or a <code>Comparator</code>, operations are O(log n), and it adds navigation methods. Uniqueness is decided by <code>compareTo</code>/<code>compare</code> returning 0 — <b>not</b> by <code>equals</code>.</li>
+                <li><b><code>EnumSet</code></b> stores enum constants as bits in a <code>long</code> (a bit vector) — extremely fast and compact. Use it instead of a <code>HashSet</code> of enums.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java" data-test="c5">
+                List<String> input = List.of("banana", "apple", "cherry", "apple", "banana");
+                System.out.println(new HashSet<>(input)); // => [banana, apple, cherry]
+                System.out.println(new LinkedHashSet<>(input)); // => [banana, apple, cherry]
+                System.out.println(new TreeSet<>(input)); // => [apple, banana, cherry]
+
+                TreeSet<Integer> scores = new TreeSet<>(List.of(40, 75, 90, 55, 62));
+                System.out.println(scores.first() + " " + scores.last()); // => 40 90
+                System.out.println(scores.floor(60) + " " + scores.ceiling(60) + " " + scores.higher(90)); // => 55 62 null
+                System.out.println(scores.headSet(62) + " " + scores.tailSet(62) + " " + scores.descendingSet()); // => [40, 55] [62, 75, 90] [90, 75, 62, 55, 40]
+
+                // Comparator decides uniqueness in a TreeSet: case-insensitive => "Java" and "JAVA" are duplicates
+                Set<String> ci = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+                ci.addAll(List.of("Java", "JAVA", "spring"));
+                System.out.println(ci); // => [Java, spring]
+
+                System.out.println(EnumSet.range(java.time.DayOfWeek.MONDAY, java.time.DayOfWeek.FRIDAY)); // => [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>Why must <code>equals()</code> and <code>hashCode()</code> be overridden together? What happens with a mutable key?</summary>
+            <div class="answer">
+              <p>Hash-based collections first use <code>hashCode()</code> to find the bucket, then <code>equals()</code> to compare within it. The contract: <b>equal objects must have equal hash codes</b>. If you override only <code>equals</code>, two "equal" objects land in different buckets and the set keeps both. If a key's fields change <b>after</b> it was inserted, its hash code changes, and the map looks in the wrong bucket — the entry becomes unreachable (a memory leak).</p>
+              <script type="text/plain" class="code" data-lang="java" data-test="c6">
+                class BadPoint {                        // equals without hashCode
+                    final int x, y;
+                    BadPoint(int x, int y) { this.x = x; this.y = y; }
+                    @Override public boolean equals(Object o) {
+                        return o instanceof BadPoint p && p.x == x && p.y == y;
+                    }
+                }
+                Set<BadPoint> bad = new HashSet<>();
+                bad.add(new BadPoint(1, 2));
+                bad.add(new BadPoint(1, 2));
+                System.out.println(bad.size()); // => 2   (duplicates, because hash codes differ)
+
+                record Point(int x, int y) {}           // records generate both correctly
+                Set<Point> good = new HashSet<>(List.of(new Point(1, 2)));
+                System.out.println(good.contains(new Point(1, 2))); // => true
+
+                // Mutable key: change it after insertion and the entry is "lost"
+                List<String> key = new ArrayList<>(List.of("a"));
+                Map<List<String>, String> m = new HashMap<>();
+                m.put(key, "value");
+                key.add("b");                           // hashCode of the key changes
+                System.out.println(m.get(key) + " " + m.size()); // => null 1
+              </script>
+              <div class="tip">Use immutable keys: <code>String</code>, boxed numbers, records with immutable fields, or enums.</div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Map: HashMap, LinkedHashMap, TreeMap and friends</h2>
+
+          <details class="qa" data-level="hard">
+            <summary>Explain the internal working of <code>HashMap</code> in detail (hashing, buckets, collisions, resizing, treeification).</summary>
+            <div class="answer">
+              <p>A <code>HashMap</code> is an <b>array of buckets</b> (<code>Node&lt;K,V&gt;[] table</code>). Each node holds <code>hash</code>, <code>key</code>, <code>value</code> and <code>next</code>.</p>
+              <ol>
+                <li><b>Hashing</b>: <code>put(k, v)</code> computes <code>h = k.hashCode()</code>, then spreads it: <code>hash = h ^ (h &gt;&gt;&gt; 16)</code>. Mixing the high bits into the low bits matters because the index uses only the low bits.</li>
+                <li><b>Index</b>: <code>index = (n - 1) &amp; hash</code>, where <code>n</code> (the table length) is always a <b>power of two</b>, so this is a fast replacement for <code>hash % n</code>.</li>
+                <li><b>Empty bucket</b> → a new node is placed there.</li>
+                <li><b>Collision</b> (bucket already used) → walk the chain: if a node has the same hash <i>and</i> <code>equals</code> the key, replace its value; otherwise append a new node to the end of the list.</li>
+                <li><b>Treeification</b> (Java 8+): when one bucket's chain reaches <b>8</b> nodes (<code>TREEIFY_THRESHOLD</code>) and the table has at least <b>64</b> buckets, the chain is converted to a red-black tree, making worst-case lookup O(log n) instead of O(n). If the table is smaller than 64, it resizes instead. A tree shrinks back to a list at <b>6</b> nodes.</li>
+                <li><b>Resizing</b>: default capacity <b>16</b>, load factor <b>0.75</b> → when <code>size &gt; capacity × 0.75</code> (12 for the default) the table <b>doubles</b>. Because the size is a power of two, each node either stays at its index or moves to <code>index + oldCapacity</code> — decided by one bit of the hash — so no full rehash is needed.</li>
+                <li><b>Nulls</b>: one <code>null</code> key is allowed (its hash is 0, so it goes to bucket 0), and any number of <code>null</code> values.</li>
+              </ol>
+              <script type="text/plain" class="code" data-lang="plaintext">
+                table (capacity 16)
+                [0] → (null key, "x")
+                [1]
+                [2] → ("Aa", 1) → ("BB", 2)        ← collision: "Aa" and "BB" have the same hashCode (2112)
+                [3]
+                ...
+                [9] → TreeNode (red-black tree)    ← a bucket that reached 8+ entries
+                ...
+                [15] → ("java", 3)
+              </script>
+              <script type="text/plain" class="code" data-lang="java" data-test="c7">
+                System.out.println("Aa".hashCode() + " " + "BB".hashCode()); // => 2112 2112   (same hash, different keys)
+
+                Map<String, Integer> map = new HashMap<>();
+                map.put("Aa", 1);
+                map.put("BB", 2);                 // same bucket, but equals() is false → both kept
+                map.put("Aa", 10);                // same key → value replaced, put returns the old value
+                map.put(null, 0);                 // one null key allowed
+                System.out.println(map.get("Aa") + " " + map.get("BB") + " " + map.get(null) + " " + map.size()); // => 10 2 0 3
+
+                // Size the map up front to avoid resizes: Java 19+ factory accounts for the load factor
+                Map<String, Integer> sized = HashMap.newHashMap(1000);
+              </script>
+              <div class="note"><code>HashMap</code> is <b>not thread-safe</b>. Concurrent <code>put</code>s can lose entries or corrupt the structure (in Java 7, concurrent resizing could even create a cycle and an infinite loop). Use <code>ConcurrentHashMap</code> for shared maps.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>What are the most useful <code>Map</code> methods added in Java 8+?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="c8">
+                Map<String, Integer> stock = new HashMap<>(Map.of("apple", 5));
+
+                System.out.println(stock.getOrDefault("pear", 0)); // => 0
+                stock.putIfAbsent("pear", 3);                         // only if no value present
+                stock.merge("apple", 2, Integer::sum);                // add 2 to apple (or put 2 if absent)
+                stock.computeIfPresent("pear", (k, v) -> v - 1);      // update if present
+                stock.compute("kiwi", (k, v) -> v == null ? 1 : v + 1);
+                System.out.println(new TreeMap<>(stock)); // => {apple=7, kiwi=1, pear=2}
+
+                // computeIfAbsent: the classic "multimap" idiom
+                Map<String, List<String>> byDept = new TreeMap<>();
+                byDept.computeIfAbsent("IT", k -> new ArrayList<>()).add("Asha");
+                byDept.computeIfAbsent("IT", k -> new ArrayList<>()).add("Ravi");
+                byDept.computeIfAbsent("HR", k -> new ArrayList<>()).add("Meena");
+                System.out.println(byDept); // => {HR=[Meena], IT=[Asha, Ravi]}
+
+                stock.replaceAll((k, v) -> v * 10);
+                stock.remove("kiwi", 999);                            // removes only if the value matches
+                System.out.println(new TreeMap<>(stock)); // => {apple=70, kiwi=10, pear=20}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>How does <code>LinkedHashMap</code> work? How do you build an LRU cache with it?</summary>
+            <div class="answer">
+              <p><code>LinkedHashMap</code> extends <code>HashMap</code> and additionally threads a <b>doubly linked list</b> through all entries (each entry has <code>before</code>/<code>after</code> pointers). Lookups stay O(1), but iteration follows a predictable order:</p>
+              <ul>
+                <li><b>Insertion order</b> (default) — re-inserting an existing key does not change its position.</li>
+                <li><b>Access order</b> (<code>new LinkedHashMap&lt;&gt;(cap, 0.75f, true)</code>) — every <code>get</code>/<code>put</code> moves the entry to the end, so the first entry is the least recently used.</li>
+              </ul>
+              <p>Overriding <code>removeEldestEntry</code> turns it into a bounded LRU cache. Since Java 21 it also implements <code>SequencedMap</code>: <code>firstEntry()</code>, <code>lastEntry()</code>, <code>pollFirstEntry()</code>, <code>reversed()</code>, <code>putFirst()</code>.</p>
+              <script type="text/plain" class="code" data-lang="java" data-test="c9">
+                Map<String, Integer> lru = new LinkedHashMap<>(16, 0.75f, true) {
+                    @Override
+                    protected boolean removeEldestEntry(Map.Entry<String, Integer> eldest) {
+                        return size() > 3;                 // keep at most 3 entries
+                    }
+                };
+                lru.put("a", 1); lru.put("b", 2); lru.put("c", 3);
+                lru.get("a");                              // "a" becomes most recently used
+                lru.put("d", 4);                           // evicts the eldest: "b"
+                System.out.println(lru); // => {c=3, a=1, d=4}
+
+                LinkedHashMap<String, Integer> ordered = new LinkedHashMap<>();
+                ordered.put("first", 1); ordered.put("second", 2); ordered.put("third", 3);
+                System.out.println(ordered.firstEntry() + " " + ordered.lastEntry() + " " + ordered.reversed()); // => first=1 third=3 {third=3, second=2, first=1}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>How does <code>TreeMap</code> work, and what navigation methods does it offer?</summary>
+            <div class="answer">
+              <p><code>TreeMap</code> is a <b>red-black tree</b> — a self-balancing binary search tree. Keys are kept <b>sorted</b> by their natural order or by a <code>Comparator</code> passed to the constructor. <code>get</code>, <code>put</code> and <code>remove</code> are O(log n). It implements <code>NavigableMap</code>, which makes it ideal for "nearest", "range" and "ranking" questions.</p>
+              <ul>
+                <li>No <code>null</code> keys with natural ordering (<code>compareTo(null)</code> throws <code>NullPointerException</code>); <code>null</code> values are fine.</li>
+                <li>The comparator should be <b>consistent with equals</b>; keys that compare as 0 are treated as the same key.</li>
+                <li>Typical uses: price/tax slabs, time-series lookups ("value at or before time T"), leaderboards, scheduling.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java" data-test="c10">
+                // Income-tax slabs: lower bound of the slab → rate
+                TreeMap<Integer, Integer> slabs = new TreeMap<>(Map.of(0, 0, 300_000, 5, 700_000, 10, 1_000_000, 15, 1_500_000, 30));
+
+                System.out.println(slabs.floorEntry(850_000)); // => 700000=10   (greatest key <= 850000)
+                System.out.println(slabs.ceilingKey(850_000)); // => 1000000   (least key >= 850000)
+                System.out.println(slabs.firstKey() + " " + slabs.lastKey()); // => 0 1500000
+                System.out.println(slabs.headMap(700_000)); // => {0=0, 300000=5}   (keys < 700000)
+                System.out.println(slabs.tailMap(1_000_000, true)); // => {1000000=15, 1500000=30}   (keys >= 1000000)
+                System.out.println(slabs.subMap(300_000, 1_000_000)); // => {300000=5, 700000=10}
+                System.out.println(slabs.descendingMap()); // => {1500000=30, 1000000=15, 700000=10, 300000=5, 0=0}
+
+                // Custom order: longest word first, then alphabetical
+                TreeMap<String, Integer> byLength = new TreeMap<>(Comparator.comparingInt(String::length).reversed()
+                                                                            .thenComparing(Comparator.naturalOrder()));
+                for (String w : List.of("java", "go", "kotlin", "scala")) byLength.put(w, w.length());
+                System.out.println(byLength); // => {kotlin=6, scala=5, java=4, go=2}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary><code>HashMap</code> vs <code>LinkedHashMap</code> vs <code>TreeMap</code> vs <code>Hashtable</code> — compare them.</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th><code>HashMap</code></th><th><code>LinkedHashMap</code></th><th><code>TreeMap</code></th><th><code>Hashtable</code></th></tr></thead>
+                <tbody>
+                  <tr><td>Structure</td><td>Hash table (+ tree bins)</td><td>Hash table + linked list</td><td>Red-black tree</td><td>Hash table</td></tr>
+                  <tr><td>Order</td><td>None</td><td>Insertion or access</td><td>Sorted by key</td><td>None</td></tr>
+                  <tr><td>get / put</td><td>O(1)</td><td>O(1)</td><td>O(log n)</td><td>O(1)</td></tr>
+                  <tr><td>Null key / values</td><td>1 null key / yes</td><td>1 null key / yes</td><td>No null key / yes</td><td>No / no</td></tr>
+                  <tr><td>Thread-safe</td><td>No</td><td>No</td><td>No</td><td>Yes — every method <code>synchronized</code> (one lock)</td></tr>
+                  <tr><td>Extra API</td><td>—</td><td><code>SequencedMap</code>, <code>removeEldestEntry</code></td><td><code>NavigableMap</code> (floor, ceiling, ranges)</td><td>Legacy <code>Enumeration</code></td></tr>
+                  <tr><td>Use for</td><td>General lookups</td><td>Ordered output, LRU caches</td><td>Sorted data, range queries</td><td>Nothing new — use <code>ConcurrentHashMap</code></td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>What are <code>WeakHashMap</code>, <code>IdentityHashMap</code> and <code>EnumMap</code> used for?</summary>
+            <div class="answer">
+              <ul>
+                <li><b><code>WeakHashMap</code></b> holds its keys through <b>weak references</b>. When a key is no longer strongly referenced anywhere else, the garbage collector may reclaim it and the entry disappears automatically. It's used to attach metadata to objects you don't own without causing a memory leak. Caveats: string literals and small boxed integers are cached by the JVM and never collected; for real caches use Caffeine.</li>
+                <li><b><code>IdentityHashMap</code></b> compares keys with <code>==</code> (reference identity) and <code>System.identityHashCode</code> instead of <code>equals</code>/<code>hashCode</code>. It's used in serialisation and deep-copy algorithms to track "objects already visited". It deliberately breaks the general <code>Map</code> contract.</li>
+                <li><b><code>EnumMap</code></b> stores values in an array indexed by the enum's <code>ordinal()</code>: very fast, compact, and iterated in enum declaration order. Always prefer it over <code>HashMap</code> for enum keys.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java" data-test="c11">
+                Map<String, Integer> identity = new IdentityHashMap<>();
+                String k1 = new String("id");
+                String k2 = new String("id");             // equal, but a different object
+                identity.put(k1, 1);
+                identity.put(k2, 2);
+                System.out.println(identity.size() + " vs HashMap " + new HashMap<>(Map.of(k1, 1)).containsKey(k2)); // => 2 vs HashMap true
+
+                enum Status { NEW, PAID, SHIPPED }
+                EnumMap<Status, Integer> counts = new EnumMap<>(Status.class);
+                counts.put(Status.SHIPPED, 4);
+                counts.put(Status.NEW, 7);
+                System.out.println(counts); // => {NEW=7, SHIPPED=4}   (always in declaration order)
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>ConcurrentHashMap &amp; HashMap vs ConcurrentHashMap</h2>
+
+          <details class="qa" data-level="hard">
+            <summary>How does <code>ConcurrentHashMap</code> work internally (Java 7 vs Java 8+)?</summary>
+            <div class="answer">
+              <p><b>Java 7</b> used <b>lock striping</b>: the map was divided into 16 <i>segments</i> (by default), each a small hash table guarded by its own <code>ReentrantLock</code>. Up to 16 threads could write at once — one per segment.</p>
+              <p><b>Java 8+ redesigned it completely</b> (segments are gone; <code>concurrencyLevel</code> is now only a sizing hint):</p>
+              <ol>
+                <li><b>Same layout as <code>HashMap</code></b>: a <code>volatile</code> array of bins holding nodes, with long bins converted to trees (<code>TreeBin</code>).</li>
+                <li><b>Reads are lock-free</b>: <code>get()</code> uses volatile reads, so it never blocks, even while other threads are writing.</li>
+                <li><b>Inserting into an empty bin</b> uses a <b>CAS</b> (compare-and-swap) — no lock at all.</li>
+                <li><b>Writing to a non-empty bin</b> locks only that bin, by <code>synchronized</code> on the bin's first node. Threads writing to different bins never block each other, so concurrency is effectively "number of bins", not 16.</li>
+                <li><b>Resizing is cooperative</b>: when the table grows, other threads that try to write <b>help transfer</b> bins to the new table. Moved bins are marked with a <code>ForwardingNode</code>, so readers know to look in the new table.</li>
+                <li><b>Size counting</b> uses a <code>baseCount</code> plus an array of <code>CounterCell</code>s (the same idea as <code>LongAdder</code>), so many threads can increment the count without contending on one variable. <code>size()</code> is therefore an estimate while updates are in flight; <code>mappingCount()</code> returns a <code>long</code>.</li>
+              </ol>
+              <script type="text/plain" class="code" data-lang="plaintext">
+                Thread A: put("x") → bin 3 empty      → CAS, no lock
+                Thread B: put("y") → bin 7 has nodes  → synchronized(bin 7 head) { append }
+                Thread C: put("z") → bin 9 has nodes  → synchronized(bin 9 head) { append }   ← runs in parallel with B
+                Thread D: get("y") → bin 7            → volatile read, never blocks, sees a consistent node
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary><code>HashMap</code> vs <code>ConcurrentHashMap</code> — explain the differences in detail.</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Aspect</th><th><code>HashMap</code></th><th><code>ConcurrentHashMap</code></th></tr></thead>
+                <tbody>
+                  <tr><td>Thread safety</td><td>None. Concurrent writes can lose entries or corrupt the table.</td><td>Fully thread-safe for every single operation.</td></tr>
+                  <tr><td>Locking</td><td>No locks</td><td>CAS for empty bins, <code>synchronized</code> per bin for others; reads never lock</td></tr>
+                  <tr><td>Null keys / values</td><td>One null key and null values allowed</td><td><b>Neither allowed</b> → <code>NullPointerException</code></td></tr>
+                  <tr><td>Iterators</td><td><b>Fail-fast</b>: modifying the map during iteration (except via the iterator) throws <code>ConcurrentModificationException</code></td><td><b>Weakly consistent</b>: never throw; reflect the map at some point during or after iterator creation</td></tr>
+                  <tr><td>Atomic compound operations</td><td><code>compute</code>/<code>merge</code> exist but aren't atomic across threads</td><td><code>putIfAbsent</code>, <code>computeIfAbsent</code>, <code>compute</code>, <code>merge</code>, <code>replace(k, old, new)</code> are <b>atomic</b></td></tr>
+                  <tr><td>Bulk parallel operations</td><td>No</td><td><code>forEach</code>, <code>search</code>, <code>reduce</code> with a parallelism threshold</td></tr>
+                  <tr><td><code>size()</code></td><td>Exact</td><td>Estimate under concurrent updates; <code>mappingCount()</code> for a long</td></tr>
+                  <tr><td>Performance (single thread)</td><td>Slightly faster</td><td>Slightly slower (volatile reads, CAS)</td></tr>
+                  <tr><td>Use when</td><td>Map is confined to one thread (local variables, request scope)</td><td>Map is shared: caches, counters, registries</td></tr>
+                </tbody>
+              </table></div>
+
+              <p><b>Why are nulls forbidden?</b> In a single-threaded map, <code>get(k) == null</code> can be disambiguated by calling <code>containsKey(k)</code>. In a concurrent map, another thread could change the map between those two calls, so "absent" and "mapped to null" could never be told apart reliably. Doug Lea banned nulls to remove that ambiguity.</p>
+
+              <p><b>Demonstration</b> — 4 threads each count 10,000 words into a shared map:</p>
+              <script type="text/plain" class="code" data-lang="java" data-test="c12">
+                // Runs 4 threads; each merges 10,000 counts into the given map
+                java.util.function.Function<Map<Integer, Integer>, Integer> run4Threads = map -> {
+                    try (ExecutorService pool = Executors.newFixedThreadPool(4)) {
+                        for (int t = 0; t < 4; t++) {
+                            pool.submit(() -> {
+                                for (int i = 0; i < 10_000; i++) map.merge(i % 100, 1, Integer::sum);
+                            });
+                        }
+                    }
+                    return map.values().stream().mapToInt(Integer::intValue).sum();
+                };
+
+                int plainTotal = run4Threads.apply(new HashMap<>());            // NOT thread-safe
+                int concurrentTotal = run4Threads.apply(new ConcurrentHashMap<>());
+                System.out.println("HashMap total <= 40000: " + (plainTotal <= 40_000)); // => HashMap total <= 40000: true   (usually less: lost updates, or a task crashes mid-way)
+                System.out.println("ConcurrentHashMap total: " + concurrentTotal); // => ConcurrentHashMap total: 40000
+
+                Map<Integer, Integer> concurrent = new ConcurrentHashMap<>();
+                try {
+                    concurrent.put(null, 1);
+                } catch (NullPointerException e) {
+                    System.out.println("ConcurrentHashMap rejects null keys"); // => ConcurrentHashMap rejects null keys
+                }
+              </script>
+
+              <p><b>Iteration difference</b>:</p>
+              <script type="text/plain" class="code" data-lang="java" data-test="c13">
+                Map<String, Integer> hm = new HashMap<>(Map.of("a", 1, "b", 2));
+                try {
+                    for (String k : hm.keySet()) hm.put("c", 3);      // structural change while iterating
+                } catch (ConcurrentModificationException e) {
+                    System.out.println("HashMap: ConcurrentModificationException"); // => HashMap: ConcurrentModificationException
+                }
+
+                Map<String, Integer> chm = new ConcurrentHashMap<>(Map.of("a", 1, "b", 2));
+                for (String k : chm.keySet()) chm.put("c", 3);        // fine: weakly consistent iterator
+                System.out.println("ConcurrentHashMap size: " + chm.size()); // => ConcurrentHashMap size: 3
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>Is every operation on a <code>ConcurrentHashMap</code> safe? Explain the check-then-act problem.</summary>
+            <div class="answer">
+              <p>Each <b>individual</b> method is atomic, but a <b>sequence</b> of calls is not. Between <code>containsKey</code> and <code>put</code>, another thread can insert the same key — a race condition even with a thread-safe map. Use the atomic compound methods instead.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                ConcurrentHashMap<String, Connection> pool = new ConcurrentHashMap<>();
+
+                // WRONG: two threads can both see "absent" and both create a connection
+                if (!pool.containsKey(host)) {
+                    pool.put(host, openConnection(host));
+                }
+
+                // RIGHT: atomic — the function runs at most once per key
+                Connection c = pool.computeIfAbsent(host, h -> openConnection(h));
+
+                // WRONG: read-modify-write in two steps loses updates
+                Integer old = counts.get(word);
+                counts.put(word, old == null ? 1 : old + 1);
+
+                // RIGHT
+                counts.merge(word, 1, Integer::sum);
+
+                // Optimistic update with compare-and-set semantics
+                counts.replace(word, 5, 6);       // only if the current value is still 5
+              </script>
+              <ul>
+                <li>Keep the function passed to <code>compute*</code>/<code>merge</code> <b>short</b> and <b>never modify the same map inside it</b> — the bin stays locked while it runs (doing so can throw <code>IllegalStateException: Recursive update</code>).</li>
+                <li>Operations spanning <b>several keys</b> (e.g. transfer from key A to key B) are not atomic; you need external locking or a different design.</li>
+                <li>For high-contention counters, store <code>LongAdder</code> values: <code>map.computeIfAbsent(k, x -&gt; new LongAdder()).increment()</code>.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary><code>ConcurrentHashMap</code> vs <code>Hashtable</code> vs <code>Collections.synchronizedMap</code>?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th><code>Hashtable</code></th><th><code>Collections.synchronizedMap(m)</code></th><th><code>ConcurrentHashMap</code></th></tr></thead>
+                <tbody>
+                  <tr><td>Locking</td><td>Every method <code>synchronized</code> on the table</td><td>Every method synchronized on one mutex</td><td>Per-bin locks + CAS; lock-free reads</td></tr>
+                  <tr><td>Concurrent readers</td><td>Block each other</td><td>Block each other</td><td>Never block</td></tr>
+                  <tr><td>Iteration</td><td>Fail-fast</td><td>Must wrap in <code>synchronized(map)</code> manually</td><td>Weakly consistent, no locking needed</td></tr>
+                  <tr><td>Nulls</td><td>No</td><td>Whatever the wrapped map allows</td><td>No</td></tr>
+                  <tr><td>Atomic compound ops</td><td>Since Java 8 (synchronized)</td><td>Yes (whole map locked)</td><td>Yes, fine-grained</td></tr>
+                  <tr><td>Scalability</td><td>Poor</td><td>Poor</td><td>Excellent</td></tr>
+                </tbody>
+              </table></div>
+              <p><code>synchronizedMap</code> is still useful when you need to wrap a <b>specific</b> map type (e.g. a <code>LinkedHashMap</code> for ordering) and contention is low.</p>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>What extra features does <code>ConcurrentHashMap</code> offer (concurrent sets, bulk operations, sorted alternative)?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="c14">
+                ConcurrentHashMap<String, Integer> prices = new ConcurrentHashMap<>(Map.of("pen", 10, "book", 250, "bag", 900, "cup", 120));
+
+                // Bulk operations; the first argument is the parallelism threshold (Long.MAX_VALUE = run sequentially)
+                int total = prices.reduceValues(Long.MAX_VALUE, Integer::sum);
+                String expensive = prices.search(Long.MAX_VALUE, (k, v) -> v > 500 ? k : null);
+                System.out.println(total + " " + expensive); // => 1280 bag
+
+                // A thread-safe Set backed by a ConcurrentHashMap
+                Set<String> activeUsers = ConcurrentHashMap.newKeySet();
+                activeUsers.add("asha");
+                activeUsers.add("asha");
+                System.out.println(activeUsers); // => [asha]
+
+                // Sorted AND concurrent: ConcurrentSkipListMap (lock-free skip list, O(log n))
+                ConcurrentSkipListMap<Integer, String> leaderboard = new ConcurrentSkipListMap<>(Comparator.reverseOrder());
+                leaderboard.put(870, "Ravi"); leaderboard.put(990, "Asha"); leaderboard.put(910, "John");
+                System.out.println(leaderboard.firstEntry() + " " + leaderboard.headMap(900)); // => 990=Asha {990=Asha, 910=John}   (headMap = keys BEFORE 900 in this descending order)
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Queue, Deque &amp; BlockingQueue (LinkedBlockingQueue and friends)</h2>
+
+          <details class="qa" data-level="easy">
+            <summary>Explain the <code>Queue</code> and <code>Deque</code> method families. Why prefer <code>ArrayDeque</code>?</summary>
+            <div class="answer">
+              <p>Each operation exists in two forms: one <b>throws an exception</b> on failure, the other <b>returns a special value</b> (<code>false</code>/<code>null</code>).</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Operation</th><th>Throws exception</th><th>Returns special value</th></tr></thead>
+                <tbody>
+                  <tr><td>Insert</td><td><code>add(e)</code></td><td><code>offer(e)</code> → <code>false</code> if full</td></tr>
+                  <tr><td>Remove head</td><td><code>remove()</code></td><td><code>poll()</code> → <code>null</code> if empty</td></tr>
+                  <tr><td>Look at head</td><td><code>element()</code></td><td><code>peek()</code> → <code>null</code> if empty</td></tr>
+                </tbody>
+              </table></div>
+              <p>A <code>Deque</code> (double-ended queue) adds <code>offerFirst/offerLast</code>, <code>pollFirst/pollLast</code>, <code>peekFirst/peekLast</code>, and stack methods <code>push</code>/<code>pop</code>.</p>
+              <p><b><code>ArrayDeque</code></b> is a resizable <b>circular array</b> with head and tail indices: O(1) at both ends, no per-element node objects, no synchronization. It is faster than <code>Stack</code> (synchronized) for stacks and faster than <code>LinkedList</code> for queues. It does not allow <code>null</code> (because <code>null</code> is the "empty" signal from <code>poll</code>).</p>
+              <script type="text/plain" class="code" data-lang="java" data-test="c15">
+                Deque<String> stack = new ArrayDeque<>();
+                stack.push("a"); stack.push("b"); stack.push("c");     // LIFO
+                System.out.println(stack.pop() + " " + stack.peek() + " " + stack); // => c b [b, a]
+
+                Queue<String> queue = new ArrayDeque<>();
+                queue.offer("first"); queue.offer("second");          // FIFO
+                System.out.println(queue.poll() + " " + queue.poll() + " " + queue.poll()); // => first second null
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>How does <code>PriorityQueue</code> work?</summary>
+            <div class="answer">
+              <p><code>PriorityQueue</code> is a <b>binary min-heap</b> stored in an array: the smallest element (by natural order or a <code>Comparator</code>) is always at the head. <code>offer</code> and <code>poll</code> are O(log n) (sift up / sift down); <code>peek</code> is O(1). It's used for scheduling, Dijkstra's algorithm, merging sorted streams and "top K" problems.</p>
+              <div class="note">Iterating or printing a <code>PriorityQueue</code> does <b>not</b> give sorted order — only repeated <code>poll()</code> does. It is not thread-safe; use <code>PriorityBlockingQueue</code> for that.</div>
+              <script type="text/plain" class="code" data-lang="java" data-test="c16">
+                PriorityQueue<Integer> minHeap = new PriorityQueue<>(List.of(42, 7, 19, 3, 25));
+                List<Integer> drained = new ArrayList<>();
+                while (!minHeap.isEmpty()) drained.add(minHeap.poll());
+                System.out.println(drained); // => [3, 7, 19, 25, 42]
+
+                // Top 3 largest using a min-heap of size 3: O(n log k)
+                PriorityQueue<Integer> top = new PriorityQueue<>();
+                for (int n : List.of(5, 1, 9, 3, 12, 8, 7)) {
+                    top.offer(n);
+                    if (top.size() > 3) top.poll();          // drop the smallest
+                }
+                System.out.println(new TreeSet<>(top).descendingSet()); // => [12, 9, 8]
+
+                record Task(String name, int priority) {}
+                PriorityQueue<Task> tasks = new PriorityQueue<>(Comparator.comparingInt(Task::priority).reversed());
+                tasks.add(new Task("email", 1)); tasks.add(new Task("outage", 10)); tasks.add(new Task("report", 5));
+                System.out.println(tasks.poll().name()); // => outage
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>What is a <code>BlockingQueue</code>? Explain <code>LinkedBlockingQueue</code> vs <code>ArrayBlockingQueue</code> in detail.</summary>
+            <div class="answer">
+              <p>A <code>BlockingQueue</code> is a thread-safe queue that <b>waits</b>: <code>put()</code> blocks while the queue is full, <code>take()</code> blocks while it's empty. This is the foundation of producer–consumer designs and of every <code>ThreadPoolExecutor</code>'s work queue.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Operation</th><th>Throws</th><th>Special value</th><th><b>Blocks</b></th><th>Times out</th></tr></thead>
+                <tbody>
+                  <tr><td>Insert</td><td><code>add</code></td><td><code>offer</code></td><td><code>put</code></td><td><code>offer(e, time, unit)</code></td></tr>
+                  <tr><td>Remove</td><td><code>remove</code></td><td><code>poll</code></td><td><code>take</code></td><td><code>poll(time, unit)</code></td></tr>
+                </tbody>
+              </table></div>
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th><code>ArrayBlockingQueue</code></th><th><code>LinkedBlockingQueue</code></th></tr></thead>
+                <tbody>
+                  <tr><td>Storage</td><td>Fixed-size circular array, allocated up front</td><td>Linked nodes, allocated per element</td></tr>
+                  <tr><td>Capacity</td><td><b>Always bounded</b> (required in the constructor)</td><td>Optionally bounded — default is <code>Integer.MAX_VALUE</code> (effectively <b>unbounded</b>)</td></tr>
+                  <tr><td>Locks</td><td><b>One</b> <code>ReentrantLock</code> for both put and take</td><td><b>Two</b> locks: <code>putLock</code> and <code>takeLock</code>, so a producer and a consumer can work at the same time</td></tr>
+                  <tr><td>Throughput</td><td>Lower under heavy two-sided contention</td><td>Usually higher</td></tr>
+                  <tr><td>Memory / GC</td><td>Predictable, no garbage per element</td><td>A node object per element (GC pressure)</td></tr>
+                  <tr><td>Fairness option</td><td>Yes (<code>new ArrayBlockingQueue&lt;&gt;(n, true)</code>) — FIFO order for waiting threads</td><td>No</td></tr>
+                  <tr><td>Used by</td><td>Bounded thread pools you configure yourself</td><td><code>Executors.newFixedThreadPool</code> (unbounded — a known OOM risk)</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java" data-test="c17">
+                BlockingQueue<String> q = new LinkedBlockingQueue<>(2);    // always give it a capacity
+                System.out.println(q.offer("a") + " " + q.offer("b") + " " + q.offer("c")); // => true true false   (full: offer returns false)
+                System.out.println(q.remainingCapacity()); // => 0
+
+                BlockingQueue<Integer> handoff = new ArrayBlockingQueue<>(10);
+                Thread producer = Thread.ofPlatform().start(() -> {
+                    try {
+                        for (int i = 1; i <= 5; i++) handoff.put(i);
+                        handoff.put(-1);                                      // poison pill = "no more items"
+                    } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                });
+                List<Integer> consumed = new ArrayList<>();
+                try {
+                    for (int item; (item = handoff.take()) != -1; ) consumed.add(item * 10);
+                    producer.join();
+                } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                System.out.println(consumed); // => [10, 20, 30, 40, 50]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>What other blocking and concurrent queues exist (<code>LinkedBlockingDeque</code>, <code>PriorityBlockingQueue</code>, <code>DelayQueue</code>, <code>SynchronousQueue</code>, <code>ConcurrentLinkedQueue</code>)?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Queue</th><th>Bounded?</th><th>Blocking?</th><th>How it works / use case</th></tr></thead>
+                <tbody>
+                  <tr><td><code>LinkedBlockingDeque</code></td><td>Optional</td><td>Yes</td><td>Blocking double-ended queue; producers/consumers at both ends, e.g. work-stealing designs</td></tr>
+                  <tr><td><code>PriorityBlockingQueue</code></td><td>No (grows)</td><td><code>take</code> blocks when empty</td><td>Thread-safe heap; process urgent jobs first</td></tr>
+                  <tr><td><code>DelayQueue</code></td><td>No</td><td>Yes</td><td>Elements implement <code>Delayed</code>; <code>take</code> returns one only after its delay expires — retries, expiring sessions</td></tr>
+                  <tr><td><code>SynchronousQueue</code></td><td>Capacity <b>0</b></td><td>Yes</td><td>Every <code>put</code> waits for a matching <code>take</code> — a direct hand-off; used by <code>newCachedThreadPool</code></td></tr>
+                  <tr><td><code>LinkedTransferQueue</code></td><td>No</td><td>Yes</td><td><code>transfer()</code> waits until a consumer receives the element; very efficient</td></tr>
+                  <tr><td><code>ConcurrentLinkedQueue</code> / <code>ConcurrentLinkedDeque</code></td><td>No</td><td><b>No</b></td><td>Lock-free (CAS-based Michael–Scott algorithm); fastest when you poll rather than wait. <code>size()</code> is O(n)</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java" data-test="c18">
+                BlockingDeque<String> deque = new LinkedBlockingDeque<>(5);
+                deque.offerFirst("urgent");             // putFirst/putLast block when full (and throw InterruptedException)
+                deque.offerLast("normal");
+                deque.offerFirst("critical");
+                System.out.println(deque.pollFirst() + " " + deque.pollLast() + " " + deque); // => critical normal [urgent]
+
+                Queue<String> lockFree = new ConcurrentLinkedQueue<>(List.of("x", "y"));
+                System.out.println(lockFree.poll() + " " + lockFree.poll() + " " + lockFree.poll()); // => x y null
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Iteration, immutability &amp; utilities</h2>
+
+          <details class="qa" data-level="medium">
+            <summary>Fail-fast vs fail-safe (weakly consistent) iterators — how do they work?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Fail-fast</b> (<code>ArrayList</code>, <code>HashMap</code>, …): the collection keeps a <code>modCount</code> that increases on every structural change. The iterator records it at creation and checks it on each <code>next()</code>; if it differs, it throws <code>ConcurrentModificationException</code>. This is a best-effort bug detector, not a thread-safety guarantee — it also fires in a single thread.</li>
+                <li><b>Fail-safe / weakly consistent</b> (<code>CopyOnWriteArrayList</code>, <code>ConcurrentHashMap</code>, concurrent queues): iterate over a snapshot or tolerate concurrent changes, so they never throw <code>ConcurrentModificationException</code>; they may or may not show changes made after the iterator was created.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java" data-test="c19">
+                List<Integer> nums = new ArrayList<>(List.of(1, 2, 3, 4, 5, 6));
+                try {
+                    for (Integer n : nums) if (n % 2 == 0) nums.remove(n);   // modifies the list under the iterator
+                } catch (ConcurrentModificationException e) {
+                    System.out.println("CME thrown"); // => CME thrown
+                }
+
+                List<Integer> a = new ArrayList<>(List.of(1, 2, 3, 4, 5, 6));
+                a.removeIf(n -> n % 2 == 0);                                 // correct (Java 8+)
+                System.out.println(a); // => [1, 3, 5]
+
+                List<Integer> b = new ArrayList<>(List.of(1, 2, 3, 4, 5, 6));
+                for (Iterator<Integer> it = b.iterator(); it.hasNext(); ) if (it.next() % 2 == 0) it.remove();  // correct
+                System.out.println(b); // => [1, 3, 5]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary><code>List.of</code> vs <code>Collections.unmodifiableList</code> vs <code>Arrays.asList</code> vs <code>List.copyOf</code>?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>Add / remove</th><th>Set element</th><th>Nulls</th><th>Reflects later changes to the source?</th></tr></thead>
+                <tbody>
+                  <tr><td><code>List.of(...)</code> (Java 9)</td><td>No</td><td>No</td><td>No (NPE)</td><td>No source — truly immutable</td></tr>
+                  <tr><td><code>List.copyOf(c)</code> (Java 10)</td><td>No</td><td>No</td><td>No</td><td>No — independent copy</td></tr>
+                  <tr><td><code>Collections.unmodifiableList(l)</code></td><td>No</td><td>No</td><td>Yes</td><td><b>Yes</b> — it's a read-only <i>view</i> of the original</td></tr>
+                  <tr><td><code>Arrays.asList(arr)</code></td><td><b>No</b> (fixed size)</td><td><b>Yes</b></td><td>Yes</td><td><b>Yes</b> — backed by the array (write-through)</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java" data-test="c20">
+                List<String> source = new ArrayList<>(List.of("a", "b"));
+                List<String> view = Collections.unmodifiableList(source);
+                List<String> copy = List.copyOf(source);
+                source.add("c");
+                System.out.println(view + " " + copy); // => [a, b, c] [a, b]   (the view sees "c", the copy doesn't)
+
+                String[] arr = {"x", "y"};
+                List<String> asList = Arrays.asList(arr);
+                asList.set(0, "CHANGED");
+                System.out.println(arr[0]); // => CHANGED   (write-through to the array)
+                try { asList.add("z"); } catch (UnsupportedOperationException e) { System.out.println("asList is fixed-size"); }   // prints: asList is fixed-size
+                try { List.of("a").add("b"); } catch (UnsupportedOperationException e) { System.out.println("List.of is immutable"); }   // prints: List.of is immutable
+              </script>
+              <div class="note"><code>Set.of</code> and <code>Map.of</code> have <b>randomised iteration order</b> (it changes between JVM runs) and throw <code>IllegalArgumentException</code> on duplicate elements/keys. Also note: unmodifiable is <b>shallow</b> — the elements themselves can still be mutable.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>What are Sequenced Collections (Java 21)?</summary>
+            <div class="answer">
+              <p>Java 21 (JEP 431) added <code>SequencedCollection</code>, <code>SequencedSet</code> and <code>SequencedMap</code>, giving every collection with a defined encounter order a <b>uniform API</b> for its first and last elements and a reversed view. Before this, getting the last element meant <code>list.get(list.size() - 1)</code>, <code>deque.getLast()</code>, <code>sortedSet.last()</code>, or iterating a <code>LinkedHashSet</code> to the end.</p>
+              <script type="text/plain" class="code" data-lang="java" data-test="c21">
+                List<Integer> list = new ArrayList<>(List.of(1, 2, 3));
+                list.addFirst(0);
+                list.addLast(4);
+                System.out.println(list.getFirst() + " " + list.getLast() + " " + list.reversed()); // => 0 4 [4, 3, 2, 1, 0]
+
+                LinkedHashSet<String> set = new LinkedHashSet<>(List.of("b", "c"));
+                set.addFirst("a");                       // moves/inserts at the front
+                System.out.println(set + " " + set.reversed()); // => [a, b, c] [c, b, a]
+
+                LinkedHashMap<String, Integer> map = new LinkedHashMap<>(Map.of("x", 1));
+                map.putFirst("first", 0);
+                System.out.println(map.firstEntry() + " " + map.pollLastEntry() + " " + map); // => first=0 x=1 {first=0}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>What does the <code>Collections</code> utility class provide? <code>Comparable</code> vs <code>Comparator</code>?</summary>
+            <div class="answer">
+              <ul>
+                <li><b><code>Comparable&lt;T&gt;</code></b> — the class defines its own <b>natural ordering</b> with <code>compareTo</code> (e.g. <code>String</code>, <code>Integer</code>, <code>LocalDate</code>). One ordering per class, built in.</li>
+                <li><b><code>Comparator&lt;T&gt;</code></b> — an <b>external</b> ordering you pass in, so you can have many (by salary, by name…). Build them fluently: <code>Comparator.comparing(...).thenComparing(...).reversed()</code>.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java" data-test="c22">
+                List<Integer> nums = new ArrayList<>(List.of(5, 3, 9, 1, 7));
+                Collections.sort(nums);
+                System.out.println(nums + " index of 7 = " + Collections.binarySearch(nums, 7)); // => [1, 3, 5, 7, 9] index of 7 = 3   (binarySearch needs a sorted list)
+                System.out.println(Collections.max(nums) + " " + Collections.min(nums) + " " + Collections.frequency(List.of(1, 2, 1), 1)); // => 9 1 2
+                Collections.reverse(nums);
+                System.out.println(nums); // => [9, 7, 5, 3, 1]
+                Collections.swap(nums, 0, 4);
+                System.out.println(nums); // => [1, 7, 5, 3, 9]
+                System.out.println(Collections.nCopies(3, "ab") + " " + Collections.emptyList() + " " + Collections.singletonList("only")); // => [ab, ab, ab] [] [only]
+
+                record Emp(String name, int salary) {}
+                List<Emp> emps = new ArrayList<>(List.of(new Emp("Ravi", 900), new Emp("Asha", 1200), new Emp("John", 900)));
+                emps.sort(Comparator.comparingInt(Emp::salary).reversed().thenComparing(Emp::name));
+                System.out.println(emps.stream().map(Emp::name).toList()); // => [Asha, John, Ravi]
               </script>
             </div>
           </details>
