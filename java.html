@@ -432,6 +432,886 @@
         </section>
 
         <section class="qa-group">
+          <h2>Thread pools &amp; ExecutorService (deep dive)</h2>
+          <p class="group-intro">How executors work internally, how to size and tune them, and the mistakes interviewers look for.</p>
+
+          <details class="qa" data-level="easy">
+            <summary>What are the ways to run code on another thread, and why prefer an <code>ExecutorService</code>?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                // 1. Extend Thread (avoid: wastes your single inheritance)
+                new Thread() { public void run() { work(); } }.start();
+
+                // 2. Runnable — no result, cannot throw checked exceptions
+                new Thread(() -> work(), "worker-1").start();
+
+                // 3. Callable + ExecutorService — returns a value, can throw, thread is reused
+                ExecutorService pool = Executors.newFixedThreadPool(4);
+                Future<Integer> f = pool.submit(() -> compute());   // Callable<Integer>
+                Integer result = f.get(2, TimeUnit.SECONDS);
+
+                // 4. Java 21+: virtual thread per task
+                try (var vexec = Executors.newVirtualThreadPerTaskExecutor()) {
+                    vexec.submit(() -> callRemoteApi());
+                }
+              </script>
+              <p>Creating a platform thread is expensive (≈1 MB stack reserved, a kernel thread, OS scheduling). An executor
+                <b>reuses</b> threads, <b>bounds</b> concurrency, queues excess work, and gives you lifecycle control
+                (<code>shutdown</code>, <code>awaitTermination</code>) and results via <code>Future</code>.</p>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary><code>Executor</code> vs <code>ExecutorService</code> vs <code>ScheduledExecutorService</code> — and what does each <code>Executors</code> factory method really create?</summary>
+            <div class="answer">
+              <ul>
+                <li><code>Executor</code> — one method: <code>execute(Runnable)</code>.</li>
+                <li><code>ExecutorService</code> — adds <code>submit</code>, <code>invokeAll</code>/<code>invokeAny</code>, shutdown methods, and (Java 19+) <code>close()</code> so it works with try-with-resources.</li>
+                <li><code>ScheduledExecutorService</code> — adds <code>schedule</code>, <code>scheduleAtFixedRate</code>, <code>scheduleWithFixedDelay</code>.</li>
+              </ul>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Factory</th><th>What it builds</th><th>Hidden risk</th></tr></thead>
+                <tbody>
+                  <tr><td><code>newFixedThreadPool(n)</code></td><td>core = max = n, <b>unbounded</b> <code>LinkedBlockingQueue</code></td><td>Queue grows forever under overload → OOM</td></tr>
+                  <tr><td><code>newSingleThreadExecutor()</code></td><td>1 thread, unbounded queue; tasks run in order</td><td>Same unbounded queue</td></tr>
+                  <tr><td><code>newCachedThreadPool()</code></td><td>core 0, max <code>Integer.MAX_VALUE</code>, <code>SynchronousQueue</code>, 60 s idle timeout</td><td>Unbounded <b>threads</b> under burst → OOM / "unable to create native thread"</td></tr>
+                  <tr><td><code>newScheduledThreadPool(n)</code></td><td><code>ScheduledThreadPoolExecutor</code> with a delay queue</td><td>Exception in a periodic task silently cancels future runs</td></tr>
+                  <tr><td><code>newWorkStealingPool()</code></td><td><code>ForkJoinPool</code> with parallelism = CPU count</td><td>Daemon threads; not for blocking I/O</td></tr>
+                  <tr><td><code>newVirtualThreadPerTaskExecutor()</code></td><td>New virtual thread per task, no pool (Java 21+)</td><td>No built-in concurrency limit — protect downstream resources</td></tr>
+                </tbody>
+              </table></div>
+              <div class="tip">In production code, build a <code>ThreadPoolExecutor</code> yourself with a <b>bounded queue</b>, a named <code>ThreadFactory</code> and an explicit rejection policy (Alibaba's Java guidelines even forbid the <code>Executors</code> shortcuts for platform pools).</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>Explain the <code>ThreadPoolExecutor</code> constructor parameters and exactly what happens when a task is submitted.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                    4,                                    // corePoolSize: threads kept alive even when idle
+                    16,                                   // maximumPoolSize: upper bound on threads
+                    30, TimeUnit.SECONDS,                 // keepAliveTime for threads above core
+                    new ArrayBlockingQueue<>(500),        // workQueue: bounded!
+                    Thread.ofPlatform().name("order-worker-", 0).factory(),   // ThreadFactory (Java 21+ builder)
+                    new ThreadPoolExecutor.CallerRunsPolicy());                // RejectedExecutionHandler
+              </script>
+              <p>The submission algorithm (this surprises many candidates — the queue fills <b>before</b> extra threads are created):</p>
+              <script type="text/plain" class="code" data-lang="plaintext">
+                execute(task)
+                  ├─ running threads < corePoolSize ?  → start a NEW core thread with this task
+                  ├─ queue.offer(task) succeeds ?      → task waits in the queue
+                  ├─ running threads < maximumPoolSize ? → start a NEW non-core thread
+                  └─ otherwise                         → RejectedExecutionHandler.rejectedExecution()
+              </script>
+              <ul>
+                <li>With an <b>unbounded</b> queue, <code>maximumPoolSize</code> is never reached — the extra threads never start.</li>
+                <li><code>allowCoreThreadTimeOut(true)</code> lets core threads die when idle too.</li>
+                <li><code>prestartAllCoreThreads()</code> warms the pool up before the first request.</li>
+                <li>Threads above core exit after <code>keepAliveTime</code> of idleness.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Which work queue should you choose?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Queue</th><th>Behaviour</th><th>Use when</th></tr></thead>
+                <tbody>
+                  <tr><td><code>ArrayBlockingQueue(n)</code></td><td>Bounded, array-backed, one lock</td><td>Default choice: predictable memory and backpressure</td></tr>
+                  <tr><td><code>LinkedBlockingQueue(n)</code></td><td>Optionally bounded, separate put/take locks</td><td>High throughput; always pass a capacity</td></tr>
+                  <tr><td><code>SynchronousQueue</code></td><td>Zero capacity — direct hand-off to a thread</td><td>Grow threads immediately (cached pool style)</td></tr>
+                  <tr><td><code>PriorityBlockingQueue</code></td><td>Unbounded, ordered by <code>Comparable</code>/<code>Comparator</code></td><td>Priority jobs (tasks must be comparable; use <code>execute</code>, not <code>submit</code>, which wraps tasks in non-comparable <code>FutureTask</code>s)</td></tr>
+                  <tr><td><code>DelayQueue</code></td><td>Elements available after a delay</td><td>Scheduling (used inside scheduled executors)</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>What are the rejection policies, and how do you apply backpressure?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Policy</th><th>What happens to the rejected task</th></tr></thead>
+                <tbody>
+                  <tr><td><code>AbortPolicy</code> (default)</td><td>Throws <code>RejectedExecutionException</code></td></tr>
+                  <tr><td><code>CallerRunsPolicy</code></td><td>Runs on the submitting thread — slows the producer down (natural backpressure)</td></tr>
+                  <tr><td><code>DiscardPolicy</code></td><td>Silently dropped (dangerous unless data is truly disposable)</td></tr>
+                  <tr><td><code>DiscardOldestPolicy</code></td><td>Drops the oldest queued task and retries</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java">
+                // Custom policy: record a metric, then fail fast so the caller can return HTTP 503
+                RejectedExecutionHandler rejectAndCount = (task, executor) -> {
+                    rejectedCounter.increment();
+                    throw new RejectedExecutionException("Order pool saturated: queue=" + executor.getQueue().size());
+                };
+              </script>
+              <div class="note"><code>CallerRunsPolicy</code> on a Tomcat request thread means the request thread does the work itself — fine for backpressure, but it increases that request's latency.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>How do you size a thread pool?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>CPU-bound</b> (hashing, image processing): <code>threads ≈ cores</code> (or cores + 1). More threads only add context switches.</li>
+                <li><b>I/O-bound</b> (Brian Goetz's formula): <code>threads = cores × target utilisation × (1 + wait time / compute time)</code>.
+                  E.g. 8 cores, task waits 90 ms and computes 10 ms → 8 × 1 × (1 + 9) = <b>80 threads</b>.</li>
+                <li>The real limit is often a <b>downstream resource</b>: no point running 200 threads against a 20-connection DB pool.</li>
+                <li>Measure under load (queue size, active count, latency percentiles), then tune. Or for I/O-bound work on Java 21+, use virtual threads and limit only the scarce resource.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                int cores = Runtime.getRuntime().availableProcessors();   // container-aware since Java 10
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary><code>execute()</code> vs <code>submit()</code> — where do exceptions go?</summary>
+            <div class="answer">
+              <ul>
+                <li><code>execute(Runnable)</code>: an exception kills the worker thread (the pool replaces it) and goes to the thread's <code>UncaughtExceptionHandler</code> — you see a stack trace.</li>
+                <li><code>submit(...)</code>: the exception is <b>captured in the <code>Future</code></b>. If nobody calls <code>get()</code>, it is silently swallowed — a very common production bug.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                Future<?> f = pool.submit(() -> { throw new IllegalStateException("boom"); });
+                try {
+                    f.get(5, TimeUnit.SECONDS);
+                } catch (ExecutionException e) {
+                    log.error("Task failed", e.getCause());          // the real exception
+                } catch (TimeoutException e) {
+                    f.cancel(true);                                  // interrupts the running task
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();              // restore the interrupt flag
+                }
+
+                // Java 19+: inspect a finished Future without try/catch
+                if (f.state() == Future.State.FAILED) log.error("failed", f.exceptionNow());
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>How do you shut down an executor correctly?</summary>
+            <div class="answer">
+              <ul>
+                <li><code>shutdown()</code> — stop accepting new tasks; queued and running tasks finish.</li>
+                <li><code>shutdownNow()</code> — interrupts running tasks and returns the queued ones that never started.</li>
+                <li><code>awaitTermination(timeout)</code> — blocks until done or timeout.</li>
+                <li><code>close()</code> (Java 19+) — <code>shutdown()</code> + wait until all tasks finish; enables try-with-resources.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                void shutdownGracefully(ExecutorService pool) {
+                    pool.shutdown();
+                    try {
+                        if (!pool.awaitTermination(30, TimeUnit.SECONDS)) {
+                            List<Runnable> neverRan = pool.shutdownNow();
+                            log.warn("Forced shutdown, {} tasks dropped", neverRan.size());
+                            if (!pool.awaitTermination(10, TimeUnit.SECONDS)) log.error("Pool did not terminate");
+                        }
+                    } catch (InterruptedException e) {
+                        pool.shutdownNow();
+                        Thread.currentThread().interrupt();
+                    }
+                }
+
+                // Java 19+
+                try (ExecutorService pool = Executors.newFixedThreadPool(4)) {
+                    pool.submit(task1);
+                    pool.submit(task2);
+                }   // close() waits for both tasks
+              </script>
+              <div class="note">A pool of non-daemon threads that is never shut down keeps the JVM alive after <code>main</code> ends. Tasks must respond to interruption (check <code>Thread.interrupted()</code>, or use blocking calls that throw <code>InterruptedException</code>) for <code>shutdownNow()</code> to work.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary><code>invokeAll</code> vs <code>invokeAny</code> vs <code>ExecutorCompletionService</code>?</summary>
+            <div class="answer">
+              <ul>
+                <li><code>invokeAll(tasks, timeout)</code> — waits for all; tasks not finished in time are cancelled. Futures come back in <b>submission order</b>.</li>
+                <li><code>invokeAny(tasks)</code> — returns the first <b>successful</b> result and cancels the rest (e.g. query 3 mirrors, use the fastest).</li>
+                <li><code>ExecutorCompletionService</code> — hands you results in <b>completion order</b>, so you can process fast results while slow ones still run.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                CompletionService<Quote> cs = new ExecutorCompletionService<>(pool);
+                providers.forEach(p -> cs.submit(() -> p.quote(request)));
+                for (int i = 0; i < providers.size(); i++) {
+                    Quote q = cs.take().get();        // whichever finished next
+                    display(q);
+                }
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Why should you pass your own executor to <code>CompletableFuture</code>?</summary>
+            <div class="answer">
+              <p>Without an executor, <code>supplyAsync</code> uses <code>ForkJoinPool.commonPool()</code>, which has only <code>cores − 1</code> threads and is shared with parallel streams across the whole JVM. One blocking HTTP call there can starve unrelated code.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                ExecutorService io = Executors.newFixedThreadPool(32);   // or newVirtualThreadPerTaskExecutor()
+
+                CompletableFuture<User> user = CompletableFuture.supplyAsync(() -> userClient.get(id), io);
+                CompletableFuture<List<Order>> orders = CompletableFuture.supplyAsync(() -> orderClient.list(id), io);
+
+                Dashboard d = user.thenCombine(orders, Dashboard::new)
+                    .orTimeout(2, TimeUnit.SECONDS)                       // Java 9+
+                    .exceptionally(ex -> Dashboard.empty())
+                    .join();
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>What is <code>ForkJoinPool</code> and work stealing? How is it different from <code>ThreadPoolExecutor</code>?</summary>
+            <div class="answer">
+              <p>Each <code>ForkJoinPool</code> worker has its own <b>double-ended queue</b>. A task <code>fork()</code>s subtasks onto its own deque (LIFO, cache-friendly); idle workers <b>steal</b> from the tail of other workers' deques (FIFO). This suits recursive divide-and-conquer work. <code>ThreadPoolExecutor</code> has one shared queue and suits independent tasks.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                class SumTask extends RecursiveTask<Long> {
+                    private static final int THRESHOLD = 10_000;
+                    private final long[] a; private final int lo, hi;
+                    SumTask(long[] a, int lo, int hi) { this.a = a; this.lo = lo; this.hi = hi; }
+
+                    @Override protected Long compute() {
+                        if (hi - lo <= THRESHOLD) {
+                            long s = 0; for (int i = lo; i < hi; i++) s += a[i]; return s;
+                        }
+                        int mid = (lo + hi) >>> 1;
+                        SumTask left = new SumTask(a, lo, mid);
+                        left.fork();                                   // run asynchronously
+                        long right = new SumTask(a, mid, hi).compute(); // reuse current thread
+                        return right + left.join();
+                    }
+                }
+                long total = ForkJoinPool.commonPool().invoke(new SumTask(data, 0, data.length));
+              </script>
+              <div class="tip">Parallel streams and <code>CompletableFuture</code>'s default use the common pool. Virtual threads are also scheduled by a dedicated <code>ForkJoinPool</code> of carrier threads.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>What goes wrong with <code>ThreadLocal</code> in thread pools, and how do you propagate context (e.g. MDC, security)?</summary>
+            <div class="answer">
+              <p>Pool threads live forever, so a <code>ThreadLocal</code> that is set but not removed <b>leaks</b> into the next task (user A's tenant ID seen by user B) and retains memory. Always clear it in <code>finally</code>, and copy context explicitly when handing work to another thread.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                // Wrap tasks so the submitter's logging MDC is visible in the worker
+                static Runnable withMdc(Runnable task) {
+                    Map<String, String> context = MDC.getCopyOfContextMap();
+                    return () -> {
+                        Map<String, String> previous = MDC.getCopyOfContextMap();
+                        if (context != null) MDC.setContextMap(context); else MDC.clear();
+                        try { task.run(); }
+                        finally { if (previous != null) MDC.setContextMap(previous); else MDC.clear(); }
+                    };
+                }
+                pool.execute(withMdc(() -> process(order)));
+              </script>
+              <div class="note">Spring offers <code>TaskDecorator</code> for <code>ThreadPoolTaskExecutor</code>, and <code>DelegatingSecurityContextExecutorService</code> for the security context. With virtual threads on Java 25, prefer <code>ScopedValue</code> — immutable and automatically scoped.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>How do you monitor a thread pool in production?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                ThreadPoolExecutor tpe = (ThreadPoolExecutor) pool;
+                log.info("active={} poolSize={} queued={} completed={} largest={}",
+                    tpe.getActiveCount(), tpe.getPoolSize(), tpe.getQueue().size(),
+                    tpe.getCompletedTaskCount(), tpe.getLargestPoolSize());
+
+                // Micrometer: exposes executor.active, executor.queued, executor.pool.size ... via Actuator
+                ExecutorService monitored = ExecutorServiceMetrics.monitor(meterRegistry, pool, "order-pool");
+              </script>
+              <p>Alert on a <b>growing queue</b>, a pool stuck at max size, rising rejections, and task latency. Take a thread dump (<code>jcmd &lt;pid&gt; Thread.print</code>) when a pool hangs — look for threads all <code>WAITING</code> on the same lock or future.</p>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Virtual threads (Java 21 → 25)</h2>
+          <p class="group-intro">Virtual threads were finalized in Java 21 (JEP 444). Java 24 removed most pinning (JEP 491), and Java 25 LTS adds final Scoped Values — making 25 the best release to adopt them on.</p>
+
+          <details class="qa" data-level="medium">
+            <summary>What is a virtual thread and how does it work internally?</summary>
+            <div class="answer">
+              <p>A virtual thread is a <code>java.lang.Thread</code> managed by the JVM, not the OS. Many virtual threads are multiplexed onto a small pool of <b>carrier</b> platform threads (a <code>ForkJoinPool</code>, parallelism = CPU count by default).</p>
+              <ul>
+                <li>When a virtual thread blocks on I/O, <code>sleep</code>, a lock or a <code>BlockingQueue</code>, the JVM <b>unmounts</b> it: its stack frames are copied to the heap as a continuation, and the carrier is free to run another virtual thread.</li>
+                <li>When the I/O completes, the virtual thread is <b>mounted</b> again on any free carrier and continues.</li>
+                <li>Cost: a few hundred bytes to a few KB of heap that grows as needed, versus ~1 MB reserved stack for a platform thread. Millions are practical.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="plaintext">
+                Virtual threads:   VT1  VT2  VT3  VT4 ... VT1_000_000   (cheap, heap-allocated)
+                                     \    |    |   /
+                Carrier threads:    [ CT1 ][ CT2 ][ CT3 ][ CT4 ]      (ForkJoinPool, ~#cores)
+                                        |     |     |     |
+                OS threads:          kernel thread per carrier
+              </script>
+              <div class="tip">Virtual threads improve <b>throughput</b> (more concurrent requests), not the latency of a single request. They make the simple blocking, thread-per-request style scale like reactive code.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>How do you create virtual threads?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                Thread t1 = Thread.startVirtualThread(() -> handle(req));
+
+                Thread t2 = Thread.ofVirtual().name("vt-", 0).start(() -> handle(req));
+
+                ThreadFactory factory = Thread.ofVirtual().name("api-", 0).factory();
+
+                try (ExecutorService exec = Executors.newVirtualThreadPerTaskExecutor()) {
+                    List<Future<String>> results = urls.stream()
+                        .map(u -> exec.submit(() -> fetch(u)))
+                        .toList();
+                    for (Future<String> f : results) System.out.println(f.get());
+                }   // close() waits for all tasks
+
+                Thread.currentThread().isVirtual();   // true inside a virtual thread
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Platform threads vs virtual threads — compare them.</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Aspect</th><th>Platform thread</th><th>Virtual thread</th></tr></thead>
+                <tbody>
+                  <tr><td>Backed by</td><td>1:1 OS thread</td><td>M:N on carrier threads</td></tr>
+                  <tr><td>Memory</td><td>~1 MB stack reserved</td><td>Small, growable heap stack</td></tr>
+                  <tr><td>Creation cost</td><td>High (syscall)</td><td>Very low — create one per task</td></tr>
+                  <tr><td>Practical count</td><td>Thousands</td><td>Millions</td></tr>
+                  <tr><td>Pooling</td><td>Yes, always pool</td><td><b>Never</b> pool</td></tr>
+                  <tr><td>Daemon / priority</td><td>Configurable</td><td>Always daemon, priority fixed</td></tr>
+                  <tr><td>Best for</td><td>CPU-bound work, long-lived background threads</td><td>I/O-bound tasks: HTTP, JDBC, messaging</td></tr>
+                  <tr><td>ThreadLocal</td><td>Fine (with cleanup)</td><td>Works, but costly with millions of threads — prefer <code>ScopedValue</code></td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>What is pinning? What changed in Java 24/25?</summary>
+            <div class="answer">
+              <p>A virtual thread is <b>pinned</b> when it cannot unmount while blocking, so it holds its carrier thread hostage. With few carriers, a handful of pinned threads can stall the whole application.</p>
+              <ul>
+                <li><b>Java 21–23:</b> blocking inside a <code>synchronized</code> block/method pinned the thread. Advice was to replace <code>synchronized</code> with <code>ReentrantLock</code> around blocking calls.</li>
+                <li><b>Java 24+ (JEP 491):</b> virtual threads can acquire, hold and release monitors independently of their carrier, so <code>synchronized</code> <b>no longer pins</b>. On Java 25 you don't need to rewrite <code>synchronized</code> code.</li>
+                <li><b>Still pins:</b> blocking while a native method or foreign (FFM) call is on the stack, and some class-initialization cases.</li>
+                <li><b>Detect:</b> the JFR event <code>jdk.VirtualThreadPinned</code> (the old <code>-Djdk.tracePinnedThreads</code> flag was removed in Java 24).</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="bash">
+                java -XX:StartFlightRecording=filename=app.jfr,settings=profile -jar app.jar
+                jfr print --events jdk.VirtualThreadPinned app.jfr
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>Why must you not pool virtual threads? How do you limit concurrency instead?</summary>
+            <div class="answer">
+              <p>Pools exist to amortise the cost of expensive threads. Virtual threads are cheap, so pooling adds nothing — and a fixed pool of virtual threads silently reintroduces the throughput cap you wanted to remove. Instead, create one per task and limit the <b>scarce resource</b> with a <code>Semaphore</code>.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                // Wrong: caps you at 50 concurrent tasks, just like a platform pool
+                ExecutorService bad = Executors.newFixedThreadPool(50, Thread.ofVirtual().factory());
+
+                // Right: unlimited cheap threads, but only 20 talk to the payment API at once
+                private final Semaphore paymentPermits = new Semaphore(20);
+
+                PaymentResult charge(Order o) throws InterruptedException {
+                    paymentPermits.acquire();
+                    try {
+                        return paymentClient.charge(o);
+                    } finally {
+                        paymentPermits.release();
+                    }
+                }
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary><code>ThreadLocal</code> vs <code>ScopedValue</code> (final in Java 25) — why does it matter for virtual threads?</summary>
+            <div class="answer">
+              <p><code>ThreadLocal</code> is mutable, unbounded in lifetime (until <code>remove()</code>), and costly when inherited by millions of threads. <code>ScopedValue</code> (JEP 506) is <b>immutable</b>, bound only for the duration of a call, and cheap to share with child threads in structured concurrency.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public class RequestContext {
+                    public static final ScopedValue<String> USER = ScopedValue.newInstance();
+                }
+
+                // In a filter / request handler
+                ScopedValue.where(RequestContext.USER, "asha@corp.com")
+                           .run(() -> orderService.placeOrder(cart));
+
+                // Anywhere deeper in the call stack — no parameter passing needed
+                String user = RequestContext.USER.get();                 // throws if unbound
+                String safe = RequestContext.USER.orElse("anonymous");   // Java 25 API
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>What is structured concurrency (preview in Java 25)? Show an example.</summary>
+            <div class="answer">
+              <p><code>StructuredTaskScope</code> (JEP 505, 5th preview) treats a group of subtasks as one unit: they are forked inside a scope, the scope waits for them, and if one fails the others are <b>cancelled</b>. No leaked threads, and thread dumps show the parent–child relationship.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                // javac --release 25 --enable-preview ...  |  java --enable-preview ...
+                record Dashboard(User user, List<Order> orders) {}
+
+                Dashboard load(long id) throws InterruptedException {
+                    try (var scope = StructuredTaskScope.open()) {        // default: all must succeed
+                        Subtask<User> user = scope.fork(() -> userClient.get(id));
+                        Subtask<List<Order>> orders = scope.fork(() -> orderClient.list(id));
+
+                        scope.join();               // waits; throws FailedException if any subtask failed
+                        return new Dashboard(user.get(), orders.get());
+                    }
+                }
+
+                // Race: first successful result wins, the rest are cancelled
+                try (var scope = StructuredTaskScope.open(Joiner.<String>anySuccessfulResultOrThrow())) {
+                    mirrors.forEach(m -> scope.fork(() -> m.download(file)));
+                    return scope.join();
+                }
+              </script>
+              <div class="note">The API changed between previews (Java 21–24 used <code>new StructuredTaskScope.ShutdownOnFailure()</code>); in interviews, mention that it is still preview in 25.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>How do you enable virtual threads in Spring Boot, and what are the caveats?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="yaml">
+                spring:
+                  threads:
+                    virtual:
+                      enabled: true     # Boot 3.2+, Java 21+
+              </script>
+              <p>Tomcat/Jetty request handling, <code>@Async</code>, <code>@Scheduled</code>, Kafka/RabbitMQ listeners and the
+                auto-configured <code>SimpleAsyncTaskExecutor</code> then run on virtual threads.</p>
+              <ul>
+                <li><b>The DB pool is now the bottleneck</b> — 10,000 virtual threads still share e.g. 20 HikariCP connections; they queue waiting for one. Size the pool and set <code>connectionTimeout</code>.</li>
+                <li>Because virtual threads are daemon threads, set <code>spring.main.keep-alive=true</code> if the app has nothing else keeping the JVM alive (e.g. only scheduled jobs).</li>
+                <li>Watch for libraries doing long blocking work in native code (pinning), and huge <code>ThreadLocal</code> caches.</li>
+                <li>Load-test before and after — gains are big for I/O-heavy services, near zero for CPU-heavy ones.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>When should you NOT use virtual threads?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>CPU-bound work</b> — there are only ~#cores carriers; use a fixed platform pool or parallel streams.</li>
+                <li><b>Low concurrency</b> — if you only ever run 20 tasks at a time, a small platform pool is equally good.</li>
+                <li><b>Already-reactive code</b> (WebFlux/Netty event loops) — there is no blocking to hide.</li>
+                <li><b>Heavy native / JNI blocking</b> — pins carriers.</li>
+                <li>Tasks that rely on <b>thread priority</b> or on pooled-thread <code>ThreadLocal</code> caches (e.g. expensive objects cached per thread).</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>Can you tune the virtual thread scheduler? How do you debug virtual threads?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="bash">
+                # Number of carrier threads (default = available processors)
+                -Djdk.virtualThreadScheduler.parallelism=8
+                # Max carriers when some are blocked (default 256)
+                -Djdk.virtualThreadScheduler.maxPoolSize=256
+
+                # Thread dump that includes virtual threads (jstack does not show them all)
+                jcmd <pid> Thread.dump_to_file -format=json threads.json
+              </script>
+              <p>Debuggers (IntelliJ, Eclipse) and JFR support virtual threads. JFR events: <code>jdk.VirtualThreadStart</code>, <code>jdk.VirtualThreadEnd</code>, <code>jdk.VirtualThreadPinned</code>, <code>jdk.VirtualThreadSubmitFailed</code>.</p>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Thread pool coding questions</h2>
+          <p class="group-intro">Hands-on concurrency problems. Each solution compiles and runs on Java 25 (structured concurrency needs <code>--enable-preview</code>).</p>
+
+          <details class="qa" data-level="hard">
+            <summary>Implement your own simple thread pool (no <code>java.util.concurrent</code> executors).</summary>
+            <div class="answer">
+              <p>Fixed worker threads loop forever, taking tasks from a <code>BlockingQueue</code>. Shutdown stops new submissions and interrupts idle workers once the queue drains.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public class SimpleThreadPool {
+                    private final BlockingQueue<Runnable> queue;
+                    private final List<Thread> workers = new ArrayList<>();
+                    private volatile boolean shutdown = false;
+
+                    public SimpleThreadPool(int threads, int queueCapacity) {
+                        queue = new ArrayBlockingQueue<>(queueCapacity);
+                        for (int i = 0; i < threads; i++) {
+                            Thread w = new Thread(this::workerLoop, "simple-pool-" + i);
+                            workers.add(w);
+                            w.start();
+                        }
+                    }
+
+                    private void workerLoop() {
+                        while (!shutdown || !queue.isEmpty()) {
+                            try {
+                                Runnable task = queue.poll(100, TimeUnit.MILLISECONDS);
+                                if (task == null) continue;
+                                try {
+                                    task.run();
+                                } catch (RuntimeException e) {          // one bad task must not kill the worker
+                                    System.err.println(Thread.currentThread().getName() + " task failed: " + e);
+                                }
+                            } catch (InterruptedException e) {
+                                return;                                 // shutdownNow()
+                            }
+                        }
+                    }
+
+                    public void submit(Runnable task) throws InterruptedException {
+                        if (shutdown) throw new IllegalStateException("Pool is shut down");
+                        queue.put(task);                                // blocks when full = backpressure
+                    }
+
+                    public void shutdown() { shutdown = true; }
+
+                    public void shutdownNow() {
+                        shutdown = true;
+                        queue.clear();
+                        workers.forEach(Thread::interrupt);
+                    }
+
+                    public void awaitTermination() throws InterruptedException {
+                        for (Thread w : workers) w.join();
+                    }
+
+                    public static void main(String[] args) throws InterruptedException {
+                        SimpleThreadPool pool = new SimpleThreadPool(3, 10);
+                        for (int i = 1; i <= 8; i++) {
+                            int id = i;
+                            pool.submit(() -> System.out.println(Thread.currentThread().getName() + " runs task " + id));
+                        }
+                        pool.shutdown();
+                        pool.awaitTermination();
+                        System.out.println("All tasks done");
+                    }
+                }
+              </script>
+              <div class="tip">Talking points: why <code>poll</code> with a timeout (so workers notice shutdown), why catch <code>RuntimeException</code> per task, and why the bounded queue gives backpressure. Follow-ups: add <code>Future</code> support by wrapping a <code>Callable</code> in <code>FutureTask</code>.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Build a production-ready <code>ThreadPoolExecutor</code>: bounded queue, named threads, error logging and backpressure.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                public final class Pools {
+                    public static ThreadPoolExecutor newBoundedPool(String name, int core, int max, int queueSize) {
+                        ThreadFactory factory = Thread.ofPlatform()
+                            .name(name + "-", 0)
+                            .uncaughtExceptionHandler((t, e) -> System.err.println(t.getName() + " died: " + e))
+                            .factory();
+
+                        ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                            core, max, 60, TimeUnit.SECONDS,
+                            new ArrayBlockingQueue<>(queueSize),
+                            factory,
+                            new ThreadPoolExecutor.CallerRunsPolicy()) {
+
+                            @Override
+                            protected void afterExecute(Runnable r, Throwable t) {
+                                super.afterExecute(r, t);
+                                // submit() hides exceptions inside the Future — surface them here
+                                if (t == null && r instanceof Future<?> f && f.isDone()) {
+                                    try { f.get(); }
+                                    catch (ExecutionException e) { t = e.getCause(); }
+                                    catch (CancellationException ignored) { }
+                                    catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                                }
+                                if (t != null) System.err.println("Task failed: " + t);
+                            }
+                        };
+                        pool.prestartAllCoreThreads();
+                        return pool;
+                    }
+                }
+
+                ThreadPoolExecutor orders = Pools.newBoundedPool("orders", 4, 8, 100);
+                orders.submit(() -> { throw new IllegalStateException("bad order"); });  // now logged
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Fetch 5 prices in parallel with a timeout, and return whatever finished in time.</summary>
+            <div class="answer">
+              <p><code>invokeAll</code> with a timeout cancels the slow tasks; check each future's state before reading it.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                record Price(String shop, int amount) {}
+
+                static List<Price> fetchPrices(List<String> shops, ExecutorService pool) throws InterruptedException {
+                    List<Callable<Price>> tasks = shops.stream()
+                        .<Callable<Price>>map(shop -> () -> {
+                            Thread.sleep(ThreadLocalRandom.current().nextInt(100, 1500));   // simulated I/O
+                            return new Price(shop, ThreadLocalRandom.current().nextInt(500, 900));
+                        })
+                        .toList();
+
+                    List<Future<Price>> futures = pool.invokeAll(tasks, 1, TimeUnit.SECONDS);
+
+                    return futures.stream()
+                        .filter(f -> f.state() == Future.State.SUCCESS)    // cancelled ones are skipped
+                        .map(Future::resultNow)
+                        .sorted(Comparator.comparingInt(Price::amount))
+                        .toList();
+                }
+
+                try (var pool = Executors.newVirtualThreadPerTaskExecutor()) {
+                    System.out.println(fetchPrices(List.of("Amazon", "Flipkart", "Croma", "Reliance", "Tata"), pool));
+                }
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Prove virtual threads scale better: run 10,000 tasks that each block for 1 second.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                public class VirtualVsPlatform {
+                    static long run(ExecutorService exec) {
+                        long start = System.currentTimeMillis();
+                        try (exec) {
+                            IntStream.range(0, 10_000).forEach(i -> exec.submit(() -> {
+                                Thread.sleep(Duration.ofSeconds(1));   // simulates a blocking HTTP/DB call
+                                return i;
+                            }));
+                        }                                              // close() waits for all tasks
+                        return System.currentTimeMillis() - start;
+                    }
+
+                    public static void main(String[] args) {
+                        System.out.println("Platform pool (200): " + run(Executors.newFixedThreadPool(200)) + " ms");
+                        System.out.println("Virtual threads:     " + run(Executors.newVirtualThreadPerTaskExecutor()) + " ms");
+                    }
+                }
+                // Typical output:
+                // Platform pool (200): ~50,000 ms   (10,000 tasks / 200 threads × 1 s)
+                // Virtual threads:     ~1,000 ms    (all 10,000 sleep concurrently)
+              </script>
+              <div class="note">Swap the <code>sleep</code> for a CPU-heavy loop and the advantage disappears — that is exactly the "when not to use virtual threads" point.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Process 1,000 orders on virtual threads, but allow at most 10 concurrent calls to a rate-limited API.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                public class LimitedConcurrency {
+                    private static final Semaphore API_PERMITS = new Semaphore(10);
+                    private static final AtomicInteger inFlight = new AtomicInteger();
+                    private static final AtomicInteger maxSeen = new AtomicInteger();
+
+                    static String callApi(int orderId) throws InterruptedException {
+                        API_PERMITS.acquire();
+                        try {
+                            int now = inFlight.incrementAndGet();
+                            maxSeen.accumulateAndGet(now, Math::max);
+                            Thread.sleep(50);                         // the remote call
+                            return "order-" + orderId + ":OK";
+                        } finally {
+                            inFlight.decrementAndGet();
+                            API_PERMITS.release();
+                        }
+                    }
+
+                    public static void main(String[] args) throws Exception {
+                        List<Future<String>> results = new ArrayList<>();
+                        try (var exec = Executors.newVirtualThreadPerTaskExecutor()) {
+                            for (int i = 0; i < 1_000; i++) {
+                                int id = i;
+                                results.add(exec.submit(() -> callApi(id)));
+                            }
+                        }
+                        System.out.println("Processed " + results.size() + ", max concurrent API calls = " + maxSeen.get());
+                        // Processed 1000, max concurrent API calls = 10
+                    }
+                }
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Call 3 services in parallel with <code>CompletableFuture</code>, combine the results, and handle a slow or failing service.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                record Profile(String user, List<String> orders, int rewardPoints) {}
+
+                static Profile loadProfile(long id, ExecutorService io) {
+                    var user    = CompletableFuture.supplyAsync(() -> slow("user-" + id, 200), io);
+                    var orders  = CompletableFuture.supplyAsync(() -> List.of("ORD-1", "ORD-2"), io);
+                    var rewards = CompletableFuture.supplyAsync(() -> { sleep(3000); return 120; }, io)
+                        .completeOnTimeout(0, 500, TimeUnit.MILLISECONDS)      // default if too slow
+                        .exceptionally(ex -> 0);                               // default on failure
+
+                    return CompletableFuture.allOf(user, orders, rewards)
+                        .thenApply(v -> new Profile(user.join(), orders.join(), rewards.join()))
+                        .orTimeout(2, TimeUnit.SECONDS)
+                        .join();
+                }
+
+                static <T> T slow(T value, long ms) { sleep(ms); return value; }
+                static void sleep(long ms) {
+                    try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                }
+
+                try (var io = Executors.newVirtualThreadPerTaskExecutor()) {
+                    System.out.println(loadProfile(42, io));
+                    // Profile[user=user-42, orders=[ORD-1, ORD-2], rewardPoints=0]  (~500 ms, not 3 s)
+                }
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Use <code>CountDownLatch</code> to start N workers at the same moment and wait for all of them to finish.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                public class LatchDemo {
+                    public static void main(String[] args) throws InterruptedException {
+                        int workers = 5;
+                        CountDownLatch startSignal = new CountDownLatch(1);
+                        CountDownLatch done = new CountDownLatch(workers);
+                        ExecutorService pool = Executors.newFixedThreadPool(workers);
+
+                        for (int i = 0; i < workers; i++) {
+                            int id = i;
+                            pool.execute(() -> {
+                                try {
+                                    startSignal.await();                 // all wait at the gate
+                                    System.out.println("worker " + id + " running");
+                                } catch (InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                } finally {
+                                    done.countDown();                    // always count down
+                                }
+                            });
+                        }
+                        System.out.println("Releasing all workers");
+                        startSignal.countDown();
+                        boolean finished = done.await(5, TimeUnit.SECONDS);
+                        System.out.println("All finished: " + finished);
+                        pool.shutdown();
+                    }
+                }
+              </script>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Tool</th><th>Reusable?</th><th>Use for</th></tr></thead>
+                <tbody>
+                  <tr><td><code>CountDownLatch</code></td><td>No (one-shot)</td><td>Wait until N events happen</td></tr>
+                  <tr><td><code>CyclicBarrier</code></td><td>Yes</td><td>N threads wait for each other, phase by phase</td></tr>
+                  <tr><td><code>Phaser</code></td><td>Yes, dynamic parties</td><td>Multi-phase work where parties join/leave</td></tr>
+                  <tr><td><code>Semaphore</code></td><td>Yes</td><td>Limit concurrent access to a resource</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Schedule a periodic health check. What is the difference between <code>scheduleAtFixedRate</code> and <code>scheduleWithFixedDelay</code>?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Fixed rate</b> — runs every N seconds measured from the <i>start</i> of each run. If a run overruns, the next starts immediately after (runs never overlap).</li>
+                <li><b>Fixed delay</b> — waits N seconds after the previous run <i>ends</i>.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
+                    Thread.ofPlatform().name("health-check").daemon(true).factory());
+
+                scheduler.scheduleWithFixedDelay(() -> {
+                    try {
+                        boolean up = ping("https://inventory/actuator/health");
+                        System.out.println("inventory up = " + up);
+                    } catch (Exception e) {
+                        // MUST catch: an exception escaping a periodic task cancels all future runs silently
+                        System.err.println("health check failed: " + e);
+                    }
+                }, 0, 10, TimeUnit.SECONDS);
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>Find the bug: this code hangs forever. Why? (thread-starvation deadlock)</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                ExecutorService pool = Executors.newFixedThreadPool(2);
+
+                Future<Integer> parent = pool.submit(() -> {
+                    Future<Integer> child1 = pool.submit(() -> 1);
+                    Future<Integer> child2 = pool.submit(() -> 2);
+                    return child1.get() + child2.get();      // blocks a pool thread waiting on the same pool
+                });
+                Future<Integer> parent2 = pool.submit(() -> pool.submit(() -> 3).get());
+
+                System.out.println(parent.get() + parent2.get());   // never prints
+              </script>
+              <p>Both pool threads run parent tasks that block on <code>get()</code>; the child tasks sit in the queue and can never run because no thread is free. This is a <b>thread-starvation deadlock</b> — no lock involved.</p>
+              <p><b>Fixes:</b></p>
+              <ul>
+                <li>Never block on tasks submitted to the <b>same bounded pool</b>; use a separate pool for subtasks.</li>
+                <li>Compose asynchronously instead of blocking: <code>child1.thenCombine(child2, Integer::sum)</code>.</li>
+                <li>Use <code>ForkJoinPool</code> (<code>fork</code>/<code>join</code> lets the waiting thread run other tasks) or virtual threads, where blocking a thread is cheap.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>Rewrite a fan-out with structured concurrency (Java 25 preview) so that one failure cancels the rest.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                // javac --release 25 --enable-preview Booking.java && java --enable-preview Booking
+                import java.util.concurrent.StructuredTaskScope;
+                import java.util.concurrent.StructuredTaskScope.Subtask;
+
+                public class Booking {
+                    record Trip(String flight, String hotel, String car) {}
+
+                    static String call(String what, long ms, boolean fail) throws InterruptedException {
+                        Thread.sleep(ms);
+                        if (fail) throw new IllegalStateException(what + " unavailable");
+                        return what + "-OK";
+                    }
+
+                    static Trip book(boolean carFails) throws InterruptedException {
+                        try (var scope = StructuredTaskScope.open()) {
+                            Subtask<String> flight = scope.fork(() -> call("flight", 300, false));
+                            Subtask<String> hotel  = scope.fork(() -> call("hotel", 1000, false));
+                            Subtask<String> car    = scope.fork(() -> call("car", 100, carFails));
+                            scope.join();          // car fails at 100 ms → flight and hotel are cancelled
+                            return new Trip(flight.get(), hotel.get(), car.get());
+                        }
+                    }
+
+                    public static void main(String[] args) throws InterruptedException {
+                        System.out.println(book(false));
+                        try {
+                            book(true);
+                        } catch (StructuredTaskScope.FailedException e) {
+                            System.out.println("Booking failed fast: " + e.getCause().getMessage());
+                        }
+                    }
+                }
+                // Trip[flight=flight-OK, hotel=hotel-OK, car=car-OK]
+                // Booking failed fast: car unavailable      (after ~100 ms, not 1 s)
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
           <h2>JVM internals</h2>
           <details class="qa" data-level="medium">
             <summary>Describe the JVM memory areas.</summary>
