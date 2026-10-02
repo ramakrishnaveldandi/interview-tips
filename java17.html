@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Java 17 Interview Questions — Tech Interview Hub</title>
+  <meta name="description" content="Java 17 LTS interview questions: records, sealed classes, pattern matching, text blocks, switch expressions, with code examples.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="assets/js/app.js"></script>
+</head>
+<body id="top">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <section class="page-hero">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Java / Java 17</div>
+      <h1>🧩 Java 17 (LTS) Interview Questions</h1>
+      <p>Java 17 (September 2021) is the LTS that most enterprises moved to from Java 8/11, and it is the minimum
+        baseline for Spring Boot 3. These questions cover every feature finalized between Java 9 and 17, with examples.</p>
+    </section>
+
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search questions… (e.g. record, sealed, switch)">
+      <button id="expand-all" class="tool-btn">Expand all</button>
+      <button id="collapse-all" class="tool-btn">Collapse all</button>
+      <span id="count" class="count"></span>
+    </div>
+
+    <div class="layout">
+      <aside id="toc" class="toc"></aside>
+      <div>
+        <p id="empty" class="empty hidden">No questions match your search.</p>
+
+        <section class="qa-group">
+          <h2>Overview</h2>
+          <details class="qa" data-level="easy">
+            <summary>Why is Java 17 such an important release?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Long-Term Support</b> — the LTS after Java 11, with years of vendor updates.</li>
+                <li><b>Framework baseline</b> — Spring Boot 3 / Spring Framework 6 and Jakarta EE 10 tooling require Java 17+.</li>
+                <li><b>Language modernisation</b> — records, sealed classes, pattern matching for <code>instanceof</code>, text blocks and switch expressions are all final.</li>
+                <li><b>Strong encapsulation</b> — JDK internals (e.g. <code>sun.misc.*</code> via reflection) are strongly encapsulated (JEP 403).</li>
+                <li><b>Performance</b> — better G1/ZGC, faster startup and lower memory vs Java 8.</li>
+              </ul>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>Which features became final between Java 11 and Java 17?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Version</th><th>Finalized feature</th></tr></thead>
+                <tbody>
+                  <tr><td>12</td><td>Compact number formatting, <code>String.indent()</code>, <code>Collectors.teeing()</code></td></tr>
+                  <tr><td>14</td><td>Switch expressions (JEP 361), Helpful NullPointerExceptions (JEP 358)</td></tr>
+                  <tr><td>15</td><td>Text blocks (JEP 378), ZGC &amp; Shenandoah production-ready, hidden classes</td></tr>
+                  <tr><td>16</td><td>Records (JEP 395), pattern matching for <code>instanceof</code> (JEP 394), <code>Stream.toList()</code></td></tr>
+                  <tr><td>17</td><td>Sealed classes (JEP 409), enhanced pseudo-random generators (JEP 356), strong encapsulation (JEP 403)</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Records</h2>
+          <details class="qa" data-level="easy">
+            <summary>What is a record and what does the compiler generate for it?</summary>
+            <div class="answer">
+              <p>A <b>record</b> is a transparent, shallowly-immutable data carrier. For each component the compiler generates a
+                <code>private final</code> field, a public accessor (<code>name()</code>, not <code>getName()</code>), a canonical
+                constructor, and <code>equals()</code>, <code>hashCode()</code> and <code>toString()</code>.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public record Employee(String name, String dept, double salary) {}
+
+                var e = new Employee("Asha", "IT", 95_000);
+                System.out.println(e.name());   // Asha
+                System.out.println(e);          // Employee[name=Asha, dept=IT, salary=95000.0]
+              </script>
+              <div class="tip">Records are implicitly <code>final</code>, extend <code>java.lang.Record</code>, and cannot declare extra instance fields.</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How do you add validation to a record? What is a compact constructor?</summary>
+            <div class="answer">
+              <p>A <b>compact constructor</b> omits the parameter list; it runs before fields are assigned, so it is ideal for validation and normalisation.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public record Money(BigDecimal amount, String currency) {
+                    public Money {                                   // compact constructor
+                        Objects.requireNonNull(currency);
+                        if (amount.signum() < 0) throw new IllegalArgumentException("negative");
+                        currency = currency.toUpperCase();          // reassign parameter, not field
+                    }
+                    public static Money inr(long v) { return new Money(BigDecimal.valueOf(v), "INR"); }
+                }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>Can records be used as JPA entities? Where are they useful in Spring apps?</summary>
+            <div class="answer">
+              <p><b>No</b> — JPA entities need a no-arg constructor, mutable state and non-final classes for proxies. Records are great for:</p>
+              <ul>
+                <li>REST request/response <b>DTOs</b> (Jackson supports records natively).</li>
+                <li>Spring Data <b>projections</b> and JPQL constructor expressions: <code>select new com.x.EmpDto(e.name, e.salary) from Employee e</code>.</li>
+                <li><code>@ConfigurationProperties</code> classes (constructor binding is automatic).</li>
+                <li>Map keys / value objects (correct <code>equals</code>/<code>hashCode</code> for free).</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Sealed classes</h2>
+          <details class="qa" data-level="medium">
+            <summary>What are sealed classes and why would you use them?</summary>
+            <div class="answer">
+              <p>Sealed classes/interfaces restrict which classes may extend them using <code>permits</code>. Each permitted subclass must be
+                <code>final</code>, <code>sealed</code> or <code>non-sealed</code>. They model a <b>closed hierarchy</b> (algebraic data types),
+                so the compiler can check exhaustiveness.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                public sealed interface Payment permits Card, Upi, NetBanking {}
+                public record Card(String number) implements Payment {}
+                public record Upi(String vpa) implements Payment {}
+                public non-sealed class NetBanking implements Payment {}   // open for extension again
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>How do sealed types combine with records and pattern matching?</summary>
+            <div class="answer">
+              <p>Together they give exhaustive, type-safe handling without a <code>default</code> branch. (Pattern matching for
+                <code>switch</code> was preview in 17 and final in 21; on 17 you would use <code>instanceof</code> chains.)</p>
+              <script type="text/plain" class="code" data-lang="java">
+                // Java 17 (final features only)
+                static double fee(Payment p) {
+                    if (p instanceof Card c)       return c.number().startsWith("4") ? 2.0 : 1.5;
+                    else if (p instanceof Upi u)   return 0.0;
+                    else                           return 5.0;
+                }
+
+                // Java 21+: exhaustive switch, compiler errors if a new subtype is added
+                static double fee21(Payment p) {
+                    return switch (p) {
+                        case Card c       -> c.number().startsWith("4") ? 2.0 : 1.5;
+                        case Upi u        -> 0.0;
+                        case NetBanking n -> 5.0;
+                    };
+                }
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Pattern matching, switch &amp; text blocks</h2>
+          <details class="qa" data-level="easy">
+            <summary>What is pattern matching for <code>instanceof</code>?</summary>
+            <div class="answer">
+              <p>It combines the type test and the cast into one step and introduces a binding variable scoped by flow analysis.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                // Before
+                if (obj instanceof String) { String s = (String) obj; System.out.println(s.length()); }
+                // Java 16+
+                if (obj instanceof String s && !s.isBlank()) { System.out.println(s.length()); }
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What are switch expressions and the arrow syntax?</summary>
+            <div class="answer">
+              <p>Switch can now return a value, uses <code>-&gt;</code> labels (no fall-through, no <code>break</code>), supports multiple labels per case, and uses <code>yield</code> for block bodies.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                int days = switch (month) {
+                    case FEB -> leap ? 29 : 28;
+                    case APR, JUN, SEP, NOV -> 30;
+                    default -> {
+                        log.debug("31-day month {}", month);
+                        yield 31;
+                    }
+                };
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="easy">
+            <summary>What are text blocks? Give a practical example.</summary>
+            <div class="answer">
+              <p>Multi-line string literals delimited by <code>"""</code>. Incidental indentation is stripped; <code>\</code> at line end joins lines and <code>\s</code> keeps a trailing space.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                String sql = """
+                    SELECT e.id, e.name
+                    FROM employee e
+                    WHERE e.dept = ?
+                    ORDER BY e.name
+                    """;
+                String json = """
+                    {"name": "%s", "active": %b}
+                    """.formatted(name, active);
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What are Helpful NullPointerExceptions?</summary>
+            <div class="answer">
+              <p>Since Java 14 (default on from 15), NPE messages name exactly what was null:</p>
+              <script type="text/plain" class="code" data-lang="plaintext">
+                Exception in thread "main" java.lang.NullPointerException:
+                  Cannot invoke "String.toLowerCase()" because the return value of
+                  "com.app.User.getAddress().getCity()" is null
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>APIs &amp; JVM</h2>
+          <details class="qa" data-level="easy">
+            <summary>Name useful API additions from Java 9–17.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                List<String> names = List.of("a", "b");                 // 9: immutable factories
+                Map<String, Integer> m = Map.of("x", 1, "y", 2);
+                Optional.ofNullable(v).ifPresentOrElse(this::use, this::fallback); // 9
+                var list = new ArrayList<String>();                       // 10: var
+                "  hi  ".strip(); "".isBlank(); "ab".repeat(3);           // 11
+                Files.readString(Path.of("a.txt"));                       // 11
+                HttpClient.newHttpClient();                               // 11: HTTP client
+                stream.toList();                                          // 16: unmodifiable list
+                var stats = nums.stream().collect(Collectors.teeing(      // 12
+                    Collectors.counting(), Collectors.summingInt(i -> i), (c, s) -> s / (double) c));
+              </script>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What does strong encapsulation of JDK internals (JEP 403) mean for migration?</summary>
+            <div class="answer">
+              <p>The <code>--illegal-access</code> flag is gone, so libraries reflecting into JDK internals fail with
+                <code>InaccessibleObjectException</code>. Fix by upgrading the library (Lombok, Mockito, ByteBuddy, older Hibernate),
+                or as a last resort use <code>--add-opens java.base/java.lang=ALL-UNNAMED</code>. Run <code>jdeps --jdk-internals</code> to find usages.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>What was removed or deprecated in Java 17?</summary>
+            <div class="answer">
+              <ul>
+                <li>Removed: RMI Activation, experimental AOT and Graal JIT compiler, Nashorn (removed in 15), Applet API deprecated for removal.</li>
+                <li>Security Manager deprecated for removal (JEP 411) — permanently disabled in Java 24.</li>
+                <li>Java EE modules (JAXB, JAX-WS) were already removed in 11 — add them as Maven dependencies.</li>
+              </ul>
+            </div>
+          </details>
+          <details class="qa" data-level="hard">
+            <summary>Which garbage collectors are available in Java 17 and when would you choose each?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>GC</th><th>Flag</th><th>Best for</th></tr></thead>
+                <tbody>
+                  <tr><td>G1 (default)</td><td><code>-XX:+UseG1GC</code></td><td>Balanced throughput/latency, most services</td></tr>
+                  <tr><td>ZGC</td><td><code>-XX:+UseZGC</code></td><td>Sub-millisecond pauses, very large heaps</td></tr>
+                  <tr><td>Shenandoah</td><td><code>-XX:+UseShenandoahGC</code></td><td>Low pause, concurrent compaction</td></tr>
+                  <tr><td>Parallel</td><td><code>-XX:+UseParallelGC</code></td><td>Batch jobs, max throughput</td></tr>
+                  <tr><td>Serial</td><td><code>-XX:+UseSerialGC</code></td><td>Small containers / single CPU</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+</body>
+</html>

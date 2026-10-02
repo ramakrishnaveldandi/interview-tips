@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tech Interview Hub — Java Full-Stack Interview Questions</title>
+  <meta name="description" content="Curated interview questions with answers and code examples: Core Java, Java 17, Java 25, Spring Boot, JPA, Hibernate, Spring Security OAuth2, SSO, Angular and Databases.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <script src="assets/js/app.js"></script>
+</head>
+<body id="top">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <section class="hero">
+      <span class="eyebrow"><span class="dot"></span> Updated for Java 25 LTS · Spring Boot 3/4 · Angular 20</span>
+      <h1>Crack your next<br><span class="gradient-text">Java Full-Stack interview</span></h1>
+      <p class="lead">Hand-picked interview questions with crisp answers, real code examples and version-by-version
+        comparisons — from Core Java to Spring Security, OAuth2, SSO, Angular and SQL.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="java-versions.html">⚡ Java 8 vs 17 vs 25</a>
+        <a class="btn" href="#topics">Browse all topics →</a>
+      </div>
+      <div class="stats">
+        <div class="stat"><b>11</b><span>Topics</span></div>
+        <div class="stat"><b>200+</b><span>Questions</span></div>
+        <div class="stat"><b>100+</b><span>Code samples</span></div>
+        <div class="stat"><b>3</b><span>Difficulty levels</span></div>
+      </div>
+    </section>
+
+    <h2 class="section-title" id="topics">☕ Java</h2>
+    <p class="section-sub">Language fundamentals, JVM internals and the modern LTS releases.</p>
+    <div class="grid">
+      <a class="card" href="java.html" style="--card-accent:#f89820">
+        <div class="card-icon">☕</div>
+        <h3>Core Java</h3>
+        <p>OOP, collections, generics, exceptions, multithreading, JVM memory model, GC and Java 8 essentials.</p>
+        <div class="meta"><span class="chip">OOP</span><span class="chip">Collections</span><span class="chip">Concurrency</span></div>
+        <span class="go">Start practicing →</span>
+      </a>
+      <a class="card" href="java17.html" style="--card-accent:#5b8cff">
+        <div class="card-icon">🧩</div>
+        <h3>Java 17 (LTS)</h3>
+        <p>Records, sealed classes, pattern matching, text blocks, switch expressions and more — with examples.</p>
+        <div class="meta"><span class="chip">Records</span><span class="chip">Sealed</span><span class="chip">LTS</span></div>
+        <span class="go">Start practicing →</span>
+      </a>
+      <a class="card" href="java25.html" style="--card-accent:#a855f7">
+        <div class="card-icon">🚀</div>
+        <h3>Java 25 (LTS)</h3>
+        <p>Virtual threads, scoped values, compact source files, flexible constructors, stream gatherers, compact headers.</p>
+        <div class="meta"><span class="chip">Loom</span><span class="chip">Gatherers</span><span class="chip">LTS</span></div>
+        <span class="go">Start practicing →</span>
+      </a>
+      <a class="card" href="java-versions.html" style="--card-accent:#22d3ee">
+        <div class="card-icon">⚖️</div>
+        <h3>Java 8 vs 17 vs 25</h3>
+        <p>Side-by-side feature matrix, the same problem solved in each version, and migration tips.</p>
+        <div class="meta"><span class="chip">Comparison</span><span class="chip">Migration</span></div>
+        <span class="go">Compare versions →</span>
+      </a>
+    </div>
+
+    <h2 class="section-title">🌱 Spring &amp; Persistence</h2>
+    <p class="section-sub">Building and persisting production-grade services.</p>
+    <div class="grid">
+      <a class="card" href="spring-boot.html" style="--card-accent:#6db33f">
+        <div class="card-icon">🌱</div>
+        <h3>Spring Boot</h3>
+        <p>Auto-configuration, starters, DI, profiles, actuator, REST, exception handling, testing and microservices.</p>
+        <div class="meta"><span class="chip">IoC</span><span class="chip">REST</span><span class="chip">Actuator</span></div>
+        <span class="go">Start practicing →</span>
+      </a>
+      <a class="card" href="jpa.html" style="--card-accent:#14b8a6">
+        <div class="card-icon">🗂️</div>
+        <h3>JPA</h3>
+        <p>Entities, relationships, persistence context, JPQL, Spring Data repositories, projections and locking.</p>
+        <div class="meta"><span class="chip">Entities</span><span class="chip">JPQL</span><span class="chip">Spring Data</span></div>
+        <span class="go">Start practicing →</span>
+      </a>
+      <a class="card" href="hibernate.html" style="--card-accent:#bcae79">
+        <div class="card-icon">🐻</div>
+        <h3>Hibernate</h3>
+        <p>Session lifecycle, caching levels, N+1 problem, fetching strategies, dirty checking and performance tuning.</p>
+        <div class="meta"><span class="chip">Caching</span><span class="chip">N+1</span><span class="chip">Tuning</span></div>
+        <span class="go">Start practicing →</span>
+      </a>
+    </div>
+
+    <h2 class="section-title">🔐 Security &amp; Identity</h2>
+    <p class="section-sub">Protecting APIs and users with modern standards.</p>
+    <div class="grid">
+      <a class="card" href="security-oauth2.html" style="--card-accent:#ef4444">
+        <div class="card-icon">🛡️</div>
+        <h3>Spring Security &amp; OAuth2</h3>
+        <p>Filter chain, authentication vs authorization, JWT, OAuth2 grant types, resource server and PKCE.</p>
+        <div class="meta"><span class="chip">JWT</span><span class="chip">OAuth2</span><span class="chip">OIDC</span></div>
+        <span class="go">Start practicing →</span>
+      </a>
+      <a class="card" href="sso.html" style="--card-accent:#f472b6">
+        <div class="card-icon">🔑</div>
+        <h3>SSO Login</h3>
+        <p>Single Sign-On with OIDC &amp; SAML, Keycloak/Okta/Azure AD, session management and single logout.</p>
+        <div class="meta"><span class="chip">OIDC</span><span class="chip">SAML</span><span class="chip">Keycloak</span></div>
+        <span class="go">Start practicing →</span>
+      </a>
+    </div>
+
+    <h2 class="section-title">🎨 Frontend &amp; Data</h2>
+    <p class="section-sub">The UI layer and the data layer every full-stack developer must own.</p>
+    <div class="grid">
+      <a class="card" href="angular.html" style="--card-accent:#dd0031">
+        <div class="card-icon">🅰️</div>
+        <h3>Angular</h3>
+        <p>Components, signals, RxJS, change detection, routing, guards, interceptors, forms and performance.</p>
+        <div class="meta"><span class="chip">Signals</span><span class="chip">RxJS</span><span class="chip">Standalone</span></div>
+        <span class="go">Start practicing →</span>
+      </a>
+      <a class="card" href="database.html" style="--card-accent:#3b82f6">
+        <div class="card-icon">🗄️</div>
+        <h3>Database &amp; SQL</h3>
+        <p>Joins, indexes, normalization, transactions &amp; isolation levels, query tuning, window functions, NoSQL.</p>
+        <div class="meta"><span class="chip">SQL</span><span class="chip">Indexes</span><span class="chip">ACID</span></div>
+        <span class="go">Start practicing →</span>
+      </a>
+    </div>
+
+    <h2 class="section-title">💡 How to use this site</h2>
+    <p class="section-sub">Tips to get the most out of your preparation.</p>
+    <div class="grid">
+      <div class="card" style="--card-accent:#22c55e"><div class="card-icon">🔍</div><h3>Search instantly</h3><p>Every topic page has a live search box — type a keyword like <code>transaction</code> or <code>JWT</code>.</p></div>
+      <div class="card" style="--card-accent:#f59e0b"><div class="card-icon">🎯</div><h3>Practice by level</h3><p>Questions are tagged <b>easy</b>, <b>medium</b> and <b>hard</b>. Try answering out loud before expanding.</p></div>
+      <div class="card" style="--card-accent:#7c5cff"><div class="card-icon">🔗</div><h3>Share a question</h3><p>Each question has an anchor — e.g. <code>java17.html#q3</code> opens question 3 directly.</p></div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+</body>
+</html>
