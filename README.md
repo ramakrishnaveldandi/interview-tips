@@ -5,17 +5,19 @@ A fast, static website of interview questions with answers and code examples for
 | Page | Topic |
 |---|---|
 | `index.html` | Home page with links to every topic |
-| `java.html` | Core Java: OOP, collections, concurrency, JVM, Java 8 |
+| `java.html` | Core Java: OOP, collections, thread pools, virtual threads, JVM, coding |
+| `java-streams.html` | Java Streams & parallel streams with coding questions |
 | `java17.html` | Java 17 LTS features |
 | `java25.html` | Java 25 LTS features |
 | `java-versions.html` | Java 8 vs 17 vs 25: comparison and migration |
 | `spring-boot.html` | Spring Boot |
 | `jpa.html` | JPA / Spring Data JPA |
 | `hibernate.html` | Hibernate |
-| `security-oauth2.html` | Spring Security, JWT, OAuth2 |
+| `security-oauth2.html` | Spring Security, JWT, OAuth2, OWASP Top 10:2025 |
 | `sso.html` | SSO with OIDC / SAML (Keycloak, Okta, Entra ID) |
 | `angular.html` | Angular (signals, RxJS, routing, forms) |
 | `database.html` | SQL and database design |
+| `ai-claude-code.html` | AI basics and Claude Code 101 (CLAUDE.md, hooks, skills, MCP) |
 
 Features: dark/light theme, live search on each page, expand/collapse all, difficulty tags, copy buttons on code,
 syntax highlighting, deep links (`java17.html#q3`), works on mobile and prints cleanly.

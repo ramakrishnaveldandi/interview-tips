@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Java Streams Interview Questions — Tech Interview Hub</title>
+  <meta name="description" content="Java 8+ Stream API and parallel streams: every concept plus 30+ coding questions — find duplicates, groupingBy, counting, sorting, reversing, partitioning, flatMap, reduce and more.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="assets/js/app.js"></script>
+</head>
+<body id="top">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <section class="page-hero">
+      <div class="breadcrumb"><a href="index.html">Home</a> / Java / Streams</div>
+      <h1>🌊 Java Streams &amp; Parallel Streams</h1>
+      <p>Everything about the Stream API introduced in Java 8 (plus the additions up to Java 25): how pipelines work, every
+        important operation and collector, parallel streams — and a large set of coding questions such as finding duplicates,
+        grouping, counting, sorting and reversing. Every coding answer runs against the same sample data, and the
+        <code>// =&gt;</code> comments show the real output.</p>
+    </section>
+
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Search questions… (e.g. groupingBy, duplicate, sort, parallel)">
+      <button id="expand-all" class="tool-btn">Expand all</button>
+      <button id="collapse-all" class="tool-btn">Collapse all</button>
+      <span id="count" class="count"></span>
+    </div>
+
+    <div class="layout">
+      <aside id="toc" class="toc"></aside>
+      <div>
+        <p id="empty" class="empty hidden">No questions match your search.</p>
+
+        <!-- ===================================================== CONCEPTS -->
+        <section class="qa-group">
+          <h2>Stream fundamentals</h2>
+
+          <details class="qa" data-level="easy">
+            <summary>What is a Stream? How is it different from a Collection?</summary>
+            <div class="answer">
+              <p>A <b>stream</b> is a sequence of elements that supports declarative, pipelined, aggregate operations. It does not store data — it carries values from a <b>source</b> (collection, array, I/O, generator) through a pipeline of operations.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Collection</th><th>Stream</th></tr></thead>
+                <tbody>
+                  <tr><td>Stores elements in memory</td><td>Stores nothing; computes on demand</td></tr>
+                  <tr><td>Eagerly constructed</td><td><b>Lazy</b> — nothing runs until a terminal operation</td></tr>
+                  <tr><td>External iteration (<code>for</code> loop)</td><td>Internal iteration (the library loops for you)</td></tr>
+                  <tr><td>Can be traversed many times</td><td>Can be consumed <b>once</b></td></tr>
+                  <tr><td>Finite</td><td>Can be infinite (<code>Stream.iterate</code>, <code>generate</code>)</td></tr>
+                  <tr><td>Modifiable (add/remove)</td><td>Never modifies its source</td></tr>
+                  <tr><td>Sequential</td><td>Sequential or parallel with one call</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Explain the structure of a stream pipeline and laziness.</summary>
+            <div class="answer">
+              <p>A pipeline = <b>source</b> → zero or more <b>intermediate</b> operations (return a new stream, lazy) → exactly one <b>terminal</b> operation (produces a result or side effect, triggers execution). Elements flow through the pipeline <b>one at a time</b> (vertically), not stage by stage.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                List<String> result = Stream.of("one", "two", "three", "four")
+                    .filter(s -> { System.out.println("filter " + s); return s.length() > 3; })
+                    .map(s -> { System.out.println("map    " + s); return s.toUpperCase(); })
+                    .limit(1)                       // short-circuit: stops after the first match
+                    .toList();
+                // filter one
+                // filter two
+                // filter three
+                // map    three
+                // result = [THREE]   — "four" is never even looked at
+
+                Stream<String> lazy = Stream.of("a", "b").peek(System.out::println);  // prints NOTHING: no terminal op
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>What are the ways to create a stream?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                Stream<String> s1 = List.of("a", "b").stream();               // from a collection
+                Stream<String> s2 = Stream.of("a", "b", "c");                 // from values
+                IntStream      s3 = Arrays.stream(new int[]{1, 2, 3});        // from an array
+                IntStream      s4 = IntStream.range(0, 5);                    // 0..4   (rangeClosed: 0..5)
+                Stream<Integer> s5 = Stream.iterate(1, n -> n * 2).limit(5);  // 1 2 4 8 16 (infinite + limit)
+                Stream<Integer> s6 = Stream.iterate(1, n -> n < 100, n -> n * 3); // Java 9: with a stop condition
+                Stream<Double> s7 = Stream.generate(Math::random).limit(3);    // supplier-based, infinite
+                IntStream      s8 = "hello".chars();                           // characters as ints
+                Stream<String> s9 = Pattern.compile(",").splitAsStream("a,b,c");
+                Stream<String> s10 = Files.lines(Path.of("app.log"));          // lazily reads lines (close it!)
+                Stream<String> s11 = Stream.ofNullable(maybeNull);             // Java 9: empty if null
+                Stream<Map.Entry<String, Integer>> s12 = map.entrySet().stream();
+                Stream<String> s13 = Stream.<String>builder().add("x").add("y").build();
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>List the intermediate operations and what each does.</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Operation</th><th>Purpose</th><th>Type</th></tr></thead>
+                <tbody>
+                  <tr><td><code>filter(Predicate)</code></td><td>Keep elements that match</td><td>Stateless</td></tr>
+                  <tr><td><code>map(Function)</code></td><td>Transform each element 1 → 1</td><td>Stateless</td></tr>
+                  <tr><td><code>flatMap(Function)</code></td><td>Transform 1 → many, then flatten</td><td>Stateless</td></tr>
+                  <tr><td><code>mapMulti(BiConsumer)</code></td><td>Java 16: imperative 1 → 0..n (alternative to flatMap)</td><td>Stateless</td></tr>
+                  <tr><td><code>mapToInt / mapToLong / mapToDouble</code></td><td>Convert to primitive stream (no boxing)</td><td>Stateless</td></tr>
+                  <tr><td><code>boxed()</code> / <code>mapToObj</code></td><td>Primitive stream → object stream</td><td>Stateless</td></tr>
+                  <tr><td><code>peek(Consumer)</code></td><td>Look at elements as they pass (debugging only)</td><td>Stateless</td></tr>
+                  <tr><td><code>distinct()</code></td><td>Remove duplicates (uses <code>equals</code>/<code>hashCode</code>)</td><td>Stateful</td></tr>
+                  <tr><td><code>sorted()</code> / <code>sorted(Comparator)</code></td><td>Sort (must see all elements first)</td><td>Stateful</td></tr>
+                  <tr><td><code>limit(n)</code></td><td>First n elements</td><td>Stateful, short-circuit</td></tr>
+                  <tr><td><code>skip(n)</code></td><td>Drop first n elements</td><td>Stateful</td></tr>
+                  <tr><td><code>takeWhile(Predicate)</code></td><td>Java 9: take while condition holds, then stop</td><td>Short-circuit</td></tr>
+                  <tr><td><code>dropWhile(Predicate)</code></td><td>Java 9: drop while condition holds, keep the rest</td><td>Stateful</td></tr>
+                  <tr><td><code>gather(Gatherer)</code></td><td>Java 24: custom intermediate ops (windows, scans…)</td><td>Either</td></tr>
+                </tbody>
+              </table></div>
+              <div class="tip"><b>Stateless</b> ops process each element independently. <b>Stateful</b> ops (<code>sorted</code>, <code>distinct</code>) need to remember previous elements — they are expensive in parallel streams.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>List the terminal operations.</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Operation</th><th>Returns</th><th>Notes</th></tr></thead>
+                <tbody>
+                  <tr><td><code>forEach</code> / <code>forEachOrdered</code></td><td>void</td><td><code>forEach</code> ignores order in parallel</td></tr>
+                  <tr><td><code>collect(Collector)</code></td><td>Collection / Map / any</td><td>Mutable reduction</td></tr>
+                  <tr><td><code>toList()</code></td><td><code>List</code></td><td>Java 16, unmodifiable</td></tr>
+                  <tr><td><code>toArray()</code></td><td>array</td><td><code>toArray(String[]::new)</code></td></tr>
+                  <tr><td><code>reduce</code></td><td><code>T</code> / <code>Optional&lt;T&gt;</code></td><td>Immutable reduction</td></tr>
+                  <tr><td><code>count()</code></td><td>long</td><td></td></tr>
+                  <tr><td><code>min</code> / <code>max(Comparator)</code></td><td><code>Optional&lt;T&gt;</code></td><td></td></tr>
+                  <tr><td><code>sum</code>, <code>average</code>, <code>summaryStatistics</code></td><td>number</td><td>Primitive streams only</td></tr>
+                  <tr><td><code>anyMatch</code> / <code>allMatch</code> / <code>noneMatch</code></td><td>boolean</td><td>Short-circuit</td></tr>
+                  <tr><td><code>findFirst</code> / <code>findAny</code></td><td><code>Optional&lt;T&gt;</code></td><td>Short-circuit; <code>findAny</code> is faster in parallel</td></tr>
+                  <tr><td><code>iterator()</code> / <code>spliterator()</code></td><td>iterator</td><td>Escape hatch</td></tr>
+                </tbody>
+              </table></div>
+              <div class="note">Edge case: <code>allMatch</code> on an <b>empty</b> stream returns <code>true</code>; <code>anyMatch</code> returns <code>false</code>.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>What is the difference between <code>map</code> and <code>flatMap</code>?</summary>
+            <div class="answer">
+              <p><code>map</code> transforms each element into exactly one element. <code>flatMap</code> transforms each element into a <b>stream</b> and flattens all those streams into one.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                List<List<Integer>> nested = List.of(List.of(1, 2), List.of(3), List.of(4, 5));
+
+                List<Stream<Integer>> mapped = nested.stream().map(List::stream).toList();     // list of streams
+                List<Integer> flat = nested.stream().flatMap(List::stream).toList();          // [1, 2, 3, 4, 5]
+
+                List<String> words = Stream.of("hello world", "java streams")
+                    .flatMap(line -> Arrays.stream(line.split(" ")))
+                    .toList();                                                                 // [hello, world, java, streams]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>How does <code>reduce()</code> work? Explain identity, accumulator and combiner.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                List<Integer> nums = List.of(1, 2, 3, 4, 5);
+
+                int sum = nums.stream().reduce(0, Integer::sum);              // identity + accumulator → 15
+                Optional<Integer> max = nums.stream().reduce(Integer::max);   // no identity → Optional (stream may be empty)
+                int product = nums.stream().reduce(1, (a, b) -> a * b);       // 120
+
+                // 3-arg form: result type differs from element type; combiner merges partial results in parallel
+                int totalLength = Stream.of("java", "spring", "sql")
+                    .reduce(0, (acc, s) -> acc + s.length(), Integer::sum);   // 13
+              </script>
+              <ul>
+                <li><b>Identity</b> must be a neutral value: <code>0</code> for sum, <code>1</code> for product. A wrong identity (e.g. <code>10</code>) gives wrong answers in parallel because it is applied once per chunk.</li>
+                <li>The accumulator must be <b>associative</b> — <code>(a - b)</code> is not, so subtraction gives different results in parallel.</li>
+                <li>For building collections, use <code>collect</code> (mutable reduction) instead of <code>reduce</code>.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Why can't a stream be reused?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                Stream<String> s = Stream.of("a", "b");
+                s.count();
+                s.count();   // IllegalStateException: stream has already been operated upon or closed
+
+                // If you need it again, keep a Supplier
+                Supplier<Stream<String>> supplier = () -> Stream.of("a", "b");
+                supplier.get().count();
+                supplier.get().toList();
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary><code>Stream.toList()</code> vs <code>Collectors.toList()</code> vs <code>Collectors.toUnmodifiableList()</code>?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>Mutable?</th><th>Nulls allowed?</th><th>Since</th></tr></thead>
+                <tbody>
+                  <tr><td><code>collect(Collectors.toList())</code></td><td>Yes in practice (<code>ArrayList</code>), not guaranteed</td><td>Yes</td><td>8</td></tr>
+                  <tr><td><code>collect(Collectors.toUnmodifiableList())</code></td><td>No</td><td><b>No</b> (NPE)</td><td>10</td></tr>
+                  <tr><td><code>stream.toList()</code></td><td>No</td><td>Yes</td><td>16</td></tr>
+                </tbody>
+              </table></div>
+              <p>Need a specific mutable type? <code>collect(Collectors.toCollection(ArrayList::new))</code> or <code>toCollection(TreeSet::new)</code>.</p>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>What are primitive streams and why use them?</summary>
+            <div class="answer">
+              <p><code>IntStream</code>, <code>LongStream</code> and <code>DoubleStream</code> avoid boxing every number into <code>Integer</code>/<code>Long</code>/<code>Double</code> objects, and add numeric terminals: <code>sum()</code>, <code>average()</code>, <code>summaryStatistics()</code>, <code>range()</code>.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                int total = List.of(4, 8, 15).stream().mapToInt(Integer::intValue).sum();       // 27
+                OptionalDouble avg = IntStream.of(4, 8, 15).average();                          // 9.0
+                IntSummaryStatistics st = IntStream.of(4, 8, 15).summaryStatistics();
+                // IntSummaryStatistics{count=3, sum=27, min=4, average=9.000000, max=15}
+                List<Integer> boxed = IntStream.rangeClosed(1, 3).boxed().toList();             // [1, 2, 3]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>What are the rules for lambdas in streams (side effects, non-interference)?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Non-interference</b>: never modify the source collection during the pipeline → <code>ConcurrentModificationException</code> or wrong results.</li>
+                <li><b>Stateless &amp; side-effect-free</b> behaviour: don't add to an external list inside <code>map</code>/<code>forEach</code>; use <code>collect</code>.</li>
+                <li>Lambdas can only capture <b>effectively final</b> local variables.</li>
+                <li><code>peek</code> is for debugging; since Java 9 it may not even run if the result can be computed without it (e.g. <code>count()</code> on a sized source).</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                // Bad: side effect, breaks in parallel
+                List<String> out = new ArrayList<>();
+                names.stream().filter(n -> n.startsWith("A")).forEach(out::add);
+
+                // Good
+                List<String> result = names.stream().filter(n -> n.startsWith("A")).toList();
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>How do you handle checked exceptions inside stream lambdas?</summary>
+            <div class="answer">
+              <p>Functional interfaces like <code>Function</code> cannot throw checked exceptions. Options: catch inside the lambda and wrap, extract a helper method, or return a result type.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                List<String> contents = paths.stream()
+                    .map(p -> {
+                        try { return Files.readString(p); }
+                        catch (IOException e) { throw new UncheckedIOException(e); }
+                    })
+                    .toList();
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Which stream features were added after Java 8?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Java</th><th>Addition</th></tr></thead>
+                <tbody>
+                  <tr><td>9</td><td><code>takeWhile</code>, <code>dropWhile</code>, <code>Stream.ofNullable</code>, 3-arg <code>Stream.iterate</code>, <code>Optional.stream()</code>, <code>Collectors.filtering</code>, <code>Collectors.flatMapping</code></td></tr>
+                  <tr><td>10</td><td><code>Collectors.toUnmodifiableList/Set/Map</code></td></tr>
+                  <tr><td>11</td><td><code>Predicate.not()</code>, <code>String.lines()</code></td></tr>
+                  <tr><td>12</td><td><code>Collectors.teeing()</code></td></tr>
+                  <tr><td>16</td><td><code>Stream.toList()</code>, <code>mapMulti()</code></td></tr>
+                  <tr><td>21</td><td>Sequenced collections: <code>list.reversed()</code>, <code>getFirst()</code>, <code>getLast()</code></td></tr>
+                  <tr><td>24</td><td><b>Stream Gatherers</b> (<code>gather()</code>): <code>windowFixed</code>, <code>windowSliding</code>, <code>scan</code>, <code>fold</code>, <code>mapConcurrent</code></td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java">
+                List.of(1, 2, 3, 10, 4).stream().takeWhile(n -> n < 5).toList();    // [1, 2, 3]
+                List.of(1, 2, 3, 10, 4).stream().dropWhile(n -> n < 5).toList();    // [10, 4]
+                names.stream().filter(Predicate.not(String::isBlank)).toList();
+
+                // Java 24+: batches of 3
+                Stream.of(1, 2, 3, 4, 5, 6, 7).gather(Gatherers.windowFixed(3)).toList();  // [[1, 2, 3], [4, 5, 6], [7]]
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Collectors</h2>
+
+          <details class="qa" data-level="medium">
+            <summary>Give an overview of the most important <code>Collectors</code>.</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Collector</th><th>Result</th></tr></thead>
+                <tbody>
+                  <tr><td><code>toList()</code>, <code>toSet()</code>, <code>toCollection(TreeSet::new)</code></td><td>Collections</td></tr>
+                  <tr><td><code>toMap(keyFn, valueFn[, merge[, mapSupplier]])</code></td><td>Map</td></tr>
+                  <tr><td><code>joining(", ", "[", "]")</code></td><td>String</td></tr>
+                  <tr><td><code>groupingBy(classifier[, mapFactory][, downstream])</code></td><td><code>Map&lt;K, List&lt;T&gt;&gt;</code> or <code>Map&lt;K, D&gt;</code></td></tr>
+                  <tr><td><code>partitioningBy(predicate[, downstream])</code></td><td><code>Map&lt;Boolean, …&gt;</code> (always both keys)</td></tr>
+                  <tr><td><code>counting()</code>, <code>summingInt</code>, <code>averagingDouble</code>, <code>summarizingDouble</code></td><td>Numbers / statistics</td></tr>
+                  <tr><td><code>minBy</code>, <code>maxBy</code></td><td><code>Optional&lt;T&gt;</code></td></tr>
+                  <tr><td><code>mapping</code>, <code>filtering</code>, <code>flatMapping</code></td><td>Adapt a downstream collector</td></tr>
+                  <tr><td><code>collectingAndThen(collector, finisher)</code></td><td>Post-process (e.g. unwrap Optional)</td></tr>
+                  <tr><td><code>reducing(...)</code></td><td>Reduction as a collector</td></tr>
+                  <tr><td><code>teeing(c1, c2, merger)</code></td><td>Two collectors at once, merged (Java 12)</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>What are the pitfalls of <code>Collectors.toMap()</code>?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Duplicate keys</b> throw <code>IllegalStateException: Duplicate key</code> — pass a merge function.</li>
+                <li><b>Null values</b> throw <code>NullPointerException</code> (it uses <code>Map.merge</code>).</li>
+                <li>The map type is unspecified (a <code>HashMap</code> today) — pass a supplier like <code>LinkedHashMap::new</code> to keep order.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                Map<String, Integer> lengths = Stream.of("java", "sql", "java")
+                    .collect(Collectors.toMap(
+                        Function.identity(),
+                        String::length,
+                        (first, second) -> first,      // merge: keep the first value on duplicate keys
+                        LinkedHashMap::new));          // keep insertion order
+                // {java=4, sql=3}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary><code>groupingBy</code> vs <code>partitioningBy</code>?</summary>
+            <div class="answer">
+              <ul>
+                <li><code>groupingBy</code> — any number of groups, keyed by the classifier result. Groups with no elements simply don't appear.</li>
+                <li><code>partitioningBy</code> — exactly two groups, keyed by <code>true</code>/<code>false</code>. Both keys are always present, even if empty.</li>
+                <li>Both accept a <b>downstream collector</b> (<code>counting()</code>, <code>mapping(...)</code>, <code>averagingDouble(...)</code>…) to post-process each group.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Parallel streams</h2>
+
+          <details class="qa" data-level="medium">
+            <summary>How do parallel streams work internally?</summary>
+            <div class="answer">
+              <ul>
+                <li>Created with <code>collection.parallelStream()</code> or <code>stream.parallel()</code> (the whole pipeline becomes parallel; the last <code>parallel()</code>/<code>sequential()</code> call wins).</li>
+                <li>The source's <b><code>Spliterator</code></b> recursively splits the data into chunks.</li>
+                <li>Chunks are processed as fork/join tasks on the shared <b><code>ForkJoinPool.commonPool()</code></b> (parallelism = cores − 1, plus the calling thread).</li>
+                <li>Partial results are merged (the <b>combiner</b> in <code>reduce</code>/<code>collect</code>).</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                long count = IntStream.rangeClosed(1, 10_000_000).parallel()
+                    .filter(n -> n % 3 == 0)
+                    .count();
+
+                List.of(1, 2, 3, 4).parallelStream()
+                    .forEach(n -> System.out.println(n + " on " + Thread.currentThread().getName()));
+                // 3 on main, 1 on ForkJoinPool.commonPool-worker-1, ... (order varies)
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>When should you use a parallel stream, and when not?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Good fit ✅</th><th>Bad fit ❌</th></tr></thead>
+                <tbody>
+                  <tr><td>Large data (rule of thumb: N × cost per element &gt; ~10,000 operations)</td><td>Small collections — splitting overhead dominates</td></tr>
+                  <tr><td>CPU-bound, independent work per element</td><td>Blocking I/O (HTTP, DB calls) — starves the common pool</td></tr>
+                  <tr><td>Sources that split well: <code>ArrayList</code>, arrays, <code>IntStream.range</code>, <code>HashSet</code></td><td>Sources that split badly: <code>LinkedList</code>, <code>Stream.iterate</code>, <code>Files.lines</code> (partially), <code>BufferedReader.lines</code></td></tr>
+                  <tr><td>Stateless ops, associative reductions, primitive streams</td><td>Order-dependent ops: <code>limit</code>, <code>findFirst</code>, <code>sorted</code>, <code>forEachOrdered</code> on ordered streams</td></tr>
+                  <tr><td>Batch jobs</td><td>Web request threads in a busy server (all requests share one pool)</td></tr>
+                </tbody>
+              </table></div>
+              <div class="tip">Always <b>measure</b> (JMH) — parallel is frequently slower. Also: each element should be independent, and the operations must be thread-safe.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>What are common parallel stream bugs?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                // 1. Shared mutable state — race condition, lost updates / ArrayIndexOutOfBounds
+                List<Integer> unsafe = new ArrayList<>();
+                IntStream.range(0, 10_000).parallel().forEach(unsafe::add);
+                System.out.println(unsafe.size());          // often < 10000, may even throw
+
+                // Fix: let the stream build the result
+                List<Integer> safe = IntStream.range(0, 10_000).parallel().boxed().toList();   // always 10000
+
+                // 2. forEach does not respect order in parallel
+                List.of(1, 2, 3, 4, 5).parallelStream().forEach(System.out::print);        // e.g. 35412
+                List.of(1, 2, 3, 4, 5).parallelStream().forEachOrdered(System.out::print); // 12345
+
+                // 3. Non-associative reduce / wrong identity
+                int wrong = IntStream.rangeClosed(1, 4).parallel().reduce(10, Integer::sum); // not 20! identity added per chunk
+                int right = 10 + IntStream.rangeClosed(1, 4).parallel().sum();              // 20
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>How do you run a parallel stream in a custom thread pool instead of the common pool?</summary>
+            <div class="answer">
+              <p>A parallel stream started from <b>inside</b> a <code>ForkJoinPool</code> task uses that pool. This is an implementation detail, but widely used to isolate heavy batch work from the shared common pool.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                ForkJoinPool pool = new ForkJoinPool(4);
+                try {
+                    long primes = pool.submit(() ->
+                        IntStream.rangeClosed(2, 2_000_000).parallel().filter(Main::isPrime).count()
+                    ).get();
+                } finally {
+                    pool.shutdown();
+                }
+
+                // Or resize the common pool globally (JVM-wide!)
+                // -Djava.util.concurrent.ForkJoinPool.common.parallelism=8
+              </script>
+              <div class="note">For I/O fan-out, don't use parallel streams at all — use an executor or virtual threads (see <a href="java.html">Core Java → Virtual threads</a>), or Java 24's <code>Gatherers.mapConcurrent(n, fn)</code>.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Do <code>findAny</code>, <code>unordered()</code> and <code>Collectors.groupingByConcurrent</code> help in parallel?</summary>
+            <div class="answer">
+              <ul>
+                <li><code>findAny()</code> can return whichever element is found first by any thread — cheaper than <code>findFirst()</code>, which must respect encounter order.</li>
+                <li><code>unordered()</code> tells the stream order doesn't matter, so <code>distinct()</code>/<code>limit()</code> become much cheaper in parallel.</li>
+                <li><code>groupingByConcurrent</code> / <code>toConcurrentMap</code> build one <code>ConcurrentMap</code> shared by all threads instead of merging per-chunk maps.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                ConcurrentMap<Integer, Long> byLength = words.parallelStream()
+                    .collect(Collectors.groupingByConcurrent(String::length, Collectors.counting()));
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <!-- ===================================================== CODING -->
+        <section class="qa-group">
+          <h2>Sample data for coding questions</h2>
+          <details class="qa" data-level="easy" open>
+            <summary>The data set used by every coding question below</summary>
+            <div class="answer">
+              <p>All coding answers use these variables. Paste this into a <code>main</code> method (plus the record) to run any of them yourself.</p>
+              <div class="note">Results shown with <code>// =&gt;</code> are real outputs from Java 25. Where a plain <code>HashMap</code> is used (e.g. default <code>groupingBy</code>), key order is <b>not guaranteed</b> — the answers use <code>TreeMap</code>/<code>LinkedHashMap</code> wherever order matters.</div>
+              <script type="text/plain" class="code" data-lang="java" data-test="setup">
+                record Employee(int id, String name, String dept, double salary, int age, String gender, List<String> skills) {}
+
+                List<Employee> emps = List.of(
+                    new Employee(1, "Asha",  "IT",      120000, 32, "F", List.of("Java", "Spring", "AWS")),
+                    new Employee(2, "Ravi",  "IT",       95000, 28, "M", List.of("Java", "Angular")),
+                    new Employee(3, "Meena", "HR",       70000, 41, "F", List.of("Excel", "Communication")),
+                    new Employee(4, "John",  "Finance",  82000, 35, "M", List.of("Excel", "SQL")),
+                    new Employee(5, "Kiran", "IT",       95000, 25, "M", List.of("Python", "AWS")),
+                    new Employee(6, "Priya", "Finance", 105000, 45, "F", List.of("SQL", "Python")),
+                    new Employee(7, "Arjun", "HR",       60000, 23, "M", List.of("Communication")));
+
+                List<Integer> nums  = List.of(5, 3, 8, 3, 1, 9, 5, 7, 8, 2);
+                List<String>  words = List.of("java", "spring", "angular", "java", "sql", "spring", "java");
+                String sentence = "Java is fun and Java is powerful";
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Coding: duplicates, frequency &amp; counting</h2>
+
+          <details class="qa" data-level="easy">
+            <summary>Find duplicate elements in a list (3 ways).</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="1">
+                // 1. Set.add returns false when the element is already present
+                Set<Integer> seen = new HashSet<>();
+                Set<Integer> dups1 = nums.stream().filter(n -> !seen.add(n)).collect(Collectors.toSet());
+                System.out.println(dups1); // => [3, 5, 8]
+
+                // 2. Count, then keep counts > 1 (works for parallel streams too)
+                List<Integer> dups2 = nums.stream()
+                    .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                    .entrySet().stream()
+                    .filter(e -> e.getValue() > 1)
+                    .map(Map.Entry::getKey)
+                    .toList();
+                System.out.println(dups2); // => [3, 5, 8]
+
+                // 3. Collections.frequency — simple but O(n²)
+                Set<Integer> dups3 = nums.stream().filter(n -> Collections.frequency(nums, n) > 1).collect(Collectors.toSet());
+                System.out.println(dups3); // => [3, 5, 8]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Remove duplicates while keeping the original order.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="2">
+                List<Integer> unique = nums.stream().distinct().toList();
+                System.out.println(unique); // => [5, 3, 8, 1, 9, 7, 2]
+
+                // Unique AND sorted
+                System.out.println(nums.stream().distinct().sorted().toList()); // => [1, 2, 3, 5, 7, 8, 9]
+
+                // Remove duplicate employees by a property (keep first per salary)
+                Collection<Employee> bySalary = emps.stream()
+                    .collect(Collectors.toMap(Employee::salary, e -> e, (a, b) -> a, LinkedHashMap::new))
+                    .values();
+                System.out.println(bySalary.stream().map(Employee::name).toList()); // => [Asha, Ravi, Meena, John, Priya, Arjun]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Count the occurrences of each word (group by + count), most frequent first.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="3">
+                Map<String, Long> counts = words.stream()
+                    .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+                System.out.println(counts); // => {spring=2, angular=1, java=3, sql=1}
+
+                // Sorted by count descending, then alphabetically; LinkedHashMap keeps the order
+                Map<String, Long> sorted = counts.entrySet().stream()
+                    .sorted(Map.Entry.<String, Long>comparingByValue().reversed()
+                            .thenComparing(Map.Entry.comparingByKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
+                System.out.println(sorted); // => {java=3, spring=2, angular=1, sql=1}
+
+                // Words in a sentence, case-insensitive, alphabetical keys
+                Map<String, Long> sentenceCounts = Arrays.stream(sentence.toLowerCase().split("\\W+"))
+                    .collect(Collectors.groupingBy(Function.identity(), TreeMap::new, Collectors.counting()));
+                System.out.println(sentenceCounts); // => {and=1, fun=1, is=2, java=2, powerful=1}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Count each character in a string; find the first non-repeated and first repeated character.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="4">
+                String input = "programming";
+
+                Map<Character, Long> freq = input.chars()
+                    .mapToObj(c -> (char) c)
+                    .collect(Collectors.groupingBy(Function.identity(), LinkedHashMap::new, Collectors.counting()));
+                System.out.println(freq); // => {p=1, r=2, o=1, g=2, a=1, m=2, i=1, n=1}
+
+                Character firstNonRepeated = freq.entrySet().stream()
+                    .filter(e -> e.getValue() == 1).map(Map.Entry::getKey).findFirst().orElse(null);
+                System.out.println(firstNonRepeated); // => p
+
+                Character firstRepeated = freq.entrySet().stream()
+                    .filter(e -> e.getValue() > 1).map(Map.Entry::getKey).findFirst().orElse(null);
+                System.out.println(firstRepeated); // => r
+
+                // Ignore spaces and case
+                Map<Character, Long> letters = "Hello World".toLowerCase().chars()
+                    .filter(Character::isLetter)
+                    .mapToObj(c -> (char) c)
+                    .collect(Collectors.groupingBy(Function.identity(), TreeMap::new, Collectors.counting()));
+                System.out.println(letters); // => {d=1, e=1, h=1, l=3, o=2, r=1, w=1}
+              </script>
+              <div class="note"><code>LinkedHashMap</code> is the key detail: with a plain <code>HashMap</code> "first" would be meaningless because order is lost.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Find the most frequent element.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="5">
+                String mostFrequent = words.stream()
+                    .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                    .entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElseThrow();
+                System.out.println(mostFrequent); // => java
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Count elements matching a condition; check if any / all / none match.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="6">
+                System.out.println(nums.stream().filter(n -> n > 4).count()); // => 6
+                System.out.println(emps.stream().anyMatch(e -> e.salary() > 110000)); // => true
+                System.out.println(emps.stream().allMatch(e -> e.age() >= 18)); // => true
+                System.out.println(emps.stream().noneMatch(e -> e.dept().equals("Sales"))); // => true
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Coding: grouping &amp; partitioning</h2>
+
+          <details class="qa" data-level="easy">
+            <summary>Group employees by department (names only), and count employees per department.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="7">
+                Map<String, List<String>> namesByDept = emps.stream()
+                    .collect(Collectors.groupingBy(Employee::dept, TreeMap::new,
+                             Collectors.mapping(Employee::name, Collectors.toList())));
+                System.out.println(namesByDept); // => {Finance=[John, Priya], HR=[Meena, Arjun], IT=[Asha, Ravi, Kiran]}
+
+                Map<String, Long> countByDept = emps.stream()
+                    .collect(Collectors.groupingBy(Employee::dept, TreeMap::new, Collectors.counting()));
+                System.out.println(countByDept); // => {Finance=2, HR=2, IT=3}
+
+                Map<String, Long> countByGender = emps.stream()
+                    .collect(Collectors.groupingBy(Employee::gender, Collectors.counting()));
+                System.out.println(countByGender); // => {F=3, M=4}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Average, total, and max salary per department; highest-paid employee per department.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="8">
+                Map<String, Double> avgByDept = emps.stream()
+                    .collect(Collectors.groupingBy(Employee::dept, TreeMap::new, Collectors.averagingDouble(Employee::salary)));
+                System.out.println(avgByDept); // => {Finance=93500.0, HR=65000.0, IT=103333.33333333333}
+
+                Map<String, Double> totalByDept = emps.stream()
+                    .collect(Collectors.groupingBy(Employee::dept, TreeMap::new, Collectors.summingDouble(Employee::salary)));
+                System.out.println(totalByDept); // => {Finance=187000.0, HR=130000.0, IT=310000.0}
+
+                // maxBy gives Optional; collectingAndThen unwraps it
+                Map<String, String> topEarnerByDept = emps.stream()
+                    .collect(Collectors.groupingBy(Employee::dept, TreeMap::new,
+                             Collectors.collectingAndThen(
+                                 Collectors.maxBy(Comparator.comparingDouble(Employee::salary)),
+                                 e -> e.get().name())));
+                System.out.println(topEarnerByDept); // => {Finance=Priya, HR=Meena, IT=Asha}
+
+                // Full statistics in one pass
+                DoubleSummaryStatistics itStats = emps.stream()
+                    .filter(e -> e.dept().equals("IT"))
+                    .collect(Collectors.summarizingDouble(Employee::salary));
+                System.out.println(itStats.getMin() + " / " + itStats.getMax() + " / " + itStats.getAverage()); // => 95000.0 / 120000.0 / 103333.33333333333
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Which department has the highest average salary?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="9">
+                String topDept = emps.stream()
+                    .collect(Collectors.groupingBy(Employee::dept, Collectors.averagingDouble(Employee::salary)))
+                    .entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElseThrow();
+                System.out.println(topDept); // => IT
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Multi-level grouping: by department, then by gender.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="10">
+                Map<String, Map<String, List<String>>> byDeptGender = emps.stream()
+                    .collect(Collectors.groupingBy(Employee::dept, TreeMap::new,
+                             Collectors.groupingBy(Employee::gender, TreeMap::new,
+                                 Collectors.mapping(Employee::name, Collectors.toList()))));
+                System.out.println(byDeptGender); // => {Finance={F=[Priya], M=[John]}, HR={F=[Meena], M=[Arjun]}, IT={F=[Asha], M=[Ravi, Kiran]}}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Group employees into age bands (custom classifier) and filter within groups.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="11">
+                Map<String, List<String>> byAgeBand = emps.stream()
+                    .collect(Collectors.groupingBy(
+                        e -> e.age() < 30 ? "20s" : e.age() < 40 ? "30s" : "40+",
+                        TreeMap::new,
+                        Collectors.mapping(Employee::name, Collectors.toList())));
+                System.out.println(byAgeBand); // => {20s=[Ravi, Kiran, Arjun], 30s=[Asha, John], 40+=[Meena, Priya]}
+
+                // Java 9 Collectors.filtering keeps EMPTY groups (filter() before groupingBy would drop HR)
+                Map<String, List<String>> highEarners = emps.stream()
+                    .collect(Collectors.groupingBy(Employee::dept, TreeMap::new,
+                             Collectors.filtering(e -> e.salary() > 90000,
+                                 Collectors.mapping(Employee::name, Collectors.toList()))));
+                System.out.println(highEarners); // => {Finance=[Priya], HR=[], IT=[Asha, Ravi, Kiran]}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Partition numbers into even and odd; partition employees by salary.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="12">
+                Map<Boolean, List<Integer>> evenOdd = nums.stream()
+                    .collect(Collectors.partitioningBy(n -> n % 2 == 0));
+                System.out.println(evenOdd); // => {false=[5, 3, 3, 1, 9, 5, 7], true=[8, 8, 2]}
+
+                Map<Boolean, Long> above90k = emps.stream()
+                    .collect(Collectors.partitioningBy(e -> e.salary() > 90000, Collectors.counting()));
+                System.out.println(above90k); // => {false=3, true=4}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Group strings by length, and group anagrams together.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="13">
+                Map<Integer, List<String>> byLength = words.stream().distinct()
+                    .collect(Collectors.groupingBy(String::length, TreeMap::new, Collectors.toList()));
+                System.out.println(byLength); // => {3=[sql], 4=[java], 6=[spring], 7=[angular]}
+
+                List<String> input = List.of("listen", "silent", "enlist", "google", "gogole", "cat", "act");
+                Collection<List<String>> anagrams = input.stream()
+                    .collect(Collectors.groupingBy(
+                        w -> w.chars().sorted()
+                              .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+                              .toString(),
+                        LinkedHashMap::new, Collectors.toList()))
+                    .values();
+                System.out.println(anagrams); // => [[listen, silent, enlist], [google, gogole], [cat, act]]
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Coding: sorting &amp; reversing</h2>
+
+          <details class="qa" data-level="easy">
+            <summary>Sort numbers and strings ascending and descending.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="14">
+                System.out.println(nums.stream().sorted().toList()); // => [1, 2, 3, 3, 5, 5, 7, 8, 8, 9]
+                System.out.println(nums.stream().sorted(Comparator.reverseOrder()).toList()); // => [9, 8, 8, 7, 5, 5, 3, 3, 2, 1]
+
+                List<String> langs = List.of("Spring", "java", "Angular", "sql");
+                System.out.println(langs.stream().sorted().toList()); // => [Angular, Spring, java, sql]
+                System.out.println(langs.stream().sorted(String.CASE_INSENSITIVE_ORDER).toList()); // => [Angular, java, Spring, sql]
+                List<String> byLen = langs.stream()
+                    .sorted(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()))
+                    .toList();
+                System.out.println(byLen); // => [sql, java, Spring, Angular]
+              </script>
+              <div class="note">Natural order of <code>String</code> is by Unicode value, so uppercase letters come before lowercase.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Sort employees by salary (desc), then by name; and by multiple fields.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="15">
+                List<String> bySalaryDesc = emps.stream()
+                    .sorted(Comparator.comparingDouble(Employee::salary).reversed()
+                            .thenComparing(Employee::name))
+                    .map(e -> e.name() + ":" + (int) e.salary())
+                    .toList();
+                System.out.println(bySalaryDesc); // => [Asha:120000, Priya:105000, Kiran:95000, Ravi:95000, John:82000, Meena:70000, Arjun:60000]
+
+                // Department ascending, then salary descending, then age ascending
+                List<String> multi = emps.stream()
+                    .sorted(Comparator.comparing(Employee::dept)
+                            .thenComparing(Employee::salary, Comparator.reverseOrder())
+                            .thenComparingInt(Employee::age))
+                    .map(e -> e.dept() + "/" + e.name())
+                    .toList();
+                System.out.println(multi); // => [Finance/Priya, Finance/John, HR/Meena, HR/Arjun, IT/Asha, IT/Kiran, IT/Ravi]
+              </script>
+              <div class="tip">Watch out: <code>comparing(A).thenComparing(B).reversed()</code> reverses the <i>whole</i> chain. To reverse only one key, pass <code>Comparator.reverseOrder()</code> to that key, as above.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Sort a map by value and by key.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="16">
+                Map<String, Integer> scores = Map.of("Asha", 88, "Ravi", 95, "Meena", 72, "John", 95);
+
+                Map<String, Integer> byValueDesc = scores.entrySet().stream()
+                    .sorted(Map.Entry.<String, Integer>comparingByValue(Comparator.reverseOrder())
+                            .thenComparing(Map.Entry.comparingByKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
+                System.out.println(byValueDesc); // => {John=95, Ravi=95, Asha=88, Meena=72}
+
+                Map<String, Integer> byKey = new TreeMap<>(scores);
+                System.out.println(byKey); // => {Asha=88, John=95, Meena=72, Ravi=95}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Find the top 3 and the Nth highest salary.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="17">
+                List<String> top3 = emps.stream()
+                    .sorted(Comparator.comparingDouble(Employee::salary).reversed())
+                    .limit(3).map(Employee::name).toList();
+                System.out.println(top3); // => [Asha, Priya, Ravi]
+
+                int n = 2;   // 2nd highest DISTINCT salary
+                double nth = emps.stream().map(Employee::salary).distinct()
+                    .sorted(Comparator.reverseOrder())
+                    .skip(n - 1).findFirst().orElseThrow();
+                System.out.println(nth); // => 105000.0
+
+                // Second largest number in a list
+                System.out.println(nums.stream().distinct().sorted(Comparator.reverseOrder()).skip(1).findFirst().get()); // => 8
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Reverse a list using streams.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="18">
+                List<Integer> list = List.of(1, 2, 3, 4, 5);
+
+                // 1. Index-based (works on Java 8)
+                List<Integer> rev1 = IntStream.range(0, list.size())
+                    .mapToObj(i -> list.get(list.size() - 1 - i))
+                    .toList();
+                System.out.println(rev1); // => [5, 4, 3, 2, 1]
+
+                // 2. Collect, then Collections.reverse
+                List<Integer> rev2 = list.stream().collect(Collectors.collectingAndThen(
+                    Collectors.toCollection(ArrayList::new), l -> { Collections.reverse(l); return l; }));
+                System.out.println(rev2); // => [5, 4, 3, 2, 1]
+
+                // 3. Java 21: sequenced collections — a reversed VIEW, no copy
+                System.out.println(list.reversed()); // => [5, 4, 3, 2, 1]
+              </script>
+              <div class="note">"Sort in reverse" and "reverse" are different: <code>sorted(Comparator.reverseOrder())</code> sorts descending; reversing keeps the original order backwards.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Reverse a string, reverse each word, and reverse the order of words.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="19">
+                String text = "Java Streams Rock";
+
+                String reversed = text.chars()
+                    .mapToObj(c -> String.valueOf((char) c))
+                    .reduce("", (acc, ch) -> ch + acc);
+                System.out.println(reversed); // => kcoR smaertS avaJ
+
+                String eachWordReversed = Arrays.stream(text.split(" "))
+                    .map(w -> new StringBuilder(w).reverse().toString())
+                    .collect(Collectors.joining(" "));
+                System.out.println(eachWordReversed); // => avaJ smaertS kcoR
+
+                List<String> parts = Arrays.asList(text.split(" "));
+                String wordOrderReversed = IntStream.range(0, parts.size())
+                    .mapToObj(i -> parts.get(parts.size() - 1 - i))
+                    .collect(Collectors.joining(" "));
+                System.out.println(wordOrderReversed); // => Rock Streams Java
+              </script>
+              <div class="tip">In an interview, mention that the <code>reduce</code> string version is O(n²) (new string each step) — <code>new StringBuilder(text).reverse()</code> is the practical answer.</div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Coding: transform, flatten &amp; aggregate</h2>
+
+          <details class="qa" data-level="easy">
+            <summary>Square the numbers, filter evens, and compute sum, max, min, average.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="20">
+                System.out.println(nums.stream().map(n -> n * n).toList()); // => [25, 9, 64, 9, 1, 81, 25, 49, 64, 4]
+                System.out.println(nums.stream().filter(n -> n % 2 == 0).mapToInt(n -> n * n).sum()); // => 132
+                System.out.println(nums.stream().mapToInt(Integer::intValue).max().getAsInt()); // => 9
+                System.out.println(nums.stream().min(Comparator.naturalOrder()).get()); // => 1
+                System.out.println(nums.stream().mapToInt(Integer::intValue).average().orElse(0)); // => 5.1
+                System.out.println(nums.stream().mapToInt(Integer::intValue).summaryStatistics()); // => IntSummaryStatistics{count=10, sum=51, min=1, average=5.100000, max=9}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Flatten a list of lists; collect all unique skills of all employees.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="21">
+                List<List<Integer>> nested = List.of(List.of(1, 2), List.of(3, 4), List.of(5));
+                System.out.println(nested.stream().flatMap(List::stream).toList()); // => [1, 2, 3, 4, 5]
+
+                Set<String> skills = emps.stream()
+                    .flatMap(e -> e.skills().stream())
+                    .collect(Collectors.toCollection(TreeSet::new));
+                System.out.println(skills); // => [AWS, Angular, Communication, Excel, Java, Python, SQL, Spring]
+
+                // Who knows Java?
+                System.out.println(emps.stream().filter(e -> e.skills().contains("Java")).map(Employee::name).toList()); // => [Asha, Ravi]
+
+                // Skill → number of employees having it
+                Map<String, Long> skillCount = emps.stream()
+                    .flatMap(e -> e.skills().stream())
+                    .collect(Collectors.groupingBy(Function.identity(), TreeMap::new, Collectors.counting()));
+                System.out.println(skillCount); // => {AWS=2, Angular=1, Communication=2, Excel=2, Java=2, Python=2, SQL=2, Spring=1}
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Convert a list to a map (id → name), and join strings.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="22">
+                Map<Integer, String> idToName = emps.stream()
+                    .collect(Collectors.toMap(Employee::id, Employee::name));
+                System.out.println(idToName); // => {1=Asha, 2=Ravi, 3=Meena, 4=John, 5=Kiran, 6=Priya, 7=Arjun}
+
+                System.out.println(emps.stream().map(Employee::name).collect(Collectors.joining(", "))); // => Asha, Ravi, Meena, John, Kiran, Priya, Arjun
+                String joined = words.stream().distinct().map(String::toUpperCase)
+                    .collect(Collectors.joining(" | ", "[", "]"));
+                System.out.println(joined); // => [JAVA | SPRING | ANGULAR | SQL]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>String problems: longest word, words starting with a letter, capitalise each word.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="23">
+                System.out.println(words.stream().max(Comparator.comparingInt(String::length)).get()); // => angular
+                System.out.println(words.stream().filter(w -> w.startsWith("s")).distinct().toList()); // => [spring, sql]
+
+                String title = Arrays.stream("the quick brown fox".split(" "))
+                    .map(w -> Character.toUpperCase(w.charAt(0)) + w.substring(1))
+                    .collect(Collectors.joining(" "));
+                System.out.println(title); // => The Quick Brown Fox
+
+                long vowels = "Interview Preparation".toLowerCase().chars().filter(c -> "aeiou".indexOf(c) >= 0).count();
+                System.out.println(vowels); // => 9
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Find common elements between two lists; merge two lists without duplicates, sorted.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="24">
+                List<Integer> a = List.of(1, 2, 3, 4, 5);
+                List<Integer> b = List.of(4, 5, 6, 7, 1);
+
+                Set<Integer> bSet = new HashSet<>(b);                    // O(1) lookups
+                System.out.println(a.stream().filter(bSet::contains).toList()); // => [1, 4, 5]
+
+                System.out.println(Stream.concat(a.stream(), b.stream()).distinct().sorted().toList()); // => [1, 2, 3, 4, 5, 6, 7]
+
+                // Elements in a but not in b
+                System.out.println(a.stream().filter(x -> !bSet.contains(x)).toList()); // => [2, 3]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Generate Fibonacci numbers and prime numbers with streams.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="25">
+                List<Long> fib = Stream.iterate(new long[]{0, 1}, f -> new long[]{f[1], f[0] + f[1]})
+                    .limit(10).map(f -> f[0]).toList();
+                System.out.println(fib); // => [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
+
+                List<Integer> primes = IntStream.rangeClosed(2, 30)
+                    .filter(n -> IntStream.rangeClosed(2, (int) Math.sqrt(n)).noneMatch(d -> n % d == 0))
+                    .boxed().toList();
+                System.out.println(primes); // => [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+
+                long factorial = LongStream.rangeClosed(1, 10).reduce(1, (x, y) -> x * y);
+                System.out.println(factorial); // => 3628800
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Check a palindrome and an anagram using streams.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="26">
+                String s = "racecar";
+                boolean palindrome = IntStream.range(0, s.length() / 2)
+                    .allMatch(i -> s.charAt(i) == s.charAt(s.length() - 1 - i));
+                System.out.println(palindrome); // => true
+
+                String x = "listen", y = "silent";
+                boolean anagram = Arrays.equals(x.chars().sorted().toArray(), y.chars().sorted().toArray());
+                System.out.println(anagram); // => true
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy">
+            <summary>Paginate a list with <code>skip</code> and <code>limit</code>.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="27">
+                int page = 1, size = 3;    // zero-based page number
+                List<String> pageItems = emps.stream()
+                    .sorted(Comparator.comparing(Employee::name))
+                    .skip((long) page * size)
+                    .limit(size)
+                    .map(Employee::name)
+                    .toList();
+                System.out.println(pageItems); // => [Kiran, Meena, Priya]
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Compute two results in one pass with <code>Collectors.teeing</code> (Java 12).</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="28">
+                String range = emps.stream().collect(Collectors.teeing(
+                    Collectors.minBy(Comparator.comparingDouble(Employee::salary)),
+                    Collectors.maxBy(Comparator.comparingDouble(Employee::salary)),
+                    (min, max) -> min.get().name() + " → " + max.get().name()));
+                System.out.println(range); // => Arjun → Asha
+
+                double average = nums.stream().collect(Collectors.teeing(
+                    Collectors.summingInt(Integer::intValue),
+                    Collectors.counting(),
+                    (sum, count) -> (double) sum / count));
+                System.out.println(average); // => 5.1
+              </script>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Coding: parallel streams</h2>
+
+          <details class="qa" data-level="medium">
+            <summary>Sum 1 to 10 million with a parallel stream, and show that it gives the same result as sequential.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="29">
+                long seq = LongStream.rangeClosed(1, 10_000_000).sum();
+                long par = LongStream.rangeClosed(1, 10_000_000).parallel().sum();
+                System.out.println(seq == par); // => true
+                System.out.println(par); // => 50000005000000
+
+                // Parallel with reduce — identity 0 and associative Long::sum are both required
+                long parReduce = LongStream.rangeClosed(1, 10_000_000).parallel().reduce(0, Long::sum);
+                System.out.println(parReduce == seq); // => true
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>Demonstrate a race condition in a parallel stream and fix it.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="30">
+                // Broken: plain int[] counter updated from many threads
+                int[] counter = {0};
+                IntStream.range(0, 100_000).parallel().forEach(i -> counter[0]++);
+                System.out.println(counter[0] <= 100_000); // => true   (usually LESS than 100000: lost updates)
+
+                // Fix 1: AtomicInteger (works, but contention makes it slow)
+                AtomicInteger atomic = new AtomicInteger();
+                IntStream.range(0, 100_000).parallel().forEach(i -> atomic.incrementAndGet());
+                System.out.println(atomic.get()); // => 100000
+
+                // Fix 2 (best): no shared state at all
+                System.out.println(IntStream.range(0, 100_000).parallel().count()); // => 100000
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Group and count in parallel safely.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java" data-test="31">
+                Map<String, Long> deptCounts = emps.parallelStream()
+                    .collect(Collectors.groupingByConcurrent(Employee::dept, Collectors.counting()));
+                System.out.println(new TreeMap<>(deptCounts)); // => {Finance=2, HR=2, IT=3}
+
+                // Order-preserving parallel result: collect() keeps encounter order for ordered sources
+                List<String> upper = emps.parallelStream().map(e -> e.name().toUpperCase()).toList();
+                System.out.println(upper); // => [ASHA, RAVI, MEENA, JOHN, KIRAN, PRIYA, ARJUN]
+              </script>
+            </div>
+          </details>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer id="site-footer"></footer>
+</body>
+</html>

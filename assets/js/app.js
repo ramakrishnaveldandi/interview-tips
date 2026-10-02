@@ -7,6 +7,7 @@
 
   const TOPICS = [
     { href: "java.html", label: "Core Java" },
+    { href: "java-streams.html", label: "Streams" },
     { href: "java17.html", label: "Java 17" },
     { href: "java25.html", label: "Java 25" },
     { href: "java-versions.html", label: "8 vs 17 vs 25" },
@@ -17,6 +18,7 @@
     { href: "sso.html", label: "SSO" },
     { href: "angular.html", label: "Angular" },
     { href: "database.html", label: "Database" },
+    { href: "ai-claude-code.html", label: "AI / Claude" },
   ];
 
   /* ---------- Theme (applied early to avoid flash) ---------- */

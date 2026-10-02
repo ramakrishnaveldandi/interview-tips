@@ -545,7 +545,7 @@
         <section class="qa-group">
           <h2>Vulnerabilities &amp; hardening</h2>
           <details class="qa" data-level="medium">
-            <summary>Explain common OWASP vulnerabilities and how to prevent them in a Spring app.</summary>
+            <summary>Explain common OWASP vulnerabilities and how to prevent them in a Spring app (quick summary — full Top 10:2025 below).</summary>
             <div class="answer">
               <div class="table-wrap"><table>
                 <thead><tr><th>Vulnerability</th><th>Example</th><th>Prevention</th></tr></thead>
@@ -593,6 +593,519 @@
                 }
               </script>
               <div class="note">Never expose <code>/actuator/env</code>, <code>/heapdump</code> or <code>/loggers</code> publicly — they can leak secrets or allow runtime changes.</div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>OWASP Top 10:2025 — vulnerabilities &amp; fixes</h2>
+          <p class="group-intro">OWASP publishes a <b>Top 10</b> (not a Top 20); the latest edition is <b>2025</b>. Combined with the OWASP API Security Top 10 in the next section, these are the ~20 risks interviewers ask about. Each answer shows vulnerable code and the fix.</p>
+
+          <details class="qa" data-level="easy">
+            <summary>What is the OWASP Top 10:2025, and what changed from the 2021 list?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>#</th><th>2025 category</th><th>Change vs 2021</th></tr></thead>
+                <tbody>
+                  <tr><td>A01</td><td>Broken Access Control</td><td>Still #1; now also covers SSRF (was A10:2021)</td></tr>
+                  <tr><td>A02</td><td>Security Misconfiguration</td><td>Up from #5</td></tr>
+                  <tr><td>A03</td><td>Software Supply Chain Failures</td><td><b>New</b> — expands "Vulnerable and Outdated Components" (A06:2021)</td></tr>
+                  <tr><td>A04</td><td>Cryptographic Failures</td><td>Down from #2</td></tr>
+                  <tr><td>A05</td><td>Injection</td><td>Down from #3 (includes XSS)</td></tr>
+                  <tr><td>A06</td><td>Insecure Design</td><td>Down from #4</td></tr>
+                  <tr><td>A07</td><td>Authentication Failures</td><td>Renamed from "Identification and Authentication Failures"</td></tr>
+                  <tr><td>A08</td><td>Software or Data Integrity Failures</td><td>Same position</td></tr>
+                  <tr><td>A09</td><td>Security Logging &amp; <b>Alerting</b> Failures</td><td>Renamed: emphasis on alerting, not just logging</td></tr>
+                  <tr><td>A10</td><td>Mishandling of Exceptional Conditions</td><td><b>New</b> — error handling, failing open, unhandled edge cases</td></tr>
+                </tbody>
+              </table></div>
+              <div class="tip">Source: <a href="https://top10.owasp.org/2025" target="_blank" rel="noopener">top10.owasp.org/2025</a>. Mention in interviews that the list is data-driven (CWE mappings from real tests) plus a community survey.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>A01 Broken Access Control — what is IDOR and how do you fix it in Spring?</summary>
+            <div class="answer">
+              <p>Users can act outside their permissions: view other users' data by changing an ID (<b>IDOR</b>), call admin endpoints, elevate privileges, or make the server fetch internal URLs (<b>SSRF</b>, now part of A01).</p>
+              <script type="text/plain" class="code" data-lang="java">
+                // VULNERABLE: any logged-in user can read any order by changing the id
+                @GetMapping("/api/orders/{id}")
+                public Order get(@PathVariable Long id) {
+                    return orderRepo.findById(id).orElseThrow();
+                }
+
+                // FIXED: scope the query to the current user (deny by default)
+                @GetMapping("/api/orders/{id}")
+                public Order get(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+                    return orderRepo.findByIdAndOwnerId(id, jwt.getSubject())
+                                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));  // 404, don't reveal existence
+                }
+
+                // Or declaratively with method security
+                @PreAuthorize("hasRole('ADMIN') or @orderSecurity.isOwner(#id, authentication)")
+                public Order getOrder(Long id) { ... }
+              </script>
+              <ul>
+                <li>Enforce authorization <b>on the server</b> for every request — hiding a button in Angular is not access control.</li>
+                <li>Deny by default: <code>.anyRequest().authenticated()</code> or <code>denyAll()</code> as the last rule.</li>
+                <li>Use unguessable IDs (UUIDs) as defence in depth, not as the fix.</li>
+                <li>Configure CORS narrowly; disable directory listing; rate-limit; log access-control failures.</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>A01 (SSRF) — how do you prevent Server-Side Request Forgery?</summary>
+            <div class="answer">
+              <p>The app fetches a URL supplied by the user, and an attacker points it at internal systems — e.g. the cloud metadata endpoint <code>http://169.254.169.254/</code> to steal credentials.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                // VULNERABLE
+                @PostMapping("/preview")
+                String preview(@RequestParam String url) {
+                    return restClient.get().uri(url).retrieve().body(String.class);
+                }
+
+                // FIXED: allow-list hosts, require https, block private/link-local addresses
+                private static final Set<String> ALLOWED_HOSTS = Set.of("images.partner.com", "cdn.partner.com");
+
+                String preview(String url) throws Exception {
+                    URI uri = URI.create(url);
+                    if (!"https".equals(uri.getScheme()) || !ALLOWED_HOSTS.contains(uri.getHost()))
+                        throw new IllegalArgumentException("URL not allowed");
+                    InetAddress addr = InetAddress.getByName(uri.getHost());
+                    if (addr.isLoopbackAddress() || addr.isSiteLocalAddress() || addr.isLinkLocalAddress() || addr.isAnyLocalAddress())
+                        throw new IllegalArgumentException("Internal address");
+                    return restClient.get().uri(uri).retrieve().body(String.class);   // and disable redirects in the client
+                }
+              </script>
+              <div class="note">Also enforce at the network level (egress firewall), and use IMDSv2 on AWS, which requires a session token the attacker cannot easily obtain.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>A02 Security Misconfiguration — what are typical examples in a Spring Boot app?</summary>
+            <div class="answer">
+              <ul>
+                <li>All Actuator endpoints exposed publicly (<code>/actuator/env</code>, <code>/heapdump</code> leak secrets).</li>
+                <li>Stack traces and framework versions in error responses.</li>
+                <li>Default credentials, sample apps, H2 console enabled in production.</li>
+                <li>Missing security headers, permissive CORS (<code>*</code> with credentials), verbose logging of tokens.</li>
+                <li>Unpatched containers, public S3 buckets, open database ports.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="yaml">
+                # application-prod.yml
+                management:
+                  endpoints:
+                    web:
+                      exposure:
+                        include: health,info,prometheus      # never "*"
+                  endpoint:
+                    health:
+                      show-details: when-authorized
+                server:
+                  error:
+                    include-stacktrace: never
+                    include-message: never
+                spring:
+                  h2:
+                    console:
+                      enabled: false
+              </script>
+              <script type="text/plain" class="code" data-lang="java">
+                http.headers(h -> h
+                    .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; frame-ancestors 'none'"))
+                    .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
+                    .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)));
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>A03 Software Supply Chain Failures — what are the risks and how do you defend against them?</summary>
+            <div class="answer">
+              <p>Compromise anywhere in the chain of code you don't write: vulnerable or abandoned dependencies (Log4Shell), malicious packages (typosquatting, hijacked npm maintainers), compromised build tools or CI pipelines, and unverified container images.</p>
+              <ul>
+                <li><b>Inventory</b>: generate an SBOM (CycloneDX Maven/Gradle plugin, <code>syft</code>).</li>
+                <li><b>Scan</b> continuously: OWASP Dependency-Check, Dependabot / Renovate, Snyk, <code>npm audit</code>, Trivy for images.</li>
+                <li><b>Pin and verify</b>: lock files (<code>package-lock.json</code>), Maven checksums, signed artifacts (Sigstore/cosign), trusted registries only.</li>
+                <li><b>Harden CI/CD</b>: least-privilege tokens, pinned GitHub Action SHAs, protected branches, required reviews.</li>
+                <li>Remove unused dependencies; prefer well-maintained libraries.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="xml">
+                <plugin>
+                  <groupId>org.owasp</groupId>
+                  <artifactId>dependency-check-maven</artifactId>
+                  <configuration>
+                    <failBuildOnCVSS>7</failBuildOnCVSS>   <!-- fail the build on high/critical CVEs -->
+                  </configuration>
+                </plugin>
+              </script>
+              <script type="text/plain" class="code" data-lang="yaml">
+                # GitHub Actions: pin third-party actions to a full commit SHA, not a moving tag
+                - uses: actions/checkout@<full-40-char-commit-sha>   # v4.x — copy the SHA from the release page
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>A04 Cryptographic Failures — how should passwords, data and secrets be protected?</summary>
+            <div class="answer">
+              <ul>
+                <li>Passwords: a slow adaptive hash (<b>BCrypt</b>, <b>Argon2</b>, PBKDF2) — never MD5/SHA-1/SHA-256 alone, never encryption.</li>
+                <li>Data in transit: TLS 1.2+ everywhere, HSTS; data at rest: AES-GCM with keys in a KMS/Vault, not in code.</li>
+                <li>Use <code>SecureRandom</code> for tokens, never <code>Random</code>/<code>Math.random()</code>.</li>
+                <li>Don't build your own crypto or use ECB mode; classify data and don't store what you don't need.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                // VULNERABLE
+                String hash = DigestUtils.md5Hex(password);
+                String resetToken = String.valueOf(new Random().nextInt(999999));
+
+                // FIXED
+                PasswordEncoder encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder(); // {bcrypt} by default
+                String stored = encoder.encode(password);
+                boolean ok = encoder.matches(rawPassword, stored);
+
+                byte[] bytes = new byte[32];
+                new SecureRandom().nextBytes(bytes);
+                String resetToken2 = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>A05 Injection — SQL, JPQL and command injection. Show the fix.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                // VULNERABLE: name = "x' OR '1'='1"
+                String sql = "SELECT * FROM users WHERE name = '" + name + "'";
+                jdbcTemplate.queryForList(sql);
+                em.createQuery("FROM User u WHERE u.name = '" + name + "'");     // JPQL injection
+
+                // FIXED: bind parameters
+                jdbcTemplate.queryForList("SELECT * FROM users WHERE name = ?", name);
+                em.createQuery("FROM User u WHERE u.name = :name", User.class).setParameter("name", name);
+
+                @Query("select u from User u where u.name = :name")               // Spring Data is safe by default
+                List<User> findByName(@Param("name") String name);
+
+                // Dynamic ORDER BY cannot be a parameter: allow-list it
+                Set<String> SORTABLE = Set.of("name", "createdAt");
+                if (!SORTABLE.contains(sortField)) throw new IllegalArgumentException();
+
+                // Command injection: never pass user input to a shell
+                new ProcessBuilder("convert", inputFile.toString(), outputFile.toString()).start();  // args, no "sh -c"
+              </script>
+              <div class="note">Also covers LDAP, NoSQL, expression-language (SpEL) and log injection. Validate input with Bean Validation (<code>@Pattern</code>, <code>@Size</code>), but parameterisation is the real fix.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>A05 (XSS) — how do you prevent cross-site scripting in Angular and Spring?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Angular</b> escapes interpolation <code>{{ }}</code> and sanitises <code>[innerHTML]</code> by default. The danger is bypassing it: <code>bypassSecurityTrustHtml(userInput)</code>, or touching <code>nativeElement.innerHTML</code> directly.</li>
+                <li><b>Server-side templates</b> (Thymeleaf): use <code>th:text</code> (escaped), not <code>th:utext</code> for user content.</li>
+                <li>Send a strict <b>Content-Security-Policy</b> as a second layer, and cookies with <code>HttpOnly</code>.</li>
+                <li>Return JSON with <code>Content-Type: application/json</code> so browsers never render it as HTML.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="typescript">
+                // VULNERABLE
+                this.html = this.sanitizer.bypassSecurityTrustHtml(comment.body);
+
+                // FIXED: let Angular sanitise, or render as text
+                // <div [innerHTML]="comment.body"></div>   → scripts and event handlers stripped
+                // <p>{{ comment.body }}</p>                → fully escaped
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>A06 Insecure Design — what is it, and how is it different from an implementation bug?</summary>
+            <div class="answer">
+              <p>A flaw in the <b>design</b> itself, which perfect code cannot fix: no rate limit on OTP verification (brute-force 6 digits), a password reset that reveals whether an email exists, "security questions", trusting the client to send the price, or a checkout flow that lets you skip the payment step.</p>
+              <ul>
+                <li><b>Threat-model</b> during design (STRIDE), write abuse cases next to user stories.</li>
+                <li>Limit business flows: attempts per OTP, per-user quotas, idempotency keys for payments.</li>
+                <li>Recompute anything security-relevant on the server (prices, totals, roles).</li>
+                <li>Use secure-by-default libraries and reference architectures; segregate tiers and tenants.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                // FIXED design: price comes from the catalogue, never from the request
+                public Order checkout(CartRequest req, String userId) {
+                    BigDecimal total = req.items().stream()
+                        .map(i -> catalog.priceOf(i.sku()).multiply(BigDecimal.valueOf(i.qty())))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    return orderService.create(userId, req.items(), total);
+                }
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>A07 Authentication Failures — what are they and how do you prevent them?</summary>
+            <div class="answer">
+              <ul>
+                <li>Credential stuffing / brute force → rate limiting, account lockout with backoff, breached-password checks, <b>MFA</b>.</li>
+                <li>Weak session handling → regenerate the session ID on login (Spring does this by default), short idle timeouts, invalidate on logout.</li>
+                <li>JWT mistakes → accepting <code>alg: none</code>, not validating <code>iss</code>/<code>aud</code>/<code>exp</code>, long-lived tokens, secrets in code.</li>
+                <li>User enumeration → identical messages and timing for "unknown user" and "wrong password".</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                @Bean
+                JwtDecoder jwtDecoder() {
+                    NimbusJwtDecoder decoder = JwtDecoders.fromIssuerLocation("https://idp.example.com/realms/app");
+                    OAuth2TokenValidator<Jwt> audience = new JwtClaimValidator<List<String>>(
+                        JwtClaimNames.AUD, aud -> aud != null && aud.contains("orders-api"));
+                    decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                        JwtValidators.createDefaultWithIssuer("https://idp.example.com/realms/app"), audience));
+                    return decoder;
+                }
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>A08 Software or Data Integrity Failures — what is insecure deserialization and how do you fix it?</summary>
+            <div class="answer">
+              <p>Trusting code or data without verifying integrity: deserialising untrusted objects (Java serialization gadget chains → remote code execution), auto-updates without signature checks, unsigned JWTs or cookies, CI pipelines that pull unverified artefacts.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                // VULNERABLE: native Java deserialization of request bytes
+                Object o = new ObjectInputStream(request.getInputStream()).readObject();
+
+                // FIXED: use a data format (JSON) bound to a specific type, with polymorphic typing OFF
+                OrderRequest req = objectMapper.readValue(body, OrderRequest.class);
+                // never: objectMapper.activateDefaultTyping(...) on untrusted input
+
+                // If Java serialization is unavoidable, allow-list classes (Java 9+ filters)
+                ObjectInputFilter filter = ObjectInputFilter.Config.createFilter("com.acme.dto.*;java.base/*;!*");
+                ObjectInputStream in = new ObjectInputStream(stream);
+                in.setObjectInputFilter(filter);
+              </script>
+              <div class="tip">Verify signatures of anything you load (JWTs with strong algorithms, signed releases), and use Subresource Integrity (<code>integrity="sha384-..."</code>) for CDN scripts.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>A09 Security Logging &amp; Alerting Failures — what should you log, and what must you never log?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Log</b>: logins (success and failure), access-control denials, input-validation failures, admin actions, token refresh failures — with user ID, IP, timestamp and correlation ID.</li>
+                <li><b>Never log</b>: passwords, tokens, session IDs, full card numbers, PII beyond what's needed.</li>
+                <li><b>Alert</b> on patterns (many 401s from one IP, privilege changes), centralise logs (ELK, Loki, Splunk), protect them from tampering, and have an incident-response runbook.</li>
+                <li>Prevent <b>log injection</b>: strip CR/LF from user input, or log in structured JSON.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                @Component
+                class AuthEvents {
+                    private static final Logger audit = LoggerFactory.getLogger("AUDIT");
+
+                    @EventListener
+                    void onFailure(AbstractAuthenticationFailureEvent e) {
+                        audit.warn("login_failed user={} reason={}",
+                            sanitize(e.getAuthentication().getName()), e.getException().getClass().getSimpleName());
+                    }
+
+                    @EventListener
+                    void onSuccess(AuthenticationSuccessEvent e) {
+                        audit.info("login_success user={}", sanitize(e.getAuthentication().getName()));
+                    }
+
+                    private static String sanitize(String s) { return s.replaceAll("[\r\n]", "_"); }
+                }
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>A10 Mishandling of Exceptional Conditions — what does "failing open" mean? Give examples and fixes.</summary>
+            <div class="answer">
+              <p>New in 2025: the system behaves insecurely when something unexpected happens — exceptions swallowed, errors leaking internals, partial transactions, or a security check that <b>allows</b> access when it fails ("fail open").</p>
+              <script type="text/plain" class="code" data-lang="java">
+                // VULNERABLE: fails open — if the permission service is down, everyone is allowed
+                boolean canDelete(String user, long docId) {
+                    try {
+                        return permissionClient.check(user, "delete", docId);
+                    } catch (Exception e) {
+                        return true;
+                    }
+                }
+
+                // FIXED: fail closed, log, and surface a clean error
+                boolean canDelete(String user, long docId) {
+                    try {
+                        return permissionClient.check(user, "delete", docId);
+                    } catch (Exception e) {
+                        log.error("Permission check failed for user={} doc={}", user, docId, e);
+                        return false;
+                    }
+                }
+
+                // Money transfer: all-or-nothing, never a half-applied state
+                @Transactional
+                public void transfer(long from, long to, BigDecimal amount) {
+                    accounts.debit(from, amount);   // throws → whole transaction rolls back
+                    accounts.credit(to, amount);
+                }
+              </script>
+              <ul>
+                <li>A global <code>@RestControllerAdvice</code> returning generic <code>ProblemDetail</code> messages (no stack traces).</li>
+                <li>Handle nulls, timeouts, resource exhaustion and unexpected input explicitly; set timeouts on every remote call.</li>
+                <li>Use transactions and idempotency so failures leave consistent state.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>OWASP API Security Top 10 (2023)</h2>
+          <p class="group-intro">REST APIs have their own list. Several overlap with the web Top 10, but the object-level and business-flow risks are API-specific.</p>
+
+          <details class="qa" data-level="easy">
+            <summary>List the OWASP API Security Top 10 (2023).</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>#</th><th>Risk</th><th>One-line fix</th></tr></thead>
+                <tbody>
+                  <tr><td>API1</td><td>Broken Object Level Authorization (BOLA)</td><td>Check ownership of every object ID</td></tr>
+                  <tr><td>API2</td><td>Broken Authentication</td><td>Standard OAuth2/OIDC, validated tokens, rate-limited login</td></tr>
+                  <tr><td>API3</td><td>Broken Object Property Level Authorization</td><td>DTOs: explicit fields in and out (no mass assignment / over-exposure)</td></tr>
+                  <tr><td>API4</td><td>Unrestricted Resource Consumption</td><td>Rate limits, pagination caps, payload size limits, timeouts</td></tr>
+                  <tr><td>API5</td><td>Broken Function Level Authorization</td><td>Role checks on every admin/privileged endpoint</td></tr>
+                  <tr><td>API6</td><td>Unrestricted Access to Sensitive Business Flows</td><td>Bot protection, per-user flow limits</td></tr>
+                  <tr><td>API7</td><td>Server-Side Request Forgery</td><td>Allow-list outbound URLs</td></tr>
+                  <tr><td>API8</td><td>Security Misconfiguration</td><td>Hardened defaults, headers, CORS, no verbose errors</td></tr>
+                  <tr><td>API9</td><td>Improper Inventory Management</td><td>Catalogue all APIs and versions; retire old ones</td></tr>
+                  <tr><td>API10</td><td>Unsafe Consumption of APIs</td><td>Validate and time-limit responses from third-party APIs</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>API3 — what is mass assignment / excessive data exposure, and how do DTOs fix it?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                // VULNERABLE: binding the request straight onto the entity
+                @PutMapping("/api/users/me")
+                User update(@RequestBody User body) {          // attacker sends {"role":"ADMIN","balance":1e9}
+                    return userRepo.save(body);
+                }
+                // ...and returning the entity leaks passwordHash, internal flags, etc.
+
+                // FIXED: explicit input and output records
+                public record UpdateProfileRequest(@NotBlank @Size(max = 80) String displayName,
+                                                   @Email String email) {}
+                public record UserView(String id, String displayName, String email) {}
+
+                @PutMapping("/api/users/me")
+                UserView update(@Valid @RequestBody UpdateProfileRequest req, @AuthenticationPrincipal Jwt jwt) {
+                    User u = userRepo.findBySubject(jwt.getSubject()).orElseThrow();
+                    u.setDisplayName(req.displayName());
+                    u.setEmail(req.email());
+                    return new UserView(u.getPublicId(), u.getDisplayName(), u.getEmail());
+                }
+              </script>
+              <div class="tip">Set <code>spring.jackson.deserialization.fail-on-unknown-properties=true</code> to reject unexpected fields instead of silently ignoring them.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>API4 — how do you protect an API from unrestricted resource consumption?</summary>
+            <div class="answer">
+              <ul>
+                <li><b>Rate limiting</b> per user/IP/API key at the gateway (Spring Cloud Gateway <code>RequestRateLimiter</code> with Redis) or in-app (Bucket4j, Resilience4j <code>RateLimiter</code>).</li>
+                <li><b>Cap page sizes</b> and payload sizes; reject huge uploads early.</li>
+                <li><b>Timeouts</b> on every outbound call and query; bounded thread pools and queues.</li>
+                <li>Limit expensive operations (exports, password resets, SMS sending) — they cost real money.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="yaml">
+                spring:
+                  data:
+                    web:
+                      pageable:
+                        max-page-size: 100          # ?size=1000000 is clamped to 100
+                  servlet:
+                    multipart:
+                      max-file-size: 5MB
+                      max-request-size: 10MB
+                server:
+                  tomcat:
+                    max-swallow-size: 2MB
+              </script>
+              <script type="text/plain" class="code" data-lang="java">
+                RateLimiter limiter = RateLimiter.of("login", RateLimiterConfig.custom()
+                    .limitForPeriod(5).limitRefreshPeriod(Duration.ofMinutes(1)).timeoutDuration(Duration.ZERO).build());
+
+                if (!limiter.acquirePermission()) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS);
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>API5 — broken function-level authorization: how do you secure admin endpoints?</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                @Bean
+                SecurityFilterChain api(HttpSecurity http) throws Exception {
+                    return http
+                        .authorizeHttpRequests(auth -> auth
+                            .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+                            .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.DELETE, "/api/**").hasRole("ADMIN")
+                            .anyRequest().authenticated())           // deny-by-default for everything else
+                        .oauth2ResourceServer(o -> o.jwt(Customizer.withDefaults()))
+                        .build();
+                }
+              </script>
+              <p>Attackers guess endpoints (<code>/api/v1/users</code> → <code>/api/v1/admin/users</code>) or switch HTTP methods (<code>GET</code> → <code>DELETE</code>). Check roles per method and path, and back it up with <code>@PreAuthorize</code> on service methods.</p>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>API6, API9 and API10 — business-flow abuse, API inventory, and unsafe consumption of third-party APIs.</summary>
+            <div class="answer">
+              <ul>
+                <li><b>API6 — Sensitive business flows</b>: scalpers buying all concert tickets, bots creating accounts, referral-bonus abuse. Fix: CAPTCHA / device fingerprinting, per-account purchase limits, anomaly detection.</li>
+                <li><b>API9 — Improper inventory</b>: forgotten <code>/v1</code> endpoints without the new auth, staging APIs reachable from the internet, undocumented debug endpoints. Fix: OpenAPI docs generated from code (springdoc), an API gateway as the single entry point, deprecation and retirement policy.</li>
+                <li><b>API10 — Unsafe consumption</b>: trusting data from partner APIs more than user input. Fix: validate responses against a schema, enforce TLS, set timeouts and response-size limits, don't follow redirects blindly, wrap calls in circuit breakers.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                // API10: treat third-party data as untrusted input
+                PartnerRate rate = partnerClient.get().uri("/rates/{ccy}", ccy).retrieve().body(PartnerRate.class);
+                Set<ConstraintViolation<PartnerRate>> violations = validator.validate(rate);
+                if (!violations.isEmpty() || rate.value().compareTo(BigDecimal.ZERO) <= 0)
+                    throw new IllegalStateException("Invalid partner response");
+              </script>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>What security testing would you add to the pipeline to catch these issues?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Type</th><th>Tools</th><th>Catches</th></tr></thead>
+                <tbody>
+                  <tr><td>SAST (static analysis)</td><td>SonarQube, Semgrep, CodeQL, SpotBugs + FindSecBugs</td><td>Injection, hard-coded secrets, weak crypto</td></tr>
+                  <tr><td>SCA (dependencies)</td><td>OWASP Dependency-Check, Dependabot, Snyk, Trivy</td><td>A03 supply chain / known CVEs</td></tr>
+                  <tr><td>Secrets scanning</td><td>Gitleaks, GitHub secret scanning</td><td>Keys and passwords committed to git</td></tr>
+                  <tr><td>DAST (running app)</td><td>OWASP ZAP, Burp Suite</td><td>XSS, misconfiguration, missing headers</td></tr>
+                  <tr><td>Security unit tests</td><td><code>spring-security-test</code> (<code>@WithMockUser</code>, <code>jwt()</code>)</td><td>Access-control regressions (A01, API1, API5)</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java">
+                @Test
+                void userCannotReadSomeoneElsesOrder() throws Exception {
+                    mvc.perform(get("/api/orders/42").with(jwt().jwt(j -> j.subject("user-B"))))
+                       .andExpect(status().isNotFound());
+                }
+
+                @Test
+                void nonAdminCannotDelete() throws Exception {
+                    mvc.perform(delete("/api/products/1").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                       .andExpect(status().isForbidden());
+                }
+              </script>
             </div>
           </details>
         </section>
