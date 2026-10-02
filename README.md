@@ -25,6 +25,19 @@ syntax highlighting, deep links (`java17.html#q3`), works on mobile and prints c
 
 **No build step.** It's plain HTML, CSS and JavaScript, so GitHub Pages serves it as-is.
 
+## Global search
+
+The home page has a search box over **every question on every page**, with Easy / Medium / Hard,
+🎯 Interview and topic filters. Searches are shareable URLs, e.g. `index.html?q=jwt&level=hard&interview=1`.
+
+It reads `assets/js/search-index.js`, generated from the pages. After adding or editing questions run:
+
+```bash
+node tools/build-search-index.js
+```
+
+(The GitHub Actions deploy also rebuilds it automatically.)
+
 ## Run locally
 
 Open `index.html` in a browser, or start a local server:
@@ -51,13 +64,26 @@ Then choose **one** of these options:
 
 The site will be live at `https://<your-username>.github.io/<repo-name>/`.
 
+## Tags and complexity
+
+Add optional attributes on a question's `<details>`:
+
+| Attribute | Effect |
+|---|---|
+| `data-level="easy|medium|hard"` | Difficulty badge |
+| `data-tag="interview"`, `data-tag="coding"` or `data-tag="interview coding"` | 🎯 Interview / 💻 Coding badges and filters (space-separated) |
+| `data-complexity="Time O(n) · Space O(1)"` | ⏱️ Complexity line at the top of the answer (searchable from the home page) |
+| `data-source="JPMorgan Chase"` | "Reported in … interviews" line |
+
+Run `node tools/build-search-index.js` afterwards so the home-page search picks up the change.
+
 ## Adding a question
 
 Copy any `<details class="qa">` block in a page. Questions are numbered automatically and the table of contents is
 built from the `<h2>` of each `qa-group`. Put code inside a plain-text script tag so you don't need to escape `<` and `>`:
 
 ```html
-<details class="qa" data-level="medium">
+<details class="qa" data-level="medium" data-tag="coding" data-complexity="Time O(n) · Space O(n)">
   <summary>Your question?</summary>
   <div class="answer">
     <p>Your answer.</p>

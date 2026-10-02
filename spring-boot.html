@@ -944,7 +944,7 @@
 
         <section class="qa-group">
           <h2>REST APIs</h2>
-          <details class="qa" data-level="easy" data-tag="interview">
+          <details class="qa" data-level="easy" data-tag="interview coding">
             <summary>Write a REST controller with validation and proper status codes.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -1425,7 +1425,7 @@
           <h2>Coding questions</h2>
           <p class="group-intro">Hands-on tasks interviewers ask you to write live or as a take-home. Imports are omitted for brevity; code targets Spring Boot 3.4+ / 4.x.</p>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding">
             <summary>Build a CRUD REST API for <code>Product</code> with validation (controller → service → repository).</summary>
             <div class="answer">
               <p>Keep the layers thin and clear: records as DTOs, the entity never leaves the service, <code>201 Created</code> with a <code>Location</code> header on create.</p>
@@ -1517,7 +1517,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding">
             <summary>Write a global exception handler that returns RFC 9457 <code>ProblemDetail</code> responses, including validation errors.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -1585,7 +1585,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="Validation O(L), L = input length (regex match)">
             <summary>Create a custom validation annotation, e.g. <code>@ValidPan</code> for an Indian PAN number.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -1621,7 +1621,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="coding" data-complexity="O(log n + page size) with an index; OFFSET paging costs O(offset)">
             <summary>Add pagination, sorting and filtering to a list endpoint.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -1651,7 +1651,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding">
             <summary>Write an AOP aspect that logs the execution time of methods annotated with <code>@LogExecutionTime</code>.</summary>
             <div class="answer">
               <p>Requires the AOP starter (<code>spring-boot-starter-aop</code>; renamed <code>spring-boot-starter-aspectj</code> in Boot 4).</p>
@@ -1697,7 +1697,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding">
             <summary>Write a controller slice test with MockMvc.</summary>
             <div class="answer">
               <p>Since Boot 3.4, <code>@MockitoBean</code> replaces the deprecated <code>@MockBean</code> (removed in Boot 4).</p>
@@ -1748,7 +1748,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding">
             <summary>Call another microservice with <code>RestClient</code>, including timeouts and error handling.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -1795,7 +1795,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium" data-tag="interview">
+          <details class="qa" data-level="medium" data-tag="interview coding" data-complexity="Cache hit O(1) vs the full lookup on a miss · Space O(cache size)">
             <summary>Cache a slow lookup with <code>@Cacheable</code> and evict it on update.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -1846,7 +1846,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="hard" data-tag="interview">
+          <details class="qa" data-level="hard" data-tag="interview coding">
             <summary>Publish a domain event after an order is saved, and send an email only if the transaction commits.</summary>
             <div class="answer">
               <p><code>@TransactionalEventListener(phase = AFTER_COMMIT)</code> guarantees the listener does not run if the transaction rolls back; add <code>@Async</code> so the email does not slow down the request.</p>

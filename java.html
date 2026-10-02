@@ -2203,7 +2203,7 @@
           <h2>Thread pool coding questions</h2>
           <p class="group-intro">Hands-on concurrency problems. Each solution compiles and runs on Java 25 (structured concurrency needs <code>--enable-preview</code>).</p>
 
-          <details class="qa" data-level="hard">
+          <details class="qa" data-level="hard" data-tag="coding" data-complexity="submit/take O(1) · Space O(queue capacity + threads)">
             <summary>Implement your own simple thread pool (no <code>java.util.concurrent</code> executors).</summary>
             <div class="answer">
               <p>Fixed worker threads loop forever, taking tasks from a <code>BlockingQueue</code>. Shutdown stops new submissions and interrupts idle workers once the queue drains.</p>
@@ -2281,7 +2281,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="submit O(1) · Space O(queue capacity + max threads)">
             <summary>Build a production-ready <code>ThreadPoolExecutor</code>: bounded queue, named threads, error logging and backpressure.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -2331,7 +2331,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="Wall time ≈ min(timeout, slowest call) · sort O(k log k)">
             <summary>Fetch 5 prices in parallel with a timeout, and return whatever finished in time.</summary>
             <div class="answer">
               <p><code>invokeAll</code> with a timeout cancels the slow tasks; check each future's state before reading it.</p>
@@ -2371,7 +2371,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="Wall time ≈ ⌈n ÷ pool size⌉ × 1 s on a platform pool vs ≈ 1 s on virtual threads">
             <summary>Prove virtual threads scale better: run 10,000 tasks that each block for 1 second.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -2409,7 +2409,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="Wall time ≈ ⌈n ÷ 10⌉ × call latency · Space O(n) futures">
             <summary>Process 1,000 orders on virtual threads, but allow at most 10 concurrent calls to a rate-limited API.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -2456,7 +2456,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="Wall time ≈ slowest service (capped by the timeouts), not the sum">
             <summary>Call 3 services in parallel with <code>CompletableFuture</code>, combine the results, and handle a slow or failing service.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -2497,7 +2497,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="Space O(N) threads · countDown/await O(1)">
             <summary>Use <code>CountDownLatch</code> to start N workers at the same moment and wait for all of them to finish.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -2550,7 +2550,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="coding">
             <summary>Schedule a periodic health check. What is the difference between <code>scheduleAtFixedRate</code> and <code>scheduleWithFixedDelay</code>?</summary>
             <div class="answer">
               <ul>
@@ -2582,7 +2582,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="hard">
+          <details class="qa" data-level="hard" data-tag="coding">
             <summary>Find the bug: this code hangs forever. Why? (thread-starvation deadlock)</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -2616,7 +2616,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="hard">
+          <details class="qa" data-level="hard" data-tag="coding" data-complexity="Wall time ≈ slowest subtask, or the first failure (others are cancelled)">
             <summary>Rewrite a fan-out with structured concurrency (Java 25 preview) so that one failure cancels the rest.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -2719,7 +2719,7 @@
           <h2>Coding questions</h2>
           <p class="group-intro">Classic live-coding problems. Try writing the solution yourself before expanding — then compare complexity and edge cases.</p>
 
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="coding" data-complexity="Time O(n) · Space O(n) to reverse (char array), O(1) for the palindrome check">
             <summary>Reverse a string and check whether it is a palindrome (without <code>StringBuilder.reverse()</code>).</summary>
             <div class="answer">
               <p>Use two pointers moving towards the centre — O(n) time, O(1) extra space for the check.</p>
@@ -2756,7 +2756,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="coding" data-complexity="Time O(n) · Space O(k), k = distinct characters">
             <summary>Find the first non-repeating character in a string.</summary>
             <div class="answer">
               <p>A <code>LinkedHashMap</code> keeps insertion order, so the first entry with count 1 is the answer. O(n).</p>
@@ -2786,7 +2786,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="coding" data-complexity="Time O(n) · Space O(n)">
             <summary>Count word frequency and find duplicate elements using streams.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -2815,7 +2815,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="coding" data-complexity="Time O(n) · Space O(1) — 26 counters">
             <summary>Check if two strings are anagrams.</summary>
             <div class="answer">
               <p>Count characters with an array — O(n) time, O(1) space for a fixed alphabet. Sorting both strings works too but is O(n log n).</p>
@@ -2845,7 +2845,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="Time O(n) · Space O(n) — vs O(n²) brute force">
             <summary>Two Sum: return the indices of two numbers that add up to a target.</summary>
             <div class="answer">
               <p>Store each value's index in a <code>HashMap</code>; for each element check whether <code>target - x</code> was already seen. O(n) time instead of the O(n²) brute force.</p>
@@ -2874,7 +2874,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="Time O(n) per grouping, O(n log n) for second-highest · Space O(n)">
             <summary>Employee stream problems: group by department, highest salary per department, average salary, second-highest salary.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -2923,7 +2923,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="get / put O(1) · Space O(capacity)">
             <summary>Implement an LRU cache.</summary>
             <div class="answer">
               <p><code>LinkedHashMap</code> with <code>accessOrder = true</code> moves an entry to the end on every <code>get</code>; override <code>removeEldestEntry</code> to evict. O(1) get and put.</p>
@@ -2960,7 +2960,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="getInstance O(1) · Space O(1)">
             <summary>Write a thread-safe Singleton. Which implementation is best?</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -3007,7 +3007,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="hard">
+          <details class="qa" data-level="hard" data-tag="coding" data-complexity="Time O(n) · Space O(1)">
             <summary>Print numbers 1–10 alternately using two threads (one odd, one even).</summary>
             <div class="answer">
               <p>Share a monitor; each thread waits while it is not its turn. Always call <code>wait()</code> in a <b>loop</b> to handle spurious wake-ups.</p>
@@ -3048,7 +3048,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="hard">
+          <details class="qa" data-level="hard" data-tag="coding" data-complexity="put / take O(1) · Space O(queue capacity)">
             <summary>Implement producer–consumer.</summary>
             <div class="answer">
               <p><code>BlockingQueue</code> handles all the waiting and signalling: <code>put()</code> blocks when full, <code>take()</code> blocks when empty. Use a "poison pill" to stop the consumer.</p>
@@ -3093,7 +3093,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="Construction O(n) for the defensive copy · Space O(n)">
             <summary>Write an immutable class that contains a mutable field (e.g. a <code>List</code> or <code>Date</code>).</summary>
             <div class="answer">
               <p>Make the class and fields <code>final</code>, no setters, and <b>defensively copy</b> mutable inputs and outputs.</p>

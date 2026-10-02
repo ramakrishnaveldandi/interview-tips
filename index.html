@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>">
   <script src="assets/js/app.js"></script>
+  <script src="assets/js/search-index.js" defer></script>
+  <script src="assets/js/global-search.js" defer></script>
 </head>
 <body id="top">
   <header id="site-header"></header>
@@ -23,6 +25,7 @@
         comparisons — from Core Java to Spring Security, OAuth2, SSO, Angular and SQL.</p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="java-versions.html">⚡ Java 8 vs 17 vs 25</a>
+        <a class="btn" href="#global-search">🔍 Search all questions</a>
         <a class="btn" href="#topics">Browse all topics →</a>
       </div>
       <div class="stats">
@@ -31,6 +34,32 @@
         <div class="stat"><b>350+</b><span>Code samples</span></div>
         <div class="stat"><b>3</b><span>Difficulty levels</span></div>
       </div>
+    </section>
+
+    <section class="global-search" id="global-search" aria-label="Search all questions">
+      <div class="gs-head">
+        <h2>🔍 Search all <span id="gs-total">every</span> questions</h2>
+        <span class="gs-kbd">Press <kbd>/</kbd> to search</span>
+      </div>
+      <input id="gs-input" class="search gs-input" type="search" autocomplete="off"
+             placeholder="Search every topic… e.g. HashMap, JWT, transaction, deadlock, Goldman" aria-label="Search all questions">
+      <div class="gs-filters" role="group" aria-label="Filters">
+        <span class="gs-label">Level</span>
+        <button type="button" class="gs-chip easy" data-level-filter="easy" aria-pressed="false">Easy</button>
+        <button type="button" class="gs-chip medium" data-level-filter="medium" aria-pressed="false">Medium</button>
+        <button type="button" class="gs-chip hard" data-level-filter="hard" aria-pressed="false">Hard</button>
+        <span class="gs-sep"></span>
+        <button type="button" class="gs-chip interview" id="gs-interview" aria-pressed="false">🎯 Interview</button>
+        <button type="button" class="gs-chip coding" id="gs-coding" aria-pressed="false">💻 Coding</button>
+        <span class="gs-sep"></span>
+        <select id="gs-topic" class="gs-select" aria-label="Topic">
+          <option value="">All topics</option>
+        </select>
+        <button type="button" class="gs-clear hidden" id="gs-clear">✕ Clear</button>
+        <span id="gs-summary" class="count gs-summary"></span>
+      </div>
+      <p class="gs-hint">Type a keyword, or just pick filters — e.g. <b>Hard</b> + <b>🎯 Interview</b> lists every hard interview question, <b>💻 Coding</b> lists every coding problem with its complexity — or search for <code>O(n log n)</code>.</p>
+      <div id="gs-results" class="gs-results" aria-live="polite"></div>
     </section>
 
     <h2 class="section-title" id="topics">☕ Java</h2>

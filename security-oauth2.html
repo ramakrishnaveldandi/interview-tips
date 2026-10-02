@@ -294,7 +294,7 @@
               <div class="note">A signed JWT (JWS) is <b>encoded, not encrypted</b> — anyone can read the payload. Never put secrets or sensitive PII in it. Use JWE if confidentiality is needed.</div>
             </div>
           </details>
-          <details class="qa" data-level="hard" data-tag="interview">
+          <details class="qa" data-level="hard" data-tag="interview coding" data-complexity="Token validation O(token size) per request — no DB lookup (stateless)">
             <summary>Implement JWT authentication end to end in Spring Boot (login endpoint, JWT filter, role-based access).</summary>
             <div class="answer">
               <p>This is the "self-issued JWT" approach many projects use (for a separate identity provider, use the OAuth2 resource-server configuration above instead). The flow:</p>

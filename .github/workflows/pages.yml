@@ -25,6 +25,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - name: Build global search index
+        run: node tools/build-search-index.js
       - name: Stamp build info into version.json
         run: |
           jq --arg sha "$GITHUB_SHA" \

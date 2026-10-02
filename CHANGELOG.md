@@ -3,6 +3,17 @@
 Bump `"version"` in `version.json` and add an entry here whenever you publish a change.
 The live site's footer shows this version plus the exact commit that is deployed.
 
+## 1.8.0 — 2026-10-02
+- New 💻 Coding tag on 69 coding questions across Core Java, Streams, Spring Boot, Security, Database (SQL) and Angular.
+- ⏱️ Time/space complexity shown on 58 of them (algorithmic and concurrency problems); searchable, e.g. "O(n log n)".
+- Home-page global search: 💻 Coding filter (combines with level, 🎯 Interview and topic); topic pages get "💻 Coding only".
+- Questions can now carry several tags (data-tag="interview coding").
+
+## 1.7.0 — 2026-10-02
+- Home page: global search across all 493 questions on every page, with Easy / Medium / Hard,
+  🎯 Interview and topic filters, highlighted matches, shareable URLs and "/" keyboard shortcut.
+  Results deep-link to the exact question. Index built by tools/build-search-index.js (also in the deploy workflow).
+
 ## 1.6.0 — 2026-10-02
 - New page: Behavioral & HR — 36 questions reported from JPMorgan Chase, Goldman Sachs, Salesforce and Deloitte
   (answer frameworks + sample STAR answers) and 10 questions to ask the interviewer.

@@ -132,7 +132,7 @@
 
         <section class="qa-group">
           <h2>Classic Queries</h2>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="O(n log n) to rank — O(log n + N) with an index on salary">
             <summary>Find the 2nd (or Nth) highest salary — show multiple ways.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="sql">
@@ -171,7 +171,7 @@
               <div class="tip">Ask whether ties count — <code>DENSE_RANK</code> treats equal salaries as one rank, which is usually what's expected.</div>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="O(n log n) sort or O(n) hash aggregate for GROUP BY / ROW_NUMBER">
             <summary>How do you find and delete duplicate rows?</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="sql">
@@ -207,7 +207,7 @@
               <div class="note">The extra derived table is needed in MySQL, which doesn't allow selecting from the table being deleted in a direct subquery. Afterwards, add a <code>UNIQUE</code> constraint to prevent recurrence.</div>
             </div>
           </details>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="coding" data-complexity="O(n) with an index on the manager key (O(n²) nested loop without)">
             <summary>Find employees who earn more than their manager.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="sql">
@@ -226,7 +226,7 @@
               </div>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="O(n log n) — sort per partition for the window functions">
             <summary>Top 3 earners in each department and a running total.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="sql">
