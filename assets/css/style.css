@@ -263,3 +263,14 @@ tbody tr:hover { background: var(--surface); }
   .site-header, .toolbar, .toc, .to-top, .copy-btn { display: none !important; }
   details.qa { break-inside: avoid; }
 }
+
+/* Version / build badge in footer */
+.build-info { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: .85rem; }
+.ver-pill {
+  font-family: var(--mono); font-size: .75rem; padding: 2px 8px; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--text); border: 1px solid var(--border);
+}
+.build-info .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.build-info .dot.live { background: var(--easy); box-shadow: 0 0 8px var(--easy); }
+.build-info .dot.warn { background: var(--medium); }
+.build-info .dot.local { background: var(--muted); }

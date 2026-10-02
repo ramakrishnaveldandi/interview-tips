@@ -25,6 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - name: Stamp build info into version.json
+        run: |
+          jq --arg sha "$GITHUB_SHA" \
+             --arg build "$GITHUB_RUN_NUMBER" \
+             --arg repo "$GITHUB_REPOSITORY" \
+             --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+             '.commit=$sha | .build=$build | .repo=$repo | .date=$date | .env="github-pages"' \
+             version.json > version.tmp && mv version.tmp version.json
+          cat version.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .

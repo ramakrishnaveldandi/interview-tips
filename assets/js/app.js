@@ -79,8 +79,40 @@
     host.innerHTML =
       '<div class="container">' +
       "<span>© " + new Date().getFullYear() + " Tech Interview Hub · Built for Java full-stack interview prep</span>" +
+      '<span id="build-info" class="build-info"></span>' +
       '<span><a href="index.html">Home</a> · <a href="java-versions.html">Java versions</a> · <a href="#top">Back to top ↑</a></span>' +
       "</div>";
+    loadBuildInfo(document.getElementById("build-info"));
+  }
+
+  /* ---------- Version / build badge ----------
+     version.json is committed with "env": "local"; the GitHub Actions deploy
+     stamps the commit SHA, build number and date into it before publishing. */
+  function loadBuildInfo(el) {
+    if (!el) return;
+    const onGitHub = /\.github\.io$/.test(location.hostname);
+    fetch("version.json", { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (v) {
+        const ver = '<span class="ver-pill">v' + v.version + "</span>";
+        if (v.env === "github-pages" && v.commit && v.commit !== "local") {
+          const short = v.commit.slice(0, 7);
+          const base = "https://github.com/" + v.repo;
+          const when = v.date ? new Date(v.date).toLocaleString() : "";
+          el.innerHTML = ver + ' <span class="dot live"></span> Deployed build #' + v.build +
+            ' · <a href="' + base + "/commit/" + v.commit + '" title="Commit that is live">' + short + "</a>" +
+            (when ? " · " + when : "") +
+            ' · <a href="' + base + "/compare/" + v.commit + '...main" title="Commits on main that are not deployed yet">changes since this deploy</a>';
+        } else if (onGitHub) {
+          el.innerHTML = ver + ' <span class="dot warn"></span> Deployed from branch (no build info — set Pages source to GitHub Actions)';
+        } else {
+          el.innerHTML = ver + ' <span class="dot local"></span> Local preview — not deployed';
+        }
+      })
+      .catch(function () {
+        // file:// pages cannot fetch JSON; this is always a local copy
+        el.innerHTML = '<span class="dot local"></span> Local file preview — not deployed';
+      });
   }
 
   /* ---------- Code blocks ----------

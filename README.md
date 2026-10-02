@@ -64,3 +64,25 @@ built from the `<h2>` of each `qa-group`. Put code inside a plain-text script ta
   </div>
 </details>
 ```
+
+## Versioning: what is deployed?
+
+Every page footer shows a build badge:
+
+| Badge | Meaning |
+|---|---|
+| 🟢 `v1.2.0 · Deployed build #7 · a1b2c3d · date` | Live on GitHub Pages; the hash links to the deployed commit |
+| 🟠 `Deployed from branch (no build info)` | Pages source is "Deploy from a branch"; switch it to **GitHub Actions** to get build info |
+| ⚪ `Local preview — not deployed` | You're viewing your local copy |
+
+- **What's not live yet?** Click **"changes since this deploy"** in the live footer. It opens GitHub's compare view
+  of every commit on `main` after the deployed one (empty means you're up to date).
+- **From the terminal:** compare the live commit with your local history:
+  ```bash
+  curl -s https://ramakrishnaveldandi.github.io/interview-tips/version.json   # deployed commit
+  git log --oneline -1 origin/main                                            # last pushed commit
+  git log --oneline origin/main..main                                         # committed locally, not pushed yet
+  git status --short                                                          # changed but not committed
+  ```
+- **Release a version:** bump `"version"` in `version.json`, add a line to `CHANGELOG.md`, then commit and push.
+  The workflow fills in the commit, build number and date automatically. Leave `"env": "local"` in the committed file.
