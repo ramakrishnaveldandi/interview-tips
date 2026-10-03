@@ -3,6 +3,14 @@
 Bump `"version"` in `version.json` and add an entry here whenever you publish a change.
 The live site's footer shows this version plus the exact commit that is deployed.
 
+## 1.9.0 — 2026-10-03
+- Spring Boot: new "Idempotent vs non-idempotent operations" section (6 questions) — safe vs idempotent HTTP methods,
+  Idempotency-Key implementation for payments, idempotent Kafka consumers, idempotent SQL (upserts, guarded updates),
+  retries + timeouts + backoff.
+- Core Java: new "Fail-fast vs fail-safe" section (5 questions) replacing the short version — iterator internals
+  (modCount / expectedModCount), snapshot vs weakly consistent, single-thread CME trap, fail-fast design principle,
+  fail-fast vs fail-safe vs fail-open in distributed systems. Java outputs verified on JDK 25.
+
 ## 1.8.0 — 2026-10-02
 - New 💻 Coding tag on 69 coding questions across Core Java, Streams, Spring Boot, Security, Database (SQL) and Angular.
 - ⏱️ Time/space complexity shown on 58 of them (algorithmic and concurrency problems); searchable, e.g. "O(n log n)".

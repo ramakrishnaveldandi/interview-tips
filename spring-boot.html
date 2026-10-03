@@ -544,6 +544,247 @@
         </section>
 
         <section class="qa-group">
+          <h2>Idempotent vs non-idempotent operations</h2>
+
+          <details class="qa" data-level="easy">
+            <summary>What does idempotent mean? What is the difference between idempotent and non-idempotent operations?</summary>
+            <div class="answer">
+              <p>An operation is <b>idempotent</b> if performing it <b>once or many times leaves the system in the same state</b>. Repeating it has no additional effect. A <b>non-idempotent</b> operation changes the state again every time it runs.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Idempotent ✅</th><th>Non-idempotent ❌</th></tr></thead>
+                <tbody>
+                  <tr><td>"Set the email to <code>asha@x.com</code>"</td><td>"Add ₹500 to the balance"</td></tr>
+                  <tr><td>"Delete order 42"</td><td>"Create a new order"</td></tr>
+                  <tr><td>"Mark invoice 7 as PAID"</td><td>"Increment the retry counter"</td></tr>
+                  <tr><td><code>Math.abs(x)</code>, <code>Set.add(x)</code>, <code>map.put(k, v)</code></td><td><code>list.add(x)</code>, <code>counter++</code>, sending an email</td></tr>
+                  <tr><td><code>UPDATE account SET status = 'CLOSED' WHERE id = 7</code></td><td><code>UPDATE account SET balance = balance - 500 WHERE id = 7</code></td></tr>
+                </tbody>
+              </table></div>
+              <p><b>Why it matters:</b> in distributed systems, requests are retried all the time — a mobile client on a flaky network, a load balancer, a message broker redelivering a message, a user double-clicking "Pay". If the operation is idempotent, a retry is harmless. If it isn't, a retry means a duplicate order, a double charge or a doubled stock reduction.</p>
+              <div class="note">Idempotent means the <b>server state</b> is the same after repeats — the <b>response</b> may differ. Deleting an order returns <code>204</code> the first time and <code>404</code> the second, but the state (order gone) is identical, so DELETE is still idempotent.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Which HTTP methods are safe, idempotent, or neither? Why are PUT and DELETE idempotent but POST and PATCH not?</summary>
+            <div class="answer">
+              <div class="table-wrap"><table>
+                <thead><tr><th>Method</th><th>Safe (no state change)</th><th>Idempotent</th><th>Why</th></tr></thead>
+                <tbody>
+                  <tr><td><code>GET</code>, <code>HEAD</code>, <code>OPTIONS</code></td><td>✅</td><td>✅</td><td>Only read data</td></tr>
+                  <tr><td><code>PUT</code></td><td>❌</td><td>✅</td><td>Replaces the resource with the <b>complete</b> representation sent — sending it twice gives the same final resource</td></tr>
+                  <tr><td><code>DELETE</code></td><td>❌</td><td>✅</td><td>After the first call the resource is gone; further calls change nothing</td></tr>
+                  <tr><td><code>POST</code></td><td>❌</td><td>❌</td><td>Typically <b>creates</b> a new resource or triggers an action each time — two calls create two orders</td></tr>
+                  <tr><td><code>PATCH</code></td><td>❌</td><td>Not guaranteed</td><td>Depends on the patch: <code>{"email":"x"}</code> is idempotent, <code>{"op":"increment","path":"/qty"}</code> is not</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="plaintext">
+                PUT /api/users/7  {"name":"Asha","email":"asha@x.com"}   ×3  → user 7 = {Asha, asha@x.com}       (same state)
+                DELETE /api/orders/42                                    ×3  → 204, 404, 404; order 42 gone       (same state)
+                POST /api/orders  {"sku":"PEN","qty":1}                  ×3  → orders 101, 102, 103 created       (3× the effect!)
+                PATCH /api/carts/9 {"op":"add","sku":"PEN","qty":1}      ×3  → cart has 3 pens                    (not idempotent)
+                PATCH /api/users/7 {"email":"new@x.com"}                 ×3  → email = new@x.com                  (idempotent)
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><b>Safe</b> is stricter than idempotent: a safe method doesn't change state at all, so every safe method is automatically idempotent.</li>
+                  <li>PUT and DELETE describe the <b>target state</b> ("make it look like this", "make it not exist") — reaching a state twice is the same as reaching it once.</li>
+                  <li>POST and "relative" PATCH operations describe an <b>action</b> ("create another", "add one more") — every repeat performs the action again.</li>
+                  <li>HTTP clients, proxies and gateways may automatically retry idempotent methods on network errors; they must never automatically retry POST without an idempotency mechanism.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard" data-tag="coding" data-complexity="O(1) per request — one indexed lookup / unique-key insert on the idempotency key">
+            <summary>How do you make a non-idempotent POST (e.g. a payment) safe to retry? Implement an Idempotency-Key in Spring Boot.</summary>
+            <div class="answer">
+              <p>The client generates a unique key (a UUID) per logical operation and sends it in an <code>Idempotency-Key</code> header. The server stores the key with the result of the first execution; any retry with the same key returns the <b>stored result</b> instead of charging again. A <b>unique constraint</b> on the key makes this safe even when two retries arrive at the same time.</p>
+              <script type="text/plain" class="code" data-lang="sql">
+                CREATE TABLE idempotency_record (
+                    idempotency_key VARCHAR(64) PRIMARY KEY,      -- unique: the database rejects duplicates atomically
+                    request_hash    VARCHAR(64) NOT NULL,         -- detects the same key reused with a different body
+                    status          VARCHAR(16) NOT NULL,         -- IN_PROGRESS / COMPLETED
+                    response_body   TEXT,
+                    http_status     INT,
+                    created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The key is the <b>primary key</b>, so the database itself guarantees that only one row per key can ever exist — even if two retries hit two different app instances at the same moment.</li>
+                  <li><code>status</code> distinguishes a request that is still running (<code>IN_PROGRESS</code>) from one that finished (<code>COMPLETED</code>), so a concurrent retry isn't answered with an empty result.</li>
+                  <li><code>response_body</code> and <code>http_status</code> store exactly what the first request returned, so retries can be answered identically; <code>created_at</code> lets a cleanup job delete keys older than the retry window (e.g. 24 hours).</li>
+                </ol>
+              </div>
+              <script type="text/plain" class="code" data-lang="java">
+                @RestController
+                @RequestMapping("/api/payments")
+                public class PaymentController {
+                    private final IdempotentPaymentService service;
+                    public PaymentController(IdempotentPaymentService service) { this.service = service; }
+
+                    @PostMapping
+                    public ResponseEntity<PaymentResponse> pay(@RequestHeader("Idempotency-Key") @NotBlank String key,
+                                                               @Valid @RequestBody PaymentRequest req) {
+                        IdempotentResult<PaymentResponse> r = service.pay(key, req);
+                        return ResponseEntity.status(r.httpStatus())
+                            .header("Idempotent-Replayed", String.valueOf(r.replayed()))
+                            .body(r.body());
+                    }
+                }
+
+                @Service
+                public class IdempotentPaymentService {
+                    private final IdempotencyRepository records;
+                    private final PaymentGateway gateway;
+                    private final ObjectMapper json;
+                    // constructor ...
+
+                    public IdempotentResult<PaymentResponse> pay(String key, PaymentRequest req) {
+                        String hash = sha256(json.writeValueAsString(req));
+
+                        // 1. Claim the key. The PRIMARY KEY makes this atomic: only one concurrent request can insert it.
+                        try {
+                            records.insertInProgress(key, hash);           // INSERT ... status = 'IN_PROGRESS'
+                        } catch (DuplicateKeyException alreadySeen) {
+                            IdempotencyRecord existing = records.find(key);
+                            if (!existing.requestHash().equals(hash))
+                                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Key reused with a different request");
+                            if (existing.isInProgress())
+                                throw new ResponseStatusException(HttpStatus.CONFLICT, "Original request still processing — retry later");
+                            return IdempotentResult.replay(existing.httpStatus(), json.readValue(existing.responseBody(), PaymentResponse.class));
+                        }
+
+                        // 2. First time for this key: do the real work exactly once
+                        PaymentResponse response = gateway.charge(req);   // pass the key to the gateway too, if it supports one
+                        records.complete(key, 201, json.writeValueAsString(response));
+                        return IdempotentResult.created(response);
+                    }
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The first request inserts the key with status <code>IN_PROGRESS</code>; because the key is the primary key, a second concurrent request with the same key fails with <code>DuplicateKeyException</code> instead of charging twice.</li>
+                  <li>A retry after completion finds the stored record and gets <b>the same 201 response body</b> back (with <code>Idempotent-Replayed: true</code>), so the client can't tell the difference — but the gateway was called only once.</li>
+                  <li>The request hash catches a buggy client reusing a key for a <i>different</i> payment (→ 422) instead of silently returning the wrong result.</li>
+                  <li>If a retry arrives while the first request is still running it gets <code>409</code>; the client waits and retries. Production systems also expire old keys (e.g. after 24 h) and handle crashes that leave a record stuck <code>IN_PROGRESS</code>.</li>
+                  <li>This is the same pattern Stripe and most payment APIs expose. Clients generate the key once per user action (e.g. per "Pay" button press) and reuse it for all retries of that action.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard" data-tag="coding" data-complexity="O(1) per message — one unique-key insert into processed_message">
+            <summary>What is an idempotent consumer? How do you handle duplicate Kafka/RabbitMQ messages?</summary>
+            <div class="answer">
+              <p>Most brokers guarantee <b>at-least-once</b> delivery: if a consumer crashes after doing the work but before committing the offset (or acknowledging the message), the message is delivered <b>again</b>. "Exactly-once" processing in practice means <b>at-least-once delivery + an idempotent consumer</b>.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @Component
+                public class PaymentEventsListener {
+                    private final ProcessedMessageRepository processed;   // table: message_id PRIMARY KEY, processed_at
+                    private final LedgerService ledger;
+                    // constructor ...
+
+                    @KafkaListener(topics = "payments.completed", groupId = "ledger")
+                    @Transactional
+                    public void onPaymentCompleted(PaymentCompleted event) {
+                        // Record the event id in the SAME transaction as the business change
+                        if (!processed.tryInsert(event.eventId())) {      // INSERT ... ON CONFLICT DO NOTHING → false if seen
+                            return;                                       // duplicate delivery: already applied, skip
+                        }
+                        ledger.credit(event.merchantId(), event.amount());
+                    }
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Each event carries a unique <code>eventId</code> set by the producer. The consumer tries to insert it into <code>processed_message</code>; the primary key rejects a second insert of the same id.</li>
+                  <li>The insert and <code>ledger.credit</code> run in <b>one database transaction</b>: either both happen or neither does. If the app crashes before commit, the redelivered message is processed normally; if it crashes after commit, the redelivery is detected and skipped.</li>
+                  <li>Without this, a redelivered "payment completed" event would credit the merchant twice.</li>
+                  <li>Alternatives: make the change naturally idempotent (an upsert keyed by payment id, or "set status = SETTLED" instead of "add amount"), or use Kafka transactions for Kafka-to-Kafka flows. On the producer side, <code>enable.idempotence=true</code> (the default since Kafka 3.0) prevents duplicates caused by producer retries.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="O(log n) per statement with an index on the key (B-tree lookup)">
+            <summary>How do you write idempotent database operations (upserts, conditional updates)?</summary>
+            <div class="answer">
+              <p>Prefer statements that describe the <b>final state</b> or are guarded by a condition, so running them twice has no extra effect.</p>
+              <script type="text/plain" class="code" data-lang="sql">
+                -- ❌ Non-idempotent: every retry deducts again
+                UPDATE account SET balance = balance - 500 WHERE id = 7;
+
+                -- ✅ Idempotent: guarded by the state transition (runs at most once)
+                UPDATE invoice SET status = 'PAID', paid_at = now()
+                WHERE id = 42 AND status = 'PENDING';                   -- 2nd run: 0 rows updated
+
+                -- ✅ Idempotent insert (PostgreSQL)
+                INSERT INTO subscription (user_id, plan) VALUES (7, 'PRO')
+                ON CONFLICT (user_id) DO UPDATE SET plan = EXCLUDED.plan;
+
+                -- ✅ Idempotent insert (MySQL 8)
+                INSERT INTO subscription (user_id, plan) VALUES (7, 'PRO')
+                ON DUPLICATE KEY UPDATE plan = VALUES(plan);
+
+                -- ✅ Make a money movement idempotent with a unique business key
+                INSERT INTO ledger_entry (transfer_id, account_id, amount)
+                VALUES ('TRX-9001', 7, -500)
+                ON CONFLICT (transfer_id, account_id) DO NOTHING;       -- the balance is computed from the entries
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>balance = balance - 500</code> is relative to the current value, so each execution moves money again — the classic double-charge bug on retry.</li>
+                  <li>The guarded update only matches while the invoice is <code>PENDING</code>; after the first run the row is <code>PAID</code>, so a retry updates 0 rows. Checking the affected row count also tells you whether this call did the work.</li>
+                  <li>Upserts (<code>ON CONFLICT … DO UPDATE</code> / <code>ON DUPLICATE KEY UPDATE</code>) rely on a unique index: the first run inserts, later runs update the row to the same values.</li>
+                  <li>Ledger-style designs store each movement once, keyed by a business id (<code>transfer_id</code>), and derive the balance from the entries — duplicates are rejected by the unique key instead of being applied twice.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>How do retries, timeouts and idempotency fit together in microservices?</summary>
+            <div class="answer">
+              <ul>
+                <li>A <b>timeout</b> doesn't tell you whether the operation happened — the server may have processed it and only the response was lost. So the client must be able to <b>retry safely</b>.</li>
+                <li><b>Retry only idempotent operations automatically</b> (GET, PUT, DELETE, or POST with an idempotency key). Configure retries for those calls only.</li>
+                <li>Use <b>exponential backoff with jitter</b> and a small maximum number of attempts, so retries don't overload a struggling service (a "retry storm").</li>
+                <li>Combine with a <b>circuit breaker</b> so that when a dependency is clearly down, calls fail fast instead of retrying.</li>
+                <li>Propagate the idempotency key downstream (to the payment gateway, to events), so the whole chain is retry-safe.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="yaml">
+                resilience4j:
+                  retry:
+                    instances:
+                      inventory:                       # GET / PUT calls only — idempotent
+                        max-attempts: 3
+                        wait-duration: 200ms
+                        enable-exponential-backoff: true
+                        exponential-backoff-multiplier: 2
+                        retry-exceptions:
+                          - java.io.IOException
+                          - java.util.concurrent.TimeoutException
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>With these settings a failing call is tried up to 3 times, waiting 200 ms and then 400 ms (doubled each time). In high-traffic systems also add <b>jitter</b> (random variation in the wait) so thousands of clients don't retry at the same instant.</li>
+                  <li>Only I/O and timeout errors are retried — a 400 validation error would fail the same way again, so retrying it is pointless.</li>
+                  <li>Attach this retry only to idempotent calls; for a POST, retry only if the request carries an idempotency key the server honours.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
           <h2>Logging, async &amp; scheduling</h2>
 
           <details class="qa" data-level="easy" data-tag="interview">

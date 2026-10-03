@@ -464,7 +464,7 @@
                 Set<BadPoint> bad = new HashSet<>();
                 bad.add(new BadPoint(1, 2));
                 bad.add(new BadPoint(1, 2));
-                System.out.println(bad.size()); // => 2   (duplicates, because hash codes differ)
+                System.out.println(bad.size()); // => 2
 
                 record Point(int x, int y) {}           // records generate both correctly
                 Set<Point> good = new HashSet<>(List.of(new Point(1, 2)));
@@ -527,7 +527,7 @@
                 </ol>
               </div>
               <script type="text/plain" class="code" data-lang="java" data-test="c7">
-                System.out.println("Aa".hashCode() + " " + "BB".hashCode()); // => 2112 2112   (same hash, different keys)
+                System.out.println("Aa".hashCode() + " " + "BB".hashCode()); // => 2112 2112
 
                 Map<String, Integer> map = new HashMap<>();
                 map.put("Aa", 1);
@@ -640,11 +640,11 @@
                 // Income-tax slabs: lower bound of the slab → rate
                 TreeMap<Integer, Integer> slabs = new TreeMap<>(Map.of(0, 0, 300_000, 5, 700_000, 10, 1_000_000, 15, 1_500_000, 30));
 
-                System.out.println(slabs.floorEntry(850_000)); // => 700000=10   (greatest key <= 850000)
-                System.out.println(slabs.ceilingKey(850_000)); // => 1000000   (least key >= 850000)
+                System.out.println(slabs.floorEntry(850_000)); // => 700000=10
+                System.out.println(slabs.ceilingKey(850_000)); // => 1000000
                 System.out.println(slabs.firstKey() + " " + slabs.lastKey()); // => 0 1500000
-                System.out.println(slabs.headMap(700_000)); // => {0=0, 300000=5}   (keys < 700000)
-                System.out.println(slabs.tailMap(1_000_000, true)); // => {1000000=15, 1500000=30}   (keys >= 1000000)
+                System.out.println(slabs.headMap(700_000)); // => {0=0, 300000=5}
+                System.out.println(slabs.tailMap(1_000_000, true)); // => {1000000=15, 1500000=30}
                 System.out.println(slabs.subMap(300_000, 1_000_000)); // => {300000=5, 700000=10}
                 System.out.println(slabs.descendingMap()); // => {1500000=30, 1000000=15, 700000=10, 300000=5, 0=0}
 
@@ -704,7 +704,7 @@
                 EnumMap<Status, Integer> counts = new EnumMap<>(Status.class);
                 counts.put(Status.SHIPPED, 4);
                 counts.put(Status.NEW, 7);
-                System.out.println(counts); // => {NEW=7, SHIPPED=4}   (always in declaration order)
+                System.out.println(counts); // => {NEW=7, SHIPPED=4}
               </script>
               <div class="explain">
                 <h4>🧠 How this works</h4>
@@ -787,7 +787,7 @@
 
                 int plainTotal = run4Threads.apply(new HashMap<>());            // NOT thread-safe
                 int concurrentTotal = run4Threads.apply(new ConcurrentHashMap<>());
-                System.out.println("HashMap total <= 40000: " + (plainTotal <= 40_000)); // => HashMap total <= 40000: true   (usually less: lost updates, or a task crashes mid-way)
+                System.out.println("HashMap total <= 40000: " + (plainTotal <= 40_000)); // => HashMap total <= 40000: true
                 System.out.println("ConcurrentHashMap total: " + concurrentTotal); // => ConcurrentHashMap total: 40000
 
                 Map<Integer, Integer> concurrent = new ConcurrentHashMap<>();
@@ -911,7 +911,7 @@
                 // Sorted AND concurrent: ConcurrentSkipListMap (lock-free skip list, O(log n))
                 ConcurrentSkipListMap<Integer, String> leaderboard = new ConcurrentSkipListMap<>(Comparator.reverseOrder());
                 leaderboard.put(870, "Ravi"); leaderboard.put(990, "Asha"); leaderboard.put(910, "John");
-                System.out.println(leaderboard.firstEntry() + " " + leaderboard.headMap(900)); // => 990=Asha {990=Asha, 910=John}   (headMap = keys BEFORE 900 in this descending order)
+                System.out.println(leaderboard.firstEntry() + " " + leaderboard.headMap(900)); // => 990=Asha {990=Asha, 910=John}
               </script>
               <div class="explain">
                 <h4>🧠 How this works</h4>
@@ -1024,7 +1024,7 @@
               </table></div>
               <script type="text/plain" class="code" data-lang="java" data-test="c17">
                 BlockingQueue<String> q = new LinkedBlockingQueue<>(2);    // always give it a capacity
-                System.out.println(q.offer("a") + " " + q.offer("b") + " " + q.offer("c")); // => true true false   (full: offer returns false)
+                System.out.println(q.offer("a") + " " + q.offer("b") + " " + q.offer("c")); // => true true false
                 System.out.println(q.remainingCapacity()); // => 0
 
                 BlockingQueue<Integer> handoff = new ArrayBlockingQueue<>(10);
@@ -1092,40 +1092,6 @@
         <section class="qa-group">
           <h2>Iteration, immutability &amp; utilities</h2>
 
-          <details class="qa" data-level="medium">
-            <summary>Fail-fast vs fail-safe (weakly consistent) iterators — how do they work?</summary>
-            <div class="answer">
-              <ul>
-                <li><b>Fail-fast</b> (<code>ArrayList</code>, <code>HashMap</code>, …): the collection keeps a <code>modCount</code> that increases on every structural change. The iterator records it at creation and checks it on each <code>next()</code>; if it differs, it throws <code>ConcurrentModificationException</code>. This is a best-effort bug detector, not a thread-safety guarantee — it also fires in a single thread.</li>
-                <li><b>Fail-safe / weakly consistent</b> (<code>CopyOnWriteArrayList</code>, <code>ConcurrentHashMap</code>, concurrent queues): iterate over a snapshot or tolerate concurrent changes, so they never throw <code>ConcurrentModificationException</code>; they may or may not show changes made after the iterator was created.</li>
-              </ul>
-              <script type="text/plain" class="code" data-lang="java" data-test="c19">
-                List<Integer> nums = new ArrayList<>(List.of(1, 2, 3, 4, 5, 6));
-                try {
-                    for (Integer n : nums) if (n % 2 == 0) nums.remove(n);   // modifies the list under the iterator
-                } catch (ConcurrentModificationException e) {
-                    System.out.println("CME thrown"); // => CME thrown
-                }
-
-                List<Integer> a = new ArrayList<>(List.of(1, 2, 3, 4, 5, 6));
-                a.removeIf(n -> n % 2 == 0);                                 // correct (Java 8+)
-                System.out.println(a); // => [1, 3, 5]
-
-                List<Integer> b = new ArrayList<>(List.of(1, 2, 3, 4, 5, 6));
-                for (Iterator<Integer> it = b.iterator(); it.hasNext(); ) if (it.next() % 2 == 0) it.remove();  // correct
-                System.out.println(b); // => [1, 3, 5]
-              </script>
-              <div class="explain">
-                <h4>🧠 How this works</h4>
-                <ol>
-                  <li><code>nums.remove(n)</code> (with an <code>Integer</code>, so <code>remove(Object)</code>) changes <code>modCount</code> when it removes 2; the hidden iterator's next <code>next()</code> detects this and throws CME.</li>
-                  <li><code>removeIf</code> iterates and removes internally in one pass, safely, giving [1, 3, 5].</li>
-                  <li><code>Iterator.remove()</code> removes the last returned element and updates the iterator's expected <code>modCount</code>, so it is also safe.</li>
-                  <li>Fail-fast detection is best-effort, not a thread-safety mechanism.</li>
-                </ol>
-              </div>
-            </div>
-          </details>
 
           <details class="qa" data-level="medium">
             <summary><code>List.of</code> vs <code>Collections.unmodifiableList</code> vs <code>Arrays.asList</code> vs <code>List.copyOf</code>?</summary>
@@ -1144,12 +1110,12 @@
                 List<String> view = Collections.unmodifiableList(source);
                 List<String> copy = List.copyOf(source);
                 source.add("c");
-                System.out.println(view + " " + copy); // => [a, b, c] [a, b]   (the view sees "c", the copy doesn't)
+                System.out.println(view + " " + copy); // => [a, b, c] [a, b]
 
                 String[] arr = {"x", "y"};
                 List<String> asList = Arrays.asList(arr);
                 asList.set(0, "CHANGED");
-                System.out.println(arr[0]); // => CHANGED   (write-through to the array)
+                System.out.println(arr[0]); // => CHANGED
                 try { asList.add("z"); } catch (UnsupportedOperationException e) { System.out.println("asList is fixed-size"); }   // prints: asList is fixed-size
                 try { List.of("a").add("b"); } catch (UnsupportedOperationException e) { System.out.println("List.of is immutable"); }   // prints: List.of is immutable
               </script>
@@ -1205,7 +1171,7 @@
               <script type="text/plain" class="code" data-lang="java" data-test="c22">
                 List<Integer> nums = new ArrayList<>(List.of(5, 3, 9, 1, 7));
                 Collections.sort(nums);
-                System.out.println(nums + " index of 7 = " + Collections.binarySearch(nums, 7)); // => [1, 3, 5, 7, 9] index of 7 = 3   (binarySearch needs a sorted list)
+                System.out.println(nums + " index of 7 = " + Collections.binarySearch(nums, 7)); // => [1, 3, 5, 7, 9] index of 7 = 3
                 System.out.println(Collections.max(nums) + " " + Collections.min(nums) + " " + Collections.frequency(List.of(1, 2, 1), 1)); // => 9 1 2
                 Collections.reverse(nums);
                 System.out.println(nums); // => [9, 7, 5, 3, 1]
@@ -1225,6 +1191,262 @@
                   <li><code>max</code> is 9, <code>min</code> is 1, and 1 occurs twice in [1, 2, 1], so <code>frequency</code> is 2.</li>
                   <li><code>reverse</code> gives [9, 7, 5, 3, 1]; <code>swap(0, 4)</code> exchanges the ends to give [1, 7, 5, 3, 9]. <code>nCopies</code>, <code>emptyList</code> and <code>singletonList</code> return immutable lists.</li>
                   <li>The comparator sorts by salary descending (Asha 1200 first), then breaks the 900 tie by name ascending (John before Ravi): [Asha, John, Ravi].</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Fail-fast vs fail-safe</h2>
+          <p class="group-intro">Two meanings interviewers ask about: <b>iterators</b> (what happens when a collection changes while you loop over it) and <b>system design</b> (stop immediately on a problem vs keep running in a safe state). Outputs shown with <code>// =&gt;</code> are real results from Java 25.</p>
+
+          <details class="qa" data-level="medium">
+            <summary>What are fail-fast and fail-safe iterators? Explain the difference in detail.</summary>
+            <div class="answer">
+              <p>When a collection is modified while it is being iterated, an iterator can react in two ways:</p>
+              <ul>
+                <li><b>Fail-fast</b> iterators detect the change and immediately throw <code>ConcurrentModificationException</code> (CME) instead of continuing with possibly inconsistent data. They belong to the regular <code>java.util</code> collections: <code>ArrayList</code>, <code>LinkedList</code>, <code>HashMap</code>, <code>HashSet</code>, <code>TreeMap</code>, <code>ArrayDeque</code>, etc.</li>
+                <li><b>Fail-safe</b> iterators never throw CME. They come from the concurrent collections in <code>java.util.concurrent</code>, and work in one of two ways:
+                  <ul>
+                    <li><b>Snapshot</b> (<code>CopyOnWriteArrayList</code>, <code>CopyOnWriteArraySet</code>): the iterator walks a copy of the array as it was when the iterator was created; later changes are invisible to it.</li>
+                    <li><b>Weakly consistent</b> (<code>ConcurrentHashMap</code>, <code>ConcurrentLinkedQueue</code>, <code>ConcurrentSkipListMap</code>, <code>LinkedBlockingQueue</code>…): the iterator walks the live structure and <i>may or may not</i> show changes made after it was created, but never fails and never returns an element twice.</li>
+                  </ul>
+                </li>
+              </ul>
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>Fail-fast</th><th>Fail-safe (snapshot)</th><th>Fail-safe (weakly consistent)</th></tr></thead>
+                <tbody>
+                  <tr><td>Examples</td><td><code>ArrayList</code>, <code>HashMap</code>, <code>HashSet</code>, <code>TreeMap</code></td><td><code>CopyOnWriteArrayList</code>, <code>CopyOnWriteArraySet</code></td><td><code>ConcurrentHashMap</code>, <code>ConcurrentLinkedQueue</code>, <code>ConcurrentSkipListMap</code></td></tr>
+                  <tr><td>Modified during iteration</td><td>Throws <code>ConcurrentModificationException</code></td><td>Continues on the old copy</td><td>Continues on the live data</td></tr>
+                  <tr><td>Sees later changes?</td><td>— (fails)</td><td>Never</td><td>Maybe</td></tr>
+                  <tr><td>Extra memory</td><td>None</td><td>A full array copy on every <b>write</b></td><td>None</td></tr>
+                  <tr><td><code>iterator.remove()</code></td><td>Supported (the safe way to remove)</td><td><b>Not</b> supported → <code>UnsupportedOperationException</code></td><td>Supported</td></tr>
+                  <tr><td>Thread-safe collection?</td><td>No</td><td>Yes</td><td>Yes</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java" data-test="ff1">
+                List<String> list = new ArrayList<>(List.of("a", "b", "c"));
+                try {
+                    for (String s : list) if (s.equals("a")) list.add("d");      // structural change during iteration
+                } catch (ConcurrentModificationException e) {
+                    System.out.println("ArrayList: " + e.getClass().getSimpleName()); // => ArrayList: ConcurrentModificationException
+                }
+
+                List<String> cow = new CopyOnWriteArrayList<>(List.of("a", "b", "c"));
+                List<String> seen = new ArrayList<>();
+                for (String s : cow) { seen.add(s); if (s.equals("a")) cow.add("d"); }
+                System.out.println("COW saw " + seen + ", list now " + cow); // => COW saw [a, b, c], list now [a, b, c, d]
+
+                Map<String, Integer> chm = new ConcurrentHashMap<>(Map.of("a", 1, "b", 2));
+                for (String k : chm.keySet()) chm.put("z", 26);                  // no exception
+                System.out.println("ConcurrentHashMap size " + chm.size()); // => ConcurrentHashMap size 3
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><b>ArrayList</b>: adding <code>"d"</code> bumps the list's <code>modCount</code>. On the next <code>next()</code> call the iterator sees it no longer matches its recorded <code>expectedModCount</code> and throws <code>ConcurrentModificationException</code>.</li>
+                  <li><b>CopyOnWriteArrayList</b>: <code>add("d")</code> creates a new internal array, but the for-each loop holds the <i>old</i> array, so it visits only a, b, c — while the list itself now has four elements.</li>
+                  <li><b>ConcurrentHashMap</b>: its iterator is weakly consistent, so inserting <code>"z"</code> mid-loop is allowed; the loop may or may not visit <code>"z"</code>, and the map ends with 3 entries.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>How does a fail-fast iterator work internally (<code>modCount</code> and <code>expectedModCount</code>)?</summary>
+            <div class="answer">
+              <ol>
+                <li>Every fail-fast collection has an <code>int modCount</code> field (inherited from <code>AbstractList</code>, or declared in <code>HashMap</code>). It is incremented on every <b>structural</b> modification: <code>add</code>, <code>remove</code>, <code>clear</code>, resizing… but <b>not</b> on <code>set(i, x)</code> or <code>map.put</code> of an existing key, which only replace a value.</li>
+                <li>When you call <code>iterator()</code>, the iterator copies the current value into <code>expectedModCount</code>.</li>
+                <li>Every call to <code>next()</code> (and <code>remove()</code>) first runs <code>checkForComodification()</code>: if <code>modCount != expectedModCount</code> it throws <code>ConcurrentModificationException</code>.</li>
+                <li><code>iterator.remove()</code> removes the element <i>and</i> resets <code>expectedModCount = modCount</code> — that's why it's the one safe way to remove while iterating.</li>
+              </ol>
+              <script type="text/plain" class="code" data-lang="java">
+                // Simplified from java.util.ArrayList.Itr
+                private class Itr implements Iterator<E> {
+                    int cursor;                          // index of the next element
+                    int lastRet = -1;                    // index of the last element returned
+                    int expectedModCount = modCount;     // snapshot taken when the iterator is created
+
+                    public E next() {
+                        checkForComodification();
+                        int i = cursor;
+                        if (i >= size) throw new NoSuchElementException();
+                        cursor = i + 1;
+                        return (E) elementData[lastRet = i];
+                    }
+
+                    public void remove() {
+                        if (lastRet < 0) throw new IllegalStateException();
+                        checkForComodification();
+                        ArrayList.this.remove(lastRet);  // modCount++ inside
+                        cursor = lastRet;
+                        lastRet = -1;
+                        expectedModCount = modCount;     // re-sync, so iteration can continue
+                    }
+
+                    final void checkForComodification() {
+                        if (modCount != expectedModCount) throw new ConcurrentModificationException();
+                    }
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The iterator never locks anything — it just compares two integers on each step, so the check costs O(1).</li>
+                  <li>Any structural change made <i>outside</i> the iterator increments <code>modCount</code> but not <code>expectedModCount</code>, so the very next <code>next()</code> detects the mismatch.</li>
+                  <li><code>remove()</code> goes through the list but then copies the new <code>modCount</code> into <code>expectedModCount</code>, which keeps the two in sync.</li>
+                  <li>Because <code>modCount</code> isn't volatile or synchronized, another thread's change may not be seen in time — that's why fail-fast is "best effort", not a concurrency guarantee.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="coding" data-complexity="removeIf / iterator.remove: Time O(n) · Space O(1)">
+            <summary>Can <code>ConcurrentModificationException</code> happen in a single thread? Show the correct ways to remove while iterating.</summary>
+            <div class="answer">
+              <p><b>Yes</b> — despite its name, CME has nothing to do with threads. It happens whenever the collection is structurally modified by anything other than the iterator itself, most commonly by calling <code>list.remove()</code> inside a for-each loop.</p>
+              <script type="text/plain" class="code" data-lang="java" data-test="ff2">
+                List<Integer> nums = new ArrayList<>(List.of(1, 2, 3, 4, 5, 6));
+                try {
+                    for (Integer n : nums) if (n % 2 == 0) nums.remove(n);       // WRONG
+                } catch (ConcurrentModificationException e) {
+                    System.out.println("CME in a single thread"); // => CME in a single thread
+                }
+
+                // Surprise: removing the SECOND-TO-LAST element does not throw — and silently skips the last one
+                List<String> letters = new ArrayList<>(List.of("a", "b", "c"));
+                for (String s : letters) if (s.equals("b")) letters.remove(s);
+                System.out.println(letters); // => [a, c]   (no exception: hasNext() saw cursor == size and stopped)
+
+                // RIGHT 1: Iterator.remove()
+                List<Integer> a = new ArrayList<>(List.of(1, 2, 3, 4, 5, 6));
+                for (Iterator<Integer> it = a.iterator(); it.hasNext(); ) if (it.next() % 2 == 0) it.remove();
+                System.out.println(a); // => [1, 3, 5]
+
+                // RIGHT 2: removeIf (Java 8+) — clearest and O(n) for ArrayList
+                List<Integer> b = new ArrayList<>(List.of(1, 2, 3, 4, 5, 6));
+                b.removeIf(n -> n % 2 == 0);
+                System.out.println(b); // => [1, 3, 5]
+
+                // RIGHT 3: maps — remove through the entry set view
+                Map<String, Integer> stock = new HashMap<>(Map.of("pen", 0, "book", 4, "bag", 0));
+                stock.entrySet().removeIf(e -> e.getValue() == 0);
+                System.out.println(stock); // => {book=4}
+
+                // RIGHT 4: build a new collection instead of mutating
+                List<Integer> odds = List.of(1, 2, 3, 4, 5, 6).stream().filter(n -> n % 2 != 0).toList();
+                System.out.println(odds); // => [1, 3, 5]
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>In the first loop, removing <code>2</code> increments <code>modCount</code>; the next <code>next()</code> call detects it and throws — with only one thread involved.</li>
+                  <li>The "surprise" case: after removing <code>"b"</code> the size drops to 2 and the cursor is already 2, so <code>hasNext()</code> returns false and the loop ends <b>before</b> <code>next()</code> can check <code>modCount</code>. No exception, but <code>"c"</code> was never visited — a silent bug. Never rely on CME being thrown.</li>
+                  <li><code>Iterator.remove()</code> and <code>removeIf</code> modify the list in a way the iteration knows about. <code>ArrayList.removeIf</code> also compacts the array in a single O(n) pass, whereas calling <code>remove(i)</code> repeatedly shifts elements each time (O(n²) worst case).</li>
+                  <li>For maps, removing through <code>entrySet()</code>/<code>keySet()</code>/<code>values()</code> views is safe because those views use the map's own iterator.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>What is fail-fast as a <b>design principle</b>? How do you apply it in Java and Spring Boot code?</summary>
+            <div class="answer">
+              <p>A <b>fail-fast</b> system detects an invalid state as <b>early</b> as possible and stops immediately with a clear error, instead of continuing and failing later in a confusing place (or silently corrupting data). The earlier a bug surfaces, the cheaper it is to find and fix.</p>
+              <ul>
+                <li><b>Validate arguments</b> at the start of methods and constructors.</li>
+                <li><b>Validate request input</b> at the API boundary (<code>@Valid</code>) before any business logic or database call.</li>
+                <li><b>Validate configuration at startup</b>, so a missing URL or bad timeout stops the app on deploy instead of breaking the first customer request at 3 a.m.</li>
+                <li><b>Use timeouts</b> on every remote call, so a slow dependency fails quickly instead of tying up threads.</li>
+                <li><b>Prefer immutability</b> (records, <code>List.of</code>) so objects can't drift into an invalid state later.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                // 1. Guard clauses: fail at the call site, not deep inside
+                public record Transfer(String fromAccount, String toAccount, BigDecimal amount) {
+                    public Transfer {
+                        Objects.requireNonNull(fromAccount, "fromAccount");
+                        Objects.requireNonNull(toAccount, "toAccount");
+                        if (amount == null || amount.signum() <= 0)
+                            throw new IllegalArgumentException("amount must be positive: " + amount);
+                        if (fromAccount.equals(toAccount))
+                            throw new IllegalArgumentException("cannot transfer to the same account");
+                    }
+                }
+
+                // 2. Fail at startup if configuration is wrong (Boot refuses to start with a clear message)
+                @Validated
+                @ConfigurationProperties(prefix = "payment.gateway")
+                public record GatewayProperties(@NotBlank String url,
+                                                @NotNull @DurationMin(millis = 100) Duration timeout,
+                                                @Min(1) @Max(10) int maxRetries) {}
+
+                // 3. Fail fast on slow dependencies instead of hanging
+                factory.setConnectTimeout(Duration.ofSeconds(2));
+                factory.setReadTimeout(Duration.ofSeconds(3));
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The record's compact constructor runs before any field is set, so an invalid <code>Transfer</code> can never exist — every later method can trust its data without re-checking.</li>
+                  <li><code>Objects.requireNonNull</code> throws a <code>NullPointerException</code> with the parameter name right at the boundary, instead of an anonymous NPE many calls later.</li>
+                  <li>With <code>@Validated</code> on a <code>@ConfigurationProperties</code> record, Spring Boot validates the bound values while creating the bean; a blank URL or a 0 ms timeout makes the <b>application fail to start</b> with a "Binding validation errors" report.</li>
+                  <li>Connect/read timeouts turn "wait forever" into a fast, handleable exception that a retry or circuit breaker can act on.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard">
+            <summary>Fail-fast vs fail-safe in distributed systems — which do you choose, and what is "fail-open"?</summary>
+            <div class="answer">
+              <p>Both are valid strategies; the right one depends on what failure costs.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>Fail-fast</th><th>Fail-safe</th></tr></thead>
+                <tbody>
+                  <tr><td>On a problem</td><td>Stop and report an error immediately</td><td>Keep running in a <b>safe, degraded</b> state</td></tr>
+                  <tr><td>Goal</td><td>Correctness; surface bugs early; protect resources</td><td>Availability; limit the blast radius</td></tr>
+                  <tr><td>Examples</td><td>Input validation, startup checks, timeouts, an <b>open circuit breaker</b> rejecting calls instantly, <code>ConcurrentModificationException</code></td><td>Fallback to cached data, default recommendations, read-only mode, queueing writes for later, a feature flag that turns a feature off</td></tr>
+                  <tr><td>Risk</td><td>More visible errors / lower availability</td><td>Hidden problems, stale data if overused</td></tr>
+                  <tr><td>Use for</td><td>Payments, data integrity, security decisions, invalid config</td><td>Non-critical features: recommendations, analytics, profile pictures</td></tr>
+                </tbody>
+              </table></div>
+              <p>They are often combined: a circuit breaker <b>fails fast</b> (no waiting on a dead service) and then returns a <b>fail-safe</b> fallback.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                @Service
+                public class RecommendationService {
+
+                    // Resilience4j: after repeated failures the circuit OPENS and calls fail fast (no network call);
+                    // the fallback keeps the product page working with a safe default.
+                    @CircuitBreaker(name = "recommendations", fallbackMethod = "popularProducts")
+                    @TimeLimiter(name = "recommendations")
+                    public CompletableFuture<List<Product>> forUser(String userId) {
+                        return CompletableFuture.supplyAsync(() -> recommendationClient.fetch(userId));
+                    }
+
+                    private CompletableFuture<List<Product>> popularProducts(String userId, Throwable cause) {
+                        return CompletableFuture.completedFuture(cache.topSellers());     // fail-safe default
+                    }
+                }
+
+                // Security must FAIL CLOSED: if the permission check itself fails, deny.
+                boolean canApprove(String user, long invoiceId) {
+                    try {
+                        return permissions.check(user, "approve", invoiceId);
+                    } catch (Exception e) {
+                        log.error("Permission service unavailable", e);
+                        return false;          // never "true" here — that would be fail-OPEN (OWASP A10:2025)
+                    }
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@TimeLimiter</code> caps how long the call may take; <code>@CircuitBreaker</code> counts failures and, past the threshold, <b>opens</b> — further calls skip the network entirely and fail in microseconds (fail-fast), protecting threads and the struggling service.</li>
+                  <li>Every failure or rejected call is routed to <code>popularProducts</code>, so users still see a sensible list (fail-safe). After a wait period the breaker goes half-open and lets a few trial calls through to test recovery.</li>
+                  <li>For authorization, the "safe" state is <b>deny</b>. Returning <code>true</code> on error would be <b>fail-open</b>: an outage of the permission service would let everyone approve invoices.</li>
+                  <li>Rule of thumb: fail-safe for availability of non-critical features, fail-fast (and fail-closed) wherever a wrong answer is worse than no answer.</li>
                 </ol>
               </div>
             </div>
