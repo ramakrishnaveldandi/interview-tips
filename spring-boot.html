@@ -541,12 +541,94 @@
               </div>
             </div>
           </details>
+          <details class="qa" data-level="medium" data-tag="interview">
+            <summary>What is the difference between REST and SOAP? When would you use each?</summary>
+            <div class="answer">
+              <p><b>REST</b> is an <i>architectural style</i> built on plain HTTP: resources have URLs, you use the HTTP methods and status codes, and the payload is usually JSON. <b>SOAP</b> is a <i>protocol</i>: every message is an XML <b>envelope</b> described by a machine-readable <b>WSDL</b> contract, and it comes with a family of WS-* standards for enterprise needs.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Aspect</th><th>REST</th><th>SOAP</th></tr></thead>
+                <tbody>
+                  <tr><td>Nature</td><td>Architectural style (constraints: stateless, uniform interface, cacheable…)</td><td>Protocol with a strict message format (SOAP 1.1 / 1.2)</td></tr>
+                  <tr><td>Payload</td><td>Any representation — usually JSON, also XML, CSV, binary</td><td>Always XML (<code>Envelope</code> → optional <code>Header</code> → <code>Body</code>)</td></tr>
+                  <tr><td>Contract</td><td>Optional — OpenAPI is the de-facto standard</td><td>Mandatory WSDL + XSD; clients are usually generated from it</td></tr>
+                  <tr><td>Transport</td><td>HTTP only</td><td>Mostly HTTP, but transport-independent (JMS, SMTP…)</td></tr>
+                  <tr><td>Operations</td><td>HTTP verbs on resources (<code>GET /orders/42</code>)</td><td>Named operations (<code>getOrder</code>), almost always sent with HTTP <code>POST</code></td></tr>
+                  <tr><td>Errors</td><td>HTTP status codes (+ <code>ProblemDetail</code> body)</td><td><code>&lt;soap:Fault&gt;</code> element in the body (SOAP 1.1 over HTTP returns 500)</td></tr>
+                  <tr><td>Caching</td><td>Native HTTP caching for <code>GET</code> (<code>Cache-Control</code>, <code>ETag</code>)</td><td>No HTTP caching (everything is a POST)</td></tr>
+                  <tr><td>Security / QoS</td><td>Transport-level: HTTPS + OAuth2/JWT</td><td>Message-level WS-Security (signing/encrypting parts of the XML), WS-ReliableMessaging, WS-AtomicTransaction</td></tr>
+                  <tr><td>Weight</td><td>Lightweight, easy from browsers and mobile apps</td><td>Verbose XML, heavier tooling</td></tr>
+                </tbody>
+              </table></div>
+              <ul>
+                <li><b>Use REST</b> for public/partner APIs, web and mobile front-ends, and microservice-to-microservice calls — it is simpler, faster to consume and cache-friendly.</li>
+                <li><b>Use SOAP</b> when the other side mandates it (SAP, banking, telecom, government portals), when you need a strict, versioned contract with generated clients, or message-level security that survives intermediaries.</li>
+                <li>In Spring: REST via <code>spring-boot-starter-web</code> (<code>@RestController</code>, <code>RestClient</code>); SOAP via <code>spring-boot-starter-web-services</code> (Spring Web Services: contract-first <code>@Endpoint</code>s and the <code>WebServiceTemplate</code> client), or Apache CXF for JAX-WS.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                // REST: resource URL + HTTP verb, JSON in/out
+                @RestController
+                @RequestMapping("/api/countries")
+                class CountryController {
+                    @GetMapping("/{name}")
+                    CountryDto get(@PathVariable String name) { return service.find(name); }
+                }
+
+                // SOAP (Spring Web Services): one URL, operation chosen by the XML payload's root element
+                @Endpoint
+                class CountryEndpoint {
+                    private static final String NS = "http://example.com/countries";
+
+                    @PayloadRoot(namespace = NS, localPart = "getCountryRequest")
+                    @ResponsePayload
+                    GetCountryResponse getCountry(@RequestPayload GetCountryRequest request) {
+                        GetCountryResponse response = new GetCountryResponse();   // JAXB class generated from the XSD
+                        response.setCountry(service.findSoap(request.getName()));
+                        return response;
+                    }
+                }
+
+                // SOAP client: JAXB objects in, JAXB objects out
+                GetCountryResponse resp = (GetCountryResponse)
+                        webServiceTemplate.marshalSendAndReceive("https://partner.example.com/ws", request);
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The REST controller maps <code>GET /api/countries/India</code> straight to <code>get("India")</code>; Jackson writes the returned DTO as JSON and the HTTP status tells the client the outcome.</li>
+                  <li>In SOAP every request is an HTTP <code>POST</code> to the same endpoint URL (Spring WS's <code>MessageDispatcherServlet</code>, by default under <code>/services/*</code>). The dispatcher picks the method by the <b>namespace + local name</b> of the first element inside <code>&lt;soap:Body&gt;</code> — that is what <code>@PayloadRoot</code> declares.</li>
+                  <li><code>@RequestPayload</code> unmarshals the body XML into the JAXB class generated from the XSD (contract-first); <code>@ResponsePayload</code> marshals the returned object back into the response envelope.</li>
+                  <li>On the client side <code>WebServiceTemplate.marshalSendAndReceive</code> does the reverse: marshals the request object, wraps it in an envelope, POSTs it, and unmarshals the response body — or throws <code>SoapFaultClientException</code> if the server returned a SOAP Fault.</li>
+                </ol>
+              </div>
+              <script type="text/plain" class="code" data-lang="xml">
+                <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                                  xmlns:c="http://example.com/countries">
+                    <soapenv:Header/>
+                    <soapenv:Body>
+                        <c:getCountryRequest>
+                            <c:name>India</c:name>
+                        </c:getCountryRequest>
+                    </soapenv:Body>
+                </soapenv:Envelope>
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>This is the SOAP 1.1 request the client above sends; the REST equivalent is just <code>GET /api/countries/India</code> with no body.</li>
+                  <li>The <code>Header</code> is where WS-Security tokens/signatures go; it is empty here.</li>
+                  <li><code>c:getCountryRequest</code> in namespace <code>http://example.com/countries</code> is the payload root that <code>@PayloadRoot(namespace = NS, localPart = "getCountryRequest")</code> matches.</li>
+                  <li>The structure of <code>getCountryRequest</code> is fixed by the XSD in the WSDL, so a missing or misspelled element fails validation instead of being silently ignored as an unknown JSON field might be.</li>
+                </ol>
+              </div>
+              <div class="tip">Interview angle: "We expose REST to our web/mobile clients, but integrate with SAP over SOAP because SAP publishes its services as WSDL — we generate JAXB classes from the WSDL and call them with <code>WebServiceTemplate</code>, with timeouts and a circuit breaker around the call."</div>
+            </div>
+          </details>
         </section>
 
         <section class="qa-group">
           <h2>Idempotent vs non-idempotent operations</h2>
 
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>What does idempotent mean? What is the difference between idempotent and non-idempotent operations?</summary>
             <div class="answer">
               <p>An operation is <b>idempotent</b> if performing it <b>once or many times leaves the system in the same state</b>. Repeating it has no additional effect. A <b>non-idempotent</b> operation changes the state again every time it runs.</p>
@@ -565,7 +647,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>Which HTTP methods are safe, idempotent, or neither? Why are PUT and DELETE idempotent but POST and PATCH not?</summary>
             <div class="answer">
               <div class="table-wrap"><table>
@@ -1281,7 +1363,7 @@
               <p>Isolation (<code>READ_COMMITTED</code>, <code>REPEATABLE_READ</code>, <code>SERIALIZABLE</code>…) defaults to the database's level. Use <code>readOnly = true</code> on queries — Hibernate skips dirty checking.</p>
             </div>
           </details>
-          <details class="qa" data-level="hard">
+          <details class="qa" data-level="hard" data-tag="interview">
             <summary>Why does <code>@Transactional</code> sometimes not work? (self-invocation)</summary>
             <div class="answer">
               <p><code>@Transactional</code> is applied via an AOP <b>proxy</b>. Calls that don't go through the proxy aren't intercepted:</p>
@@ -1314,7 +1396,7 @@
               </div>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>What are the default rollback rules?</summary>
             <div class="answer">
               <p>By default Spring rolls back on <b>unchecked</b> exceptions (<code>RuntimeException</code>, <code>Error</code>) and <b>commits</b> on checked exceptions.</p>
@@ -1663,6 +1745,222 @@
         </section>
 
         <section class="qa-group">
+          <h2>Scenario &amp; design questions</h2>
+
+          <details class="qa" data-level="medium" data-tag="interview">
+            <summary>A REST endpoint is called 10,000 times an hour and reads product categories that change once a day. How do you optimise it?</summary>
+            <div class="answer">
+              <p>First, size the problem: 10,000 calls/hour is only <b>~3 requests per second</b>. The database copes easily, so the aim is lower latency and less pointless DB work — not heroic infrastructure. Because the data changes once a day, it is an ideal caching candidate. Work through the layers, cheapest first:</p>
+              <ol>
+                <li><b>Application cache</b> (Spring Cache + Caffeine) — cache the whole list under one key; a hit costs a map lookup instead of a DB round-trip.</li>
+                <li><b>Explicit eviction</b> — evict when an admin changes a category (<code>@CacheEvict</code> on the update path) plus a TTL / nightly eviction as a safety net, so staleness is bounded.</li>
+                <li><b>HTTP caching</b> — <code>Cache-Control: public, max-age=3600</code> lets browsers, CDNs and gateways answer without even reaching the service; an <code>ETag</code> turns re-validations into cheap <code>304 Not Modified</code> responses.</li>
+                <li><b>Distributed cache (Redis)</b> only when you run many instances and need them all to see an update immediately — per-instance Caffeine caches can each serve old data until their own TTL/eviction.</li>
+                <li><b>Query hygiene</b> regardless of caching: return a DTO projection, select only the needed columns, and index the sort/filter columns.</li>
+              </ol>
+              <script type="text/plain" class="code" data-lang="java">
+                @SpringBootApplication
+                @EnableCaching
+                @EnableScheduling
+                public class CatalogApp { }
+
+                public record CategoryDto(long id, String name) {
+                    static CategoryDto from(Category c) { return new CategoryDto(c.getId(), c.getName()); }
+                }
+
+                @Service
+                public class CategoryService {
+                    private final CategoryRepository repo;
+                    CategoryService(CategoryRepository repo) { this.repo = repo; }
+
+                    @Cacheable(cacheNames = "categories", key = "'all'")
+                    @Transactional(readOnly = true)
+                    public List<CategoryDto> findAll() {
+                        return repo.findAll(Sort.by("name")).stream().map(CategoryDto::from).toList();
+                    }
+
+                    @CacheEvict(cacheNames = "categories", allEntries = true)
+                    @Transactional
+                    public CategoryDto rename(long id, String name) {
+                        Category c = repo.findById(id).orElseThrow();
+                        c.setName(name);                    // dirty checking -> UPDATE at commit
+                        return CategoryDto.from(c);
+                    }
+
+                    @CacheEvict(cacheNames = "categories", allEntries = true)
+                    public void evictAll() { }
+                }
+
+                @Component
+                class CategoryCacheRefresher {               // separate bean: avoids self-invocation
+                    private final CategoryService service;
+                    CategoryCacheRefresher(CategoryService service) { this.service = service; }
+
+                    @Scheduled(cron = "0 0 0 * * *")        // every day at midnight
+                    void nightlyEvict() { service.evictAll(); }
+                }
+
+                @RestController
+                class CategoryController {
+                    private final CategoryService service;
+                    CategoryController(CategoryService service) { this.service = service; }
+
+                    @GetMapping("/api/categories")
+                    ResponseEntity<List<CategoryDto>> categories() {
+                        return ResponseEntity.ok()
+                                .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
+                                .body(service.findAll());
+                    }
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>@EnableCaching</code> wraps <code>CategoryService</code> in a proxy. The first <code>findAll()</code> misses, runs the SELECT and stores the result under the fixed key <code>'all'</code> (a SpEL string literal); every later call returns that list without touching the DB.</li>
+                  <li>The cached value is an immutable list (<code>Stream.toList()</code>) of immutable records — safe to share between threads. Caching JPA entities instead would hand out detached objects with lazy associations and let callers mutate the cached state.</li>
+                  <li><code>rename()</code> is annotated with <code>@CacheEvict(allEntries = true)</code>: after it returns successfully the whole <code>categories</code> cache is cleared, so the next read reloads fresh data. Both advices sit on the same proxy, so the eviction can happen just before the commit; a concurrent read in that tiny window could re-cache the old list (the 1 h TTL bounds the damage). If that matters, wrap the cache manager in <code>TransactionAwareCacheManagerProxy</code> so evictions are deferred until after commit.</li>
+                  <li>The nightly <code>@Scheduled</code> job calls <code>evictAll()</code> <b>through another bean</b>: calling <code>this.evictAll()</code> from inside <code>CategoryService</code> would bypass the proxy and evict nothing. Spring cron has six fields — <code>0 0 0 * * *</code> = second 0, minute 0, hour 0, every day.</li>
+                  <li>The controller adds <code>Cache-Control: max-age=3600, public</code>, so clients and any CDN in between reuse the response for an hour without calling the service at all.</li>
+                </ol>
+              </div>
+              <script type="text/plain" class="code" data-lang="yaml">
+                spring:
+                  cache:
+                    type: caffeine
+                    cache-names: categories
+                    caffeine:
+                      spec: maximumSize=100,expireAfterWrite=1h
+                # Multiple instances that must see updates immediately? Switch to Redis:
+                #   spring.cache.type: redis
+                #   spring.cache.redis.time-to-live: 1h
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>type: caffeine</code> (with <code>com.github.ben-manes.caffeine:caffeine</code> on the classpath) makes Boot create a <code>CaffeineCacheManager</code>; <code>cache-names</code> pre-creates the <code>categories</code> cache.</li>
+                  <li><code>expireAfterWrite=1h</code> is the safety net: even if an eviction is missed (e.g. someone updates the table directly in SQL), data is at most one hour stale.</li>
+                  <li>Caffeine lives inside each JVM. With three pods, an evict on pod A does not clear pods B and C — they serve old data until their TTL. Redis gives one shared cache, at the cost of a network hop and serialisation.</li>
+                </ol>
+              </div>
+              <div class="note">What about the Hibernate second-level cache? It caches entities <b>by id</b>, so <code>repo.findAll()</code> would still run its SELECT unless the <b>query cache</b> is also enabled. With a Spring cache already in front of the method, an L2 cache adds little here; it is more useful for <code>findById</code>-style lookups and for entities reached through associations.</div>
+              <div class="tip">Also mention: a <code>ShallowEtagHeaderFilter</code> adds an <code>ETag</code> header computed from the response body so clients can revalidate with <code>If-None-Match</code> and get <code>304</code>. It saves bandwidth, not server work — the response is still generated.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="hard" data-tag="interview">
+            <summary>Your service calls an external SAP SOAP endpoint that sometimes takes 10+ seconds, and other requests are blocked waiting. What do you do?</summary>
+            <div class="answer">
+              <p>The real problem is that a <b>slow dependency is consuming your request threads</b>: every caller stuck on SAP holds a Tomcat worker (200 by default), and once they are all waiting, even requests that never touch SAP queue up. The fix is to <b>bound</b> how long and how many calls can wait, and to fail fast when SAP is unhealthy:</p>
+              <ol>
+                <li><b>Timeouts</b> on the SOAP client (connect + read). Without them a socket read can wait for a very long time.</li>
+                <li><b>Bulkhead</b> — cap the number of concurrent SAP calls (e.g. 10), so SAP can occupy at most 10 threads; extra callers are rejected immediately instead of piling up.</li>
+                <li><b>Circuit breaker</b> — count failures <i>and slow calls</i>; when too many, open the circuit and fail fast for a while instead of waiting 10 s per call.</li>
+                <li><b>Fallback</b> — return last-known-good data (e.g. cached prices) or a clear 503 "SAP unavailable" error.</li>
+                <li><b>Decouple</b> — if the caller does not need the answer immediately (posting an invoice, creating a purchase order), put the request on a queue / outbox, reply <code>202 Accepted</code>, and let a background worker talk to SAP at its own pace.</li>
+                <li><b>Retry carefully</b> — only for idempotent reads, few attempts, with backoff. Retrying a call that already took 8 s multiplies the waiting and adds load to a struggling SAP.</li>
+              </ol>
+              <script type="text/plain" class="code" data-lang="java">
+                @Configuration
+                class SapClientConfig {
+                    @Bean
+                    Jaxb2Marshaller sapMarshaller() {
+                        Jaxb2Marshaller m = new Jaxb2Marshaller();
+                        m.setContextPath("com.acme.sap.generated");      // JAXB classes generated from SAP's WSDL
+                        return m;
+                    }
+
+                    @Bean
+                    WebServiceTemplate sapTemplate(Jaxb2Marshaller sapMarshaller) {
+                        HttpUrlConnectionMessageSender sender = new HttpUrlConnectionMessageSender();
+                        sender.setConnectionTimeout(Duration.ofSeconds(3));   // TCP connect
+                        sender.setReadTimeout(Duration.ofSeconds(8));         // max wait for response data
+
+                        WebServiceTemplate template = new WebServiceTemplate(sapMarshaller);
+                        template.setDefaultUri("https://sap.example.com/sap/bc/srt/price");
+                        template.setMessageSender(sender);
+                        return template;
+                    }
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>Jaxb2Marshaller</code> converts between the generated JAXB classes and the SOAP body XML.</li>
+                  <li><code>HttpUrlConnectionMessageSender</code> is Spring WS's JDK-based HTTP transport. The connect timeout bounds the TCP handshake (3 s); the read timeout bounds how long the socket waits for data (8 s) — so a hung SAP call now fails with an exception instead of holding the thread indefinitely.</li>
+                  <li>A timeout surfaces as a Spring WS <code>WebServiceIOException</code>, which the circuit breaker below records as a failure.</li>
+                  <li>For connection pooling you can plug in the Apache HttpClient 5 based message sender instead; the timeout principle is the same.</li>
+                </ol>
+              </div>
+              <script type="text/plain" class="code" data-lang="java">
+                @Service
+                class SapPriceGateway {
+                    private final WebServiceTemplate sap;
+                    private final Map<String, MaterialPrice> lastGood = new ConcurrentHashMap<>();
+
+                    SapPriceGateway(WebServiceTemplate sapTemplate) { this.sap = sapTemplate; }
+
+                    @Bulkhead(name = "sap")
+                    @CircuitBreaker(name = "sap", fallbackMethod = "priceFallback")
+                    public MaterialPrice price(String material) {
+                        GetPriceRequest req = new GetPriceRequest();
+                        req.setMaterial(material);
+                        GetPriceResponse resp = (GetPriceResponse) sap.marshalSendAndReceive(req);
+                        MaterialPrice price = new MaterialPrice(material, resp.getAmount(), resp.getCurrency());
+                        lastGood.put(material, price);                 // remember the last good answer
+                        return price;
+                    }
+
+                    // same parameters + the exception; also called for open-circuit and bulkhead-full rejections
+                    private MaterialPrice priceFallback(String material, Throwable ex) {
+                        MaterialPrice cached = lastGood.get(material);
+                        if (cached != null) return cached.markStale();
+                        throw new SapUnavailableException("SAP price service unavailable", ex);   // mapped to 503
+                    }
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The Resilience4j Spring Boot starter (plus AOP support: <code>spring-boot-starter-aop</code>, renamed <code>spring-boot-starter-aspectj</code> in Boot 4) proxies <code>SapPriceGateway</code>. Its default aspect order is Retry → CircuitBreaker → RateLimiter → TimeLimiter → Bulkhead → your method, so here the circuit breaker wraps the bulkhead.</li>
+                  <li><b>Bulkhead</b> (semaphore-based by default): if 10 SAP calls are already in flight, the 11th caller gets <code>BulkheadFullException</code> at once instead of blocking — SAP can never occupy more than 10 request threads.</li>
+                  <li><b>Circuit breaker</b>: each call's outcome and duration go into a sliding window. When the failure rate or the slow-call rate crosses the threshold, the circuit opens and calls are rejected with <code>CallNotPermittedException</code> in microseconds, without contacting SAP.</li>
+                  <li>Any of these exceptions — timeout, bulkhead full, circuit open — is routed to <code>priceFallback</code>, which returns the last good price (flagged stale) or throws a domain exception that a <code>@RestControllerAdvice</code> turns into <code>503 Service Unavailable</code>.</li>
+                  <li>The <code>ConcurrentHashMap</code> keeps the example short; in production use a real cache (Caffeine/Redis) with a TTL so stale data does not live forever.</li>
+                </ol>
+              </div>
+              <script type="text/plain" class="code" data-lang="yaml">
+                resilience4j:
+                  bulkhead:
+                    instances:
+                      sap:
+                        max-concurrent-calls: 10
+                        max-wait-duration: 0           # reject immediately when full
+                  circuitbreaker:
+                    instances:
+                      sap:
+                        sliding-window-size: 20
+                        minimum-number-of-calls: 10
+                        failure-rate-threshold: 50
+                        slow-call-duration-threshold: 5s
+                        slow-call-rate-threshold: 50
+                        wait-duration-in-open-state: 30s
+                        permitted-number-of-calls-in-half-open-state: 3
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The bulkhead allows 10 concurrent calls; <code>max-wait-duration: 0</code> means an 11th caller does not wait for a free slot.</li>
+                  <li>The circuit breaker looks at the last 20 calls (but only after at least 10 have been recorded). It opens if ≥ 50% failed <b>or</b> ≥ 50% took longer than 5 s — so a SAP that is merely slow, not failing, still trips the breaker.</li>
+                  <li>While open it rejects calls for 30 s, then goes half-open and lets 3 trial calls through; if they succeed it closes, otherwise it opens again.</li>
+                  <li>These numbers are starting points — tune them from real latency percentiles (Actuator/Micrometer exposes <code>resilience4j_*</code> metrics).</li>
+                </ol>
+              </div>
+              <div class="note">Resilience4j's <code>@TimeLimiter</code> only works on asynchronous return types (<code>CompletableFuture</code>, reactive types); for a blocking SOAP call the socket timeouts above are what actually bound the wait. Virtual threads (<code>spring.threads.virtual.enabled=true</code>) stop blocked calls from exhausting platform threads, but they do not make SAP faster or protect it from overload — you still need timeouts, a bulkhead and a circuit breaker.</div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
           <h2>Coding questions</h2>
           <p class="group-intro">Hands-on tasks interviewers ask you to write live or as a take-home. Imports are omitted for brevity; code targets Spring Boot 3.4+ / 4.x.</p>
 
@@ -1862,7 +2160,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="easy" data-tag="coding" data-complexity="O(log n + page size) with an index; OFFSET paging costs O(offset)">
+          <details class="qa" data-level="easy" data-tag="interview coding" data-complexity="O(log n + page size) with an index; OFFSET paging costs O(offset)">
             <summary>Add pagination, sorting and filtering to a list endpoint.</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">

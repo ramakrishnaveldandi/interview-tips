@@ -293,6 +293,54 @@
               </div>
             </div>
           </details>
+          <details class="qa" data-level="easy">
+            <summary>What is <code>var</code>? Does it make Java dynamically typed? Where can't you use it?</summary>
+            <div class="answer">
+              <p><code>var</code> (Java 10, JEP 286) is <b>local variable type inference</b>. The compiler works out the type from the initializer at <b>compile time</b> and that type is fixed forever — the bytecode is exactly the same as if you had written the type yourself. Java stays <b>statically typed</b>; <code>var</code> only removes repetition.</p>
+              <p>Dynamic typing (JavaScript, Python) is different: a variable has no fixed type and can hold a number now and a string later, and type errors appear only at runtime.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                var list = new ArrayList<String>();       // ArrayList<String>
+                list.add("java");
+                var count = 10;                           // int
+                var price = 9.99;                         // double
+                var map = new HashMap<String, List<Integer>>();
+                map.put("a", List.of(1, 2));
+                for (var e : map.entrySet()) System.out.println(e.getKey() + " -> " + e.getValue());
+                // => a -> [1, 2]
+
+                var nums = new ArrayList<>();             // careful: diamond + var => ArrayList<Object>
+                nums.add(1); nums.add("two");
+                System.out.println(nums);                 // => [1, two]
+
+                System.out.println(((Object) count).getClass().getSimpleName() + " "
+                    + ((Object) price).getClass().getSimpleName());   // => Integer Double
+
+                var var = "var is not a keyword";         // legal: var is a reserved type name
+                System.out.println(var);                  // => var is not a keyword
+
+                // None of these compile (javac 25 messages):
+                // list.add(42);         incompatible types: int cannot be converted to String
+                // count = "ten";        incompatible types: String cannot be converted to int
+                // var x = null;         cannot infer type for local variable x
+                // var y;                cannot infer type for local variable y
+                // var arr = {1, 2};     cannot infer type for local variable arr
+                // var f = () -> 1;      cannot infer type for local variable f
+                // var a = 1, b = 2;     'var' is not allowed in a compound declaration
+                // class C { var field = 1; }   'var' is not allowed here
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>var list = new ArrayList&lt;String&gt;()</code> gives <code>list</code> the static type <code>ArrayList&lt;String&gt;</code>. That is why <code>list.add(42)</code> is a <b>compile</b> error, not a runtime one — the proof that <code>var</code> is not dynamic typing. Likewise <code>count</code> is an <code>int</code>, so assigning <code>"ten"</code> fails.</li>
+                  <li>The inferred type is the type of the initializer: <code>10</code> → <code>int</code>, <code>9.99</code> → <code>double</code>. Boxing them to <code>Object</code> shows <code>Integer</code> and <code>Double</code>. Note it infers the concrete class (<code>ArrayList</code>), not the interface (<code>List</code>).</li>
+                  <li>With both <code>var</code> and the diamond <code>&lt;&gt;</code> there is nothing to infer the element type from, so the compiler picks <code>ArrayList&lt;Object&gt;</code> and happily accepts <code>1</code> and <code>"two"</code>. Always give the type argument on one side.</li>
+                  <li><code>var</code> needs an initializer with a usable type: <code>null</code>, no initializer, an array initializer <code>{1, 2}</code> and a bare lambda give the compiler nothing to infer from. Lambdas and method references need a target type such as <code>Supplier&lt;Integer&gt;</code>.</li>
+                  <li><code>var</code> is allowed only for local variables, enhanced-for and classic for loop variables, try-with-resources variables and (Java 11) lambda parameters — not for fields, method parameters or return types. It is a reserved type name rather than a keyword, so old code with a variable called <code>var</code> still compiles.</li>
+                </ol>
+              </div>
+              <div class="tip">Use <code>var</code> when the type is obvious from the right-hand side (<code>new</code>, factory methods, long generic types). Avoid it when it hides the type, e.g. <code>var result = service.process();</code>. Java 11 allowed <code>var</code> in lambda parameters mainly so they can carry annotations: <code>(@NonNull var s) -&gt; s.length()</code>.</div>
+            </div>
+          </details>
         </section>
 
         <section class="qa-group">
@@ -355,6 +403,84 @@
                   <tr><td>Serial</td><td><code>-XX:+UseSerialGC</code></td><td>Small containers / single CPU</td></tr>
                 </tbody>
               </table></div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium">
+            <summary>How do you use the standard <code>HttpClient</code> (Java 11)? Show sync and async calls.</summary>
+            <div class="answer">
+              <p><code>java.net.http.HttpClient</code> became standard in Java 11 (JEP 321) after incubating in 9 and 10. It replaces the old <code>HttpURLConnection</code> and, for many cases, the need for Apache HttpClient or OkHttp. It supports HTTP/1.1 and HTTP/2, synchronous and asynchronous (<code>CompletableFuture</code>) calls, and WebSockets.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                HttpClient client = HttpClient.newBuilder()          // build once, reuse everywhere
+                    .version(HttpClient.Version.HTTP_2)              // tries HTTP/2, falls back to 1.1
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .followRedirects(HttpClient.Redirect.NORMAL)     // default is NEVER
+                    .build();
+
+                // Synchronous GET
+                HttpRequest get = HttpRequest.newBuilder(URI.create("https://api.example.com/users/42"))
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(10))                 // per-request timeout (none by default)
+                    .GET()
+                    .build();
+                HttpResponse<String> res = client.send(get, HttpResponse.BodyHandlers.ofString());
+                System.out.println(res.statusCode() + " " + res.body());
+
+                // Asynchronous POST with a JSON text block body
+                HttpRequest post = HttpRequest.newBuilder(URI.create("https://api.example.com/users"))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString("""
+                        {"name": "Asha", "dept": "IT"}
+                        """))
+                    .build();
+                CompletableFuture<String> body = client.sendAsync(post, HttpResponse.BodyHandlers.ofString())
+                    .thenApply(HttpResponse::body);
+                System.out.println(body.join());
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>HttpClient</code> is immutable and thread-safe and owns a connection pool, so you create one and share it (e.g. as a Spring bean). Creating a client per request wastes connections.</li>
+                  <li><code>HttpRequest.newBuilder(uri)</code> describes one request: method, headers, body and timeout. <code>connectTimeout</code> on the client limits only connecting; <code>timeout</code> on the request limits waiting for the response, and throws <code>HttpTimeoutException</code> when exceeded.</li>
+                  <li><code>send</code> blocks until the response arrives and uses a <b>body handler</b> to decide how to read the body: <code>ofString()</code>, <code>ofFile(path)</code>, <code>ofInputStream()</code>, <code>ofLines()</code> or <code>discarding()</code>. A 404 or 500 is <b>not</b> an exception — check <code>statusCode()</code> yourself.</li>
+                  <li><code>sendAsync</code> returns a <code>CompletableFuture&lt;HttpResponse&lt;T&gt;&gt;</code> immediately, so you can chain <code>thenApply</code>, combine several calls with <code>allOf</code>, and only <code>join()</code> when you need the result.</li>
+                  <li>On Java 21+ the blocking <code>send</code> is a natural fit for virtual threads, and <code>HttpClient</code> also implements <code>AutoCloseable</code> (Java 21) so a short-lived client can be closed with try-with-resources.</li>
+                </ol>
+              </div>
+              <div class="note">In Spring Boot apps you usually call REST APIs through <code>RestClient</code>/<code>WebClient</code>; <code>RestClient</code> can use the JDK <code>HttpClient</code> underneath via <code>JdkClientHttpRequestFactory</code>.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="coding">
+            <summary>What do the Java 11–15 <code>String</code> methods print? (<code>strip</code> vs <code>trim</code>, <code>isBlank</code>, <code>lines</code>, <code>repeat</code>, <code>indent</code>, <code>transform</code>, <code>formatted</code>)</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                String s = " hi ";                               // EM SPACE (Unicode whitespace) on both sides
+                System.out.println(s.trim().length() + " " + s.strip().length());                 // => 4 2
+                System.out.println("[" + "  hi  ".stripLeading() + "][" + "  hi  ".stripTrailing() + "]");
+                // => [hi  ][  hi]
+                System.out.println("".isEmpty() + " " + "   ".isEmpty() + " " + "   ".isBlank() + " " + "\t\n".isBlank());
+                // => true false true true
+                System.out.println("a\nb\r\nc".lines().toList());           // => [a, b, c]
+                System.out.println("ab".repeat(3) + "|" + "x".repeat(0) + "|");                   // => ababab||
+                System.out.print("line1\nline2".indent(2));
+                // =>   line1
+                // =>   line2
+                String shout = "java".transform(String::toUpperCase).transform(t -> t + "!");
+                System.out.println(shout);                                  // => JAVA!
+                System.out.println("%s is %d".formatted("Java", 25));       // => Java is 25
+                System.out.println("tab\\there".translateEscapes());        // => tab	here   (a real tab)
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>trim()</code> (Java 1.0) removes only characters <code>&lt;= ' '</code>. EM SPACE (<code>U+2003</code>) is above that, so <code>trim()</code> leaves the string at length 4. <code>strip()</code> (Java 11) uses <code>Character.isWhitespace</code>, which knows Unicode spaces, so it returns <code>"hi"</code> (length 2). <code>stripLeading</code>/<code>stripTrailing</code> strip only one side.</li>
+                  <li><code>isEmpty()</code> is true only for length 0. <code>isBlank()</code> (Java 11) is true for empty <b>or</b> whitespace-only strings, including tabs and newlines — the check you usually want for "is this input missing?".</li>
+                  <li><code>lines()</code> (Java 11) returns a lazy <code>Stream&lt;String&gt;</code> split on <code>\n</code>, <code>\r</code> or <code>\r\n</code>, without the line terminators. <code>repeat(n)</code> (Java 11) concatenates n copies; <code>repeat(0)</code> is the empty string.</li>
+                  <li><code>indent(2)</code> (Java 12) adds two spaces to every line and normalises line endings, <b>adding a trailing <code>\n</code></b> — that is why <code>print</code>, not <code>println</code>, is used. A negative value removes up to that many leading spaces.</li>
+                  <li><code>transform(f)</code> (Java 12) applies a function to the string, allowing fluent chains. <code>formatted(...)</code> (Java 15) is the instance version of <code>String.format</code>, handy on text blocks. <code>translateEscapes()</code> (Java 15) turns the two characters <code>\</code> <code>t</code> into a real tab.</li>
+                </ol>
+              </div>
+              <div class="tip">Also new: <code>Files.readString</code>/<code>writeString</code> (11), <code>String.stripIndent()</code> (15), <code>Predicate.not(String::isBlank)</code> (11) for filtering blank lines in streams.</div>
             </div>
           </details>
         </section>

@@ -494,6 +494,157 @@
             </div>
           </details>
         </section>
+
+        <section class="qa-group">
+          <h2>Version interview questions</h2>
+          <details class="qa" data-level="medium">
+            <summary>In which version did each modern feature become final? (preview history from Java 9 to 25)</summary>
+            <div class="answer">
+              <p>Interviewers like to check whether you know a feature was <b>preview</b> (needs <code>--enable-preview</code>, may change) or <b>final</b> in a given LTS. Many blog posts and cheat sheets get this wrong — e.g. virtual threads and record patterns were <b>not</b> available in Java 17 in any form.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Feature</th><th>Incubator / preview</th><th>Final</th><th>In 17?</th><th>In 25?</th></tr></thead>
+                <tbody>
+                  <tr><td>Module system (JPMS)</td><td>—</td><td>9</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                  <tr><td>HTTP Client (<code>java.net.http</code>)</td><td>Incubator 9–10</td><td>11</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                  <tr><td><code>var</code> for locals</td><td>—</td><td>10 (lambda params 11)</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                  <tr><td>Switch expressions</td><td>12–13</td><td>14</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                  <tr><td>Helpful NullPointerExceptions</td><td>—</td><td>14 (on by default from 15)</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                  <tr><td>Text blocks</td><td>13–14</td><td>15</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                  <tr><td>Records</td><td>14–15</td><td>16</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                  <tr><td>Pattern matching for <code>instanceof</code></td><td>14–15</td><td>16</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                  <tr><td>Sealed classes</td><td>15–16</td><td>17</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                  <tr><td>Pattern matching for <code>switch</code></td><td>17–20</td><td>21</td><td>Preview only</td><td class="yes">Yes</td></tr>
+                  <tr><td>Record patterns</td><td>19–20</td><td>21</td><td class="no">No</td><td class="yes">Yes</td></tr>
+                  <tr><td>Virtual threads</td><td>19–20</td><td>21</td><td class="no">No</td><td class="yes">Yes</td></tr>
+                  <tr><td>Sequenced collections</td><td>—</td><td>21</td><td class="no">No</td><td class="yes">Yes</td></tr>
+                  <tr><td>Unnamed variables &amp; patterns <code>_</code></td><td>21</td><td>22</td><td class="no">No</td><td class="yes">Yes</td></tr>
+                  <tr><td>Foreign Function &amp; Memory API</td><td>Incubator 14–18, preview 19–21</td><td>22</td><td class="no">No</td><td class="yes">Yes</td></tr>
+                  <tr><td>Stream Gatherers</td><td>22–23</td><td>24</td><td class="no">No</td><td class="yes">Yes</td></tr>
+                  <tr><td>Class-File API</td><td>22–23</td><td>24</td><td class="no">No</td><td class="yes">Yes</td></tr>
+                  <tr><td>Scoped Values</td><td>Incubator 20, preview 21–24</td><td>25</td><td class="no">No</td><td class="yes">Yes</td></tr>
+                  <tr><td>Module import declarations</td><td>23–24</td><td>25</td><td class="no">No</td><td class="yes">Yes</td></tr>
+                  <tr><td>Compact source files &amp; instance <code>main</code></td><td>21–24</td><td>25</td><td class="no">No</td><td class="yes">Yes</td></tr>
+                  <tr><td>Flexible constructor bodies</td><td>22–24</td><td>25</td><td class="no">No</td><td class="yes">Yes</td></tr>
+                  <tr><td>Structured concurrency</td><td>Incubator 19–20, preview 21–25</td><td><b>Not final</b></td><td class="no">No</td><td>Preview (JEP 505)</td></tr>
+                  <tr><td>Primitive types in patterns</td><td>23–25</td><td><b>Not final</b></td><td class="no">No</td><td>Preview (JEP 507)</td></tr>
+                  <tr><td>String Templates</td><td>21–22, then withdrawn</td><td><b>Never</b></td><td class="no">No</td><td class="no">No</td></tr>
+                </tbody>
+              </table></div>
+              <p>Removals and deprecations are another trap:</p>
+              <ul>
+                <li><b>Nashorn</b> JavaScript engine — deprecated in 11, <b>removed in 15</b>.</li>
+                <li><b>Applet API</b> — deprecated for removal in 17, still present in 25 (removed in JDK 26).</li>
+                <li><b>Security Manager</b> — deprecated for removal in 17 (JEP 411), <b>permanently disabled in 24</b> (JEP 486). The API classes still exist in 25, but <code>System.setSecurityManager</code> always throws <code>UnsupportedOperationException</code>.</li>
+                <li><b><code>finalize()</code></b> — deprecated for removal in 18 (JEP 421) but <b>not removed</b> in 25; it can be disabled with <code>--finalization=disabled</code>.</li>
+              </ul>
+              <div class="tip">A quick way to remember the big three: Java 17 finished the "data" features (records, sealed classes, <code>instanceof</code> patterns); Java 21 finished pattern matching and virtual threads; Java 25 finished Scoped Values and the "on-ramp" features (compact source files, module imports, flexible constructors).</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium">
+            <summary>Why was PermGen replaced by Metaspace in Java 8, and what does it mean in practice?</summary>
+            <div class="answer">
+              <p>Class metadata (class structures, method bytecode, constant pools) has to live somewhere. Up to Java 7, HotSpot kept it in the <b>Permanent Generation</b> (PermGen), a fixed-size area managed together with the Java heap. Java 8 (JEP 122) moved it to <b>Metaspace</b> in native memory.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>PermGen (≤ Java 7)</th><th>Metaspace (Java 8+)</th></tr></thead>
+                <tbody>
+                  <tr><td>Location</td><td>Part of the heap reserved by the JVM</td><td>Native (off-heap) memory</td></tr>
+                  <tr><td>Size</td><td>Fixed maximum (<code>-XX:MaxPermSize</code>, often only 64–256 MB)</td><td>Grows on demand; unlimited by default, cap with <code>-XX:MaxMetaspaceSize</code></td></tr>
+                  <tr><td>Typical error</td><td><code>OutOfMemoryError: PermGen space</code></td><td><code>OutOfMemoryError: Metaspace</code> (only if capped or the machine runs out)</td></tr>
+                  <tr><td>Interned strings &amp; static fields</td><td>Stored in PermGen</td><td>Already moved to the heap in Java 7</td></tr>
+                  <tr><td>Cleanup</td><td>Collected mainly during full GCs</td><td>Freed when the owning class loader is garbage-collected</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="bash">
+                # Old flags no longer exist (Java 8 ignored them with a warning; Java 25 refuses to start)
+                java -XX:MaxPermSize=256m -version
+                # => Unrecognized VM option 'MaxPermSize=256m'
+                # => Error: Could not create the Java Virtual Machine.
+
+                # Metaspace defaults on JDK 25
+                java -XX:+PrintFlagsFinal -version | grep Metaspace
+                # => size_t MaxMetaspaceSize = 18446744073709551615   (no limit)
+                # => size_t MetaspaceSize    = 22020096               (~21 MB: first GC threshold)
+
+                # Production: cap it so a class-loader leak fails fast instead of eating native memory
+                java -XX:MaxMetaspaceSize=256m -jar app.jar
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Frameworks like Spring, Hibernate, Mockito and ByteBuddy generate proxy classes at runtime. With a fixed PermGen, apps (and app servers that redeploy WARs) regularly died with <code>PermGen space</code>, and teams had to guess a <code>MaxPermSize</code>.</li>
+                  <li>On Java 25 the old flag is not just ignored — the JVM rejects it and refuses to start, so remove <code>-XX:PermSize</code>/<code>-XX:MaxPermSize</code> from scripts when migrating from Java 7 or very old Java 8 setups.</li>
+                  <li><code>MaxMetaspaceSize</code> shows the largest 64-bit value, i.e. no limit. <code>MetaspaceSize</code> is not a size limit: it is the high-water mark at which the first metaspace-triggered GC happens, after which it adjusts.</li>
+                  <li>Metaspace is freed per class loader. If something keeps a class loader reachable (a <code>ThreadLocal</code>, a static cache, a JDBC driver registered by a webapp), all its classes stay loaded — a class-loader leak. Without a cap, the process just grows; with <code>MaxMetaspaceSize</code> you get a clear <code>OutOfMemoryError: Metaspace</code>.</li>
+                  <li>Metaspace is native memory, so in containers count it (plus thread stacks, code cache and direct buffers) on top of <code>-Xmx</code> when sizing the memory limit.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="coding" data-complexity="Time O(n) · Space O(1)">
+            <summary>Write a method that returns the highest-paid employee of a department as an <code>Optional</code>, and consume it the Java 8, 9 and 10 way.</summary>
+            <div class="answer">
+              <script type="text/plain" class="code" data-lang="java">
+                record Employee(int id, String name, String dept, double salary) {}
+
+                static Optional<Employee> highestPaidInDept(List<Employee> employees, String dept) {
+                    return employees.stream()
+                            .filter(e -> dept.equals(e.dept()))
+                            .max(Comparator.comparingDouble(Employee::salary));
+                }
+
+                List<Employee> emps = List.of(
+                    new Employee(1, "Asha",  "IT",      120000),
+                    new Employee(2, "Ravi",  "IT",       95000),
+                    new Employee(3, "Meena", "HR",       70000),
+                    new Employee(4, "John",  "Finance",  82000),
+                    new Employee(5, "Kiran", "IT",       95000),
+                    new Employee(6, "Priya", "Finance", 105000),
+                    new Employee(7, "Arjun", "HR",       60000));
+
+                // Java 8: map + orElse
+                System.out.println(highestPaidInDept(emps, "Finance").map(Employee::name).orElse("No employees"));
+                // => Priya
+
+                // Java 9: ifPresentOrElse
+                highestPaidInDept(emps, "IT").ifPresentOrElse(
+                    e -> System.out.println("Top earner: " + e.name() + " " + e.salary()),
+                    () -> System.out.println("No employees in department"));
+                // => Top earner: Asha 120000.0
+                highestPaidInDept(emps, "Sales").ifPresentOrElse(
+                    e -> System.out.println("Top earner: " + e.name()),
+                    () -> System.out.println("No employees in department"));
+                // => No employees in department
+
+                // Java 10: orElseThrow() with no argument
+                try {
+                    highestPaidInDept(emps, "Sales").orElseThrow();
+                } catch (NoSuchElementException ex) {
+                    System.out.println(ex.getMessage());
+                }
+                // => No value present
+
+                // Ties: max() returns only one employee
+                List<Employee> tie = List.of(new Employee(8, "Dev", "Ops", 90000), new Employee(9, "Sam", "Ops", 90000));
+                System.out.println(highestPaidInDept(tie, "Ops").map(Employee::name).orElseThrow());
+                // => Dev
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>filter</code> keeps only the department's employees and <code>max(Comparator.comparingDouble(Employee::salary))</code> returns the largest as an <code>Optional</code> — empty when the department has nobody. One pass, no extra collection: O(n) time, O(1) space.</li>
+                  <li><code>dept.equals(e.dept())</code> puts the known non-null argument first, so an employee with a <code>null</code> department does not cause an NPE.</li>
+                  <li>Finance has John (82000) and Priya (105000), so Java 8 style <code>map(Employee::name).orElse(...)</code> prints <code>Priya</code>. In IT, Asha's 120000 beats Ravi's and Kiran's 95000.</li>
+                  <li><code>ifPresentOrElse</code> (Java 9) handles both cases without <code>isPresent()</code>/<code>get()</code>. "Sales" has no employees, so the empty branch runs.</li>
+                  <li>No-arg <code>orElseThrow()</code> (Java 10) is the readable replacement for <code>get()</code>; on an empty <code>Optional</code> it throws <code>NoSuchElementException("No value present")</code>.</li>
+                  <li>On a tie, <code>max</code> keeps the <b>first</b> of the equal elements (Dev). If all top earners are needed, compute the max salary first and then <code>filter(e -&gt; e.salary() == top)</code>.</li>
+                </ol>
+              </div>
+              <div class="tip">For "highest paid in <b>every</b> department" use <code>groupingBy(Employee::dept, maxBy(comparingDouble(Employee::salary)))</code> — see the grouping questions on the <a href="java-streams.html">Java Streams page</a>.</div>
+            </div>
+          </details>
+        </section>
       </div>
     </div>
   </main>

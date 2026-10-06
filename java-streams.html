@@ -372,6 +372,125 @@
               </div>
             </div>
           </details>
+          <details class="qa" data-level="easy">
+            <summary><code>Predicate</code> vs <code>Function</code> vs <code>Consumer</code> vs <code>Supplier</code> — which stream operations use them, and how do you compose them?</summary>
+            <div class="answer">
+              <p>All four are functional interfaces in <code>java.util.function</code> (Java 8). Each has exactly one abstract method, so a lambda or method reference can implement it. Stream operations are typed by these interfaces, which is why knowing them tells you what each lambda must return.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Interface</th><th>Method</th><th>Used by</th><th>Composition</th></tr></thead>
+                <tbody>
+                  <tr><td><code>Predicate&lt;T&gt;</code></td><td><code>boolean test(T)</code></td><td><code>filter</code>, <code>anyMatch</code>/<code>allMatch</code>/<code>noneMatch</code>, <code>takeWhile</code>, <code>removeIf</code></td><td><code>and</code>, <code>or</code>, <code>negate</code>, <code>Predicate.not</code> (11)</td></tr>
+                  <tr><td><code>Function&lt;T,R&gt;</code></td><td><code>R apply(T)</code></td><td><code>map</code>, <code>flatMap</code>, <code>groupingBy</code>, <code>toMap</code>, <code>Comparator.comparing</code></td><td><code>andThen</code>, <code>compose</code>, <code>Function.identity()</code></td></tr>
+                  <tr><td><code>Consumer&lt;T&gt;</code></td><td><code>void accept(T)</code></td><td><code>forEach</code>, <code>peek</code>, <code>Optional.ifPresent</code></td><td><code>andThen</code></td></tr>
+                  <tr><td><code>Supplier&lt;T&gt;</code></td><td><code>T get()</code></td><td><code>Stream.generate</code>, <code>collect</code>/<code>toCollection</code>, <code>Optional.orElseGet</code>/<code>orElseThrow</code></td><td>—</td></tr>
+                </tbody>
+              </table></div>
+              <p>Variants: <code>BiFunction</code>/<code>BiPredicate</code>/<code>BiConsumer</code> take two arguments; <code>UnaryOperator&lt;T&gt;</code> and <code>BinaryOperator&lt;T&gt;</code> are <code>Function</code>/<code>BiFunction</code> whose input and output types are the same (used by <code>reduce</code>, <code>Stream.iterate</code>, <code>replaceAll</code>); primitive versions like <code>IntPredicate</code> and <code>ToIntFunction</code> avoid boxing.</p>
+              <script type="text/plain" class="code" data-lang="java">
+                Predicate<String> nonBlank    = s -> !s.isBlank();
+                Predicate<String> longerThan3 = s -> s.length() > 3;
+                Predicate<String> valid = nonBlank.and(longerThan3);
+                System.out.println(Stream.of("java", " ", "sql", "spring").filter(valid).toList());
+                // => [java, spring]
+                System.out.println(Stream.of("java", " ", "sql", "spring").filter(valid.negate()).toList());
+                // => [ , sql]
+
+                Function<String, Integer> length = String::length;
+                Function<Integer, Integer> doubled = n -> n * 2;
+                System.out.println(length.andThen(doubled).apply("java"));    // => 8
+                Function<String, String> trim = String::trim;
+                System.out.println(length.compose(trim).apply("  hi  "));     // => 2
+
+                Consumer<String> print    = s -> System.out.print("[" + s + "]");
+                Consumer<String> printLen = s -> System.out.print(s.length() + " ");
+                List.of("a", "bb").forEach(print.andThen(printLen));           // => [a]1 [bb]2
+
+                Supplier<List<String>> listFactory = ArrayList::new;
+                List<String> l1 = listFactory.get(), l2 = listFactory.get();
+                System.out.println(l1 == l2);                                  // => false
+
+                BiFunction<Integer, Integer, Integer> add = Integer::sum;
+                UnaryOperator<String> upper = String::toUpperCase;
+                BinaryOperator<Integer> max = BinaryOperator.maxBy(Comparator.naturalOrder());
+                System.out.println(add.apply(2, 3) + " " + upper.apply("ok") + " " + max.apply(4, 9));
+                // => 5 OK 9
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>nonBlank.and(longerThan3)</code> builds a new <code>Predicate</code> that is true only when both are true (and short-circuits like <code>&amp;&amp;</code>). <code>" "</code> fails <code>nonBlank</code> and <code>"sql"</code> fails the length check, so only <code>java</code> and <code>spring</code> pass. <code>negate()</code> flips the result, keeping exactly the other two.</li>
+                  <li><code>length.andThen(doubled)</code> runs <code>length</code> first, then <code>doubled</code> on its result: <code>"java"</code> → 4 → 8. <code>length.compose(trim)</code> runs in the opposite order — <code>trim</code> first, then <code>length</code> — so <code>"  hi  "</code> → <code>"hi"</code> → 2.</li>
+                  <li><code>print.andThen(printLen)</code> is one <code>Consumer</code> that performs both side effects for each element, in order: <code>[a]1 [bb]2</code>.</li>
+                  <li>A <code>Supplier</code> is a factory: every <code>get()</code> runs <code>ArrayList::new</code> again, so <code>l1</code> and <code>l2</code> are two different lists and <code>==</code> is <code>false</code>. This is the same reason <code>collect(Collectors.toCollection(ArrayList::new))</code> takes a supplier.</li>
+                  <li><code>BinaryOperator.maxBy</code> turns a <code>Comparator</code> into a two-argument "pick the larger" function, which is exactly what <code>reduce(BinaryOperator.maxBy(...))</code> expects.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="coding">
+            <summary><code>Iterable.forEach()</code> vs a for-each loop — when does the difference matter?</summary>
+            <div class="answer">
+              <p>Both visit every element, but they are not interchangeable. The for-each loop is a language construct (it compiles to an <code>Iterator</code> loop); <code>Iterable.forEach(Consumer)</code> (Java 8) is a method that calls a lambda for each element, and the collection controls the iteration.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>for-each loop</th><th><code>Iterable.forEach(lambda)</code></th></tr></thead>
+                <tbody>
+                  <tr><td><code>break</code> / <code>continue</code></td><td>Yes</td><td>No — <code>return</code> only ends the current call (acts like <code>continue</code>)</td></tr>
+                  <tr><td><code>return</code> from the enclosing method</td><td>Yes</td><td>No</td></tr>
+                  <tr><td>Checked exceptions</td><td>Can be thrown</td><td>Must be caught/wrapped (<code>Consumer.accept</code> declares none)</td></tr>
+                  <tr><td>Modify local variables</td><td>Yes</td><td>No — captured locals must be effectively final</td></tr>
+                  <tr><td>Who iterates</td><td>Caller, via <code>Iterator</code></td><td>The collection; e.g. <code>Collections.synchronizedList(...).forEach</code> holds the lock for the whole traversal, while a for-each loop over it needs a manual <code>synchronized (list)</code> block</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java">
+                List<String> names = new ArrayList<>(List.of("Asha", "Ravi", "Meena", "John"));
+
+                for (String n : names) {                 // 1. break works
+                    if (n.equals("Meena")) break;
+                    System.out.print(n + " ");
+                }
+                // => Asha Ravi
+
+                names.forEach(n -> {                     // 2. return = "skip this one"
+                    if (n.equals("Meena")) return;
+                    System.out.print(n + " ");
+                });
+                // => Asha Ravi John
+
+                try {                                    // 3. removing while iterating
+                    for (String n : names) if (n.startsWith("R")) names.remove(n);
+                } catch (ConcurrentModificationException e) {
+                    System.out.println("for-each: " + e.getClass().getSimpleName());
+                }
+                // => for-each: ConcurrentModificationException
+
+                names = new ArrayList<>(List.of("Asha", "Ravi", "Meena", "John"));
+                try {
+                    List<String> ref = names;
+                    names.forEach(n -> { if (n.startsWith("R")) ref.remove(n); });
+                } catch (ConcurrentModificationException e) {
+                    System.out.println("forEach: " + e.getClass().getSimpleName());
+                }
+                // => forEach: ConcurrentModificationException
+
+                names = new ArrayList<>(List.of("Asha", "Ravi", "Meena", "John"));
+                names.removeIf(n -> n.startsWith("R"));  // 4. the right way
+                System.out.println(names);
+                // => [Asha, Meena, John]
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>In the loop, <code>break</code> exits as soon as <code>"Meena"</code> is reached, so only <code>Asha Ravi</code> is printed.</li>
+                  <li>Inside <code>forEach</code>, <code>return</code> returns from the lambda, not from the loop. <code>ArrayList.forEach</code> simply moves on to the next element, so <code>Meena</code> is skipped and <code>John</code> is still printed. There is no way to stop early except throwing an exception — if you need early exit, use a loop or a short-circuiting stream (<code>anyMatch</code>, <code>takeWhile</code>, <code>findFirst</code>).</li>
+                  <li>Removing <code>"Ravi"</code> during a for-each loop changes the list's <code>modCount</code>. The next <code>iterator.next()</code> sees the change and throws <code>ConcurrentModificationException</code> (fail-fast).</li>
+                  <li><code>ArrayList.forEach</code> is also fail-fast: it checks <code>modCount</code> while looping and after the loop, so modifying the list from the lambda throws the same exception. Neither style lets you structurally modify the list you are iterating.</li>
+                  <li><code>removeIf</code> (Java 8) is the safe, idiomatic way to remove matching elements — it handles the iteration internally. With an explicit <code>Iterator</code>, <code>it.remove()</code> also works.</li>
+                </ol>
+              </div>
+              <div class="tip">Rule of thumb: use <code>forEach</code> for a simple full traversal with a side effect (<code>list.forEach(System.out::println)</code>); use a loop when you need <code>break</code>, checked exceptions or local-variable updates. <code>Stream.forEach</code> on a parallel stream does not even guarantee order — use <code>forEachOrdered</code> when order matters.</div>
+            </div>
+          </details>
         </section>
 
         <section class="qa-group">

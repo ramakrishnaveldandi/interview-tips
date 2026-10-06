@@ -85,7 +85,14 @@
     }
 
     // ---- Matching & ranking
-    function tokens(q) { return q.toLowerCase().split(/\s+/).filter(Boolean); }
+    // Filler words are ignored so "REST vs SOAP" matches "difference between REST and SOAP"
+    const STOP = new Set(["vs", "vs.", "versus", "and", "or", "the", "a", "an", "of", "to", "in", "is", "are",
+      "what", "how", "why", "when", "which", "difference", "differences", "between", "with", "for", "on", "do", "does"]);
+    function tokens(q) {
+      const all = q.toLowerCase().split(/\s+/).filter(Boolean);
+      const meaningful = all.filter(function (t) { return !STOP.has(t); });
+      return meaningful.length ? meaningful : all;     // a query of only filler words still searches
+    }
 
     function score(d, toks, phrase) {
       let s = 0;

@@ -3,6 +3,18 @@
 Bump `"version"` in `version.json` and add an entry here whenever you publish a change.
 The live site's footer shows this version plus the exact commit that is deployed.
 
+## 1.10.0 — 2026-10-06
+- Imported new_attachments.zip (core-java, interview and java-version-differences Q&A files, 130 questions):
+  60 new questions added to the matching pages, duplicates merged instead of repeated, 27 existing questions tagged 🎯 Interview.
+- Core Java: new sections Strings, Generics, Inner classes/enums/annotations, Serialization & I/O, Design patterns & immutability,
+  Predict the output; additions to OOP, Exceptions, Iteration, Concurrency, JVM internals and Coding questions.
+- Java 17 / 25 / versions / streams: var, String & HttpClient APIs, parallel streams vs virtual threads, gatherer anatomy,
+  PermGen→Metaspace, corrected feature-finalisation table, functional interfaces, forEach vs for-each.
+- Spring/JPA/Hibernate/DB: REST vs SOAP, scenario & design questions, save vs saveAndFlush vs flush, EntityGraph, e-Tendering schema.
+- Factual errors in the source files corrected (preview/final versions, removals, Q42 CME behaviour, gatherer outputs…);
+  all Java outputs verified on JDK 25.
+- Global search ignores filler words ("REST vs SOAP" now matches).
+
 ## 1.9.0 — 2026-10-03
 - Spring Boot: new "Idempotent vs non-idempotent operations" section (6 questions) — safe vs idempotent HTTP methods,
   Idempotency-Key implementation for payments, idempotent Kafka consumers, idempotent SQL (upserts, guarded updates),

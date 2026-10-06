@@ -113,7 +113,7 @@
               </table></div>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>What are the entity lifecycle states?</summary>
             <div class="answer">
               <ul>
@@ -143,7 +143,7 @@
               </div>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>What is the persistence context (first-level cache)?</summary>
             <div class="answer">
               <p>The persistence context is the set of managed entity instances for an <code>EntityManager</code> — typically scoped to one transaction in Spring. It guarantees:</p>
@@ -182,6 +182,60 @@
                   <li>If the id doesn't exist, the proxy throws <code>EntityNotFoundException</code> only when you touch a non-id property; otherwise the foreign-key constraint fails at INSERT time.</li>
                 </ol>
               </div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium" data-tag="interview">
+            <summary><code>save()</code> vs <code>saveAndFlush()</code> vs <code>flush()</code> in Spring Data JPA?</summary>
+            <div class="answer">
+              <p>The key idea: <b>flush ≠ commit</b>. A <b>flush</b> sends the pending INSERT/UPDATE/DELETE statements from the persistence context to the database <i>inside</i> the current transaction; the changes are still uncommitted and can be rolled back. A <b>commit</b> makes them permanent and visible to other transactions.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Method</th><th>What it does</th><th>When SQL actually runs</th></tr></thead>
+                <tbody>
+                  <tr><td><code>save(e)</code></td><td><code>persist()</code> if the entity is new, otherwise <code>merge()</code>; returns the managed instance</td><td>Usually at the next flush (before commit or before a query touching that table); immediately for <code>IDENTITY</code> ids, because the INSERT is needed to get the id</td></tr>
+                  <tr><td><code>saveAndFlush(e)</code></td><td><code>save(e)</code> followed by <code>flush()</code></td><td>Right away — but still uncommitted</td></tr>
+                  <tr><td><code>flush()</code></td><td>Synchronises <i>all</i> pending changes of the persistence context with the DB</td><td>Right away — uncommitted</td></tr>
+                </tbody>
+              </table></div>
+              <p>Use <code>saveAndFlush</code>/<code>flush</code> when something in the <b>same transaction</b> must see the rows at DB level or must fail early:</p>
+              <ul>
+                <li>You next call a stored procedure, or run SQL through <code>JdbcTemplate</code> — those bypass Hibernate and would not see unflushed changes.</li>
+                <li>You want constraint violations (unique key, FK) to surface <i>here</i>, at a known line, rather than at commit time far away.</li>
+                <li>You need DB-generated values (triggers, defaults) refreshed before continuing.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                @Service
+                public class InvoiceService {
+                    private final InvoiceRepository invoices;
+                    private final JdbcTemplate jdbc;
+
+                    InvoiceService(InvoiceRepository invoices, JdbcTemplate jdbc) {
+                        this.invoices = invoices;
+                        this.jdbc = jdbc;
+                    }
+
+                    @Transactional
+                    public Invoice create(InvoiceRequest req) {
+                        Invoice inv = invoices.save(new Invoice(req));        // id from a SEQUENCE: INSERT still pending
+
+                        invoices.flush();                                     // INSERT now sent (uncommitted)
+
+                        // plain JDBC bypasses Hibernate - it only sees the row because we flushed
+                        jdbc.update("call generate_barcode(?)", inv.getId());
+                        return inv;
+                    }                                                         // COMMIT here (or ROLLBACK on exception)
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>save()</code> sees a null id, so it calls <code>persist()</code>. With a <code>SEQUENCE</code> generator Hibernate only fetches the next id; the INSERT is queued in the persistence context (action queue).</li>
+                  <li>The entity is now <b>managed</b> but the database has no row yet — a <code>SELECT</code> through plain JDBC at this point would not find it.</li>
+                  <li><code>flush()</code> executes the queued INSERT inside the open transaction. Nothing is committed: other transactions still cannot see the row (under READ COMMITTED or stricter).</li>
+                  <li><code>JdbcTemplate</code> uses the same connection (Spring binds it to the transaction), so the stored procedure sees the flushed row. Without the flush it would not find the invoice.</li>
+                  <li>When <code>create()</code> returns, Spring commits; if <code>generate_barcode</code> throws, the whole transaction — including the flushed INSERT — rolls back. <code>invoices.saveAndFlush(...)</code> would combine the first and third steps into one call.</li>
+                </ol>
+              </div>
+              <div class="note">Pitfalls: (1) always use the <b>return value</b> of <code>save()</code> — for an existing entity it calls <code>merge()</code>, which returns a different managed instance. (2) Entities with a manually assigned id and no <code>@Version</code> look "not new", so <code>save()</code> does a <code>merge()</code> with an extra SELECT; implement <code>Persistable&lt;ID&gt;</code> or add <code>@Version</code>. (3) Flushing in a loop defeats JDBC batching — flush only when you need to. (4) If a flush inside a transaction throws, e.g. <code>DataIntegrityViolationException</code>, the transaction is marked rollback-only; you cannot catch it and keep using the same transaction.</div>
             </div>
           </details>
         </section>
@@ -268,7 +322,7 @@
               <div class="tip">Cascade only from aggregate root to its owned parts (Order → OrderLines). Never cascade from child to parent.</div>
             </div>
           </details>
-          <details class="qa" data-level="easy">
+          <details class="qa" data-level="easy" data-tag="interview">
             <summary>What are the default fetch types and why make everything LAZY?</summary>
             <div class="answer">
               <div class="table-wrap"><table>
@@ -285,7 +339,7 @@
 
         <section class="qa-group">
           <h2>Queries</h2>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>JPQL vs Criteria API vs native SQL — when to use each?</summary>
             <div class="answer">
               <ul>
@@ -485,7 +539,7 @@
 
         <section class="qa-group">
           <h2>Locking, auditing &amp; advanced mapping</h2>
-          <details class="qa" data-level="hard">
+          <details class="qa" data-level="hard" data-tag="interview">
             <summary>Optimistic vs pessimistic locking — how and when?</summary>
             <div class="answer">
               <p><b>Optimistic</b>: add a <code>@Version</code> column. Every UPDATE includes <code>where version = ?</code>; if 0 rows change, JPA throws <code>OptimisticLockException</code> (Spring: <code>ObjectOptimisticLockingFailureException</code>). Best when conflicts are rare — no DB locks held.</p>

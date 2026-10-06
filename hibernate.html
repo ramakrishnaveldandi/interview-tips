@@ -122,7 +122,7 @@
 
         <section class="qa-group">
           <h2>Caching</h2>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>Explain first-level, second-level and query cache.</summary>
             <div class="answer">
               <div class="table-wrap"><table>
@@ -205,7 +205,7 @@
 
         <section class="qa-group">
           <h2>Fetching &amp; the N+1 problem</h2>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>What is the N+1 select problem? How do you detect it?</summary>
             <div class="answer">
               <p>One query loads N parents, then accessing a lazy association on each fires N more queries.</p>
@@ -227,7 +227,7 @@
               <p><b>Detect</b>: enable SQL logging, Hibernate statistics, or assert query counts in tests (e.g. with <i>datasource-proxy</i> or <i>Hypersistence Utils</i>' <code>SQLStatementCountValidator</code>).</p>
             </div>
           </details>
-          <details class="qa" data-level="hard">
+          <details class="qa" data-level="hard" data-tag="interview">
             <summary>What are the ways to fix N+1?</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="java">
@@ -273,7 +273,7 @@
               </ul>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>What is <code>LazyInitializationException</code>? Should you enable Open Session in View?</summary>
             <div class="answer">
               <p>It's thrown when a lazy association is accessed after the session is closed — e.g. in a controller or during JSON serialization.</p>
@@ -290,6 +290,74 @@
                 </ol>
               </div>
               <p><b>Better fixes</b>: fetch what you need inside the service transaction (JOIN FETCH / entity graph), return DTOs instead of entities, or call <code>Hibernate.initialize()</code> deliberately. Avoid <code>hibernate.enable_lazy_load_no_trans</code> — it's an anti-pattern.</p>
+            </div>
+          </details>
+          <details class="qa" data-level="medium" data-tag="interview">
+            <summary>What is an <code>EntityGraph</code> and when should you use it?</summary>
+            <div class="answer">
+              <p>An <b>entity graph</b> (standard JPA since 2.1) is a per-query fetch plan: it lists which associations to load together with the root entity, <b>without changing the <code>FetchType</code> in the mapping</b>. Keep every association <code>LAZY</code> in the entity, then let each use case ask for exactly what it needs — the list screen loads orders only, the detail screen loads orders + items + products — in one SQL statement instead of N+1.</p>
+              <ul>
+                <li><b>Named</b> graphs: declared on the entity with <code>@NamedEntityGraph</code> (+ <code>@NamedSubgraph</code> for nested levels) and referenced by name.</li>
+                <li><b>Ad-hoc</b> graphs in Spring Data: <code>@EntityGraph(attributePaths = {...})</code> on a repository method; dotted paths such as <code>"items.product"</code> reach nested associations.</li>
+                <li><b>Programmatic</b>: <code>em.createEntityGraph(Order.class)</code> and pass it as a query/find hint.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="java">
+                @Entity
+                @Table(name = "orders")                       // ORDER is a reserved word in SQL
+                @NamedEntityGraph(
+                    name = "Order.itemsWithProduct",
+                    attributeNodes = @NamedAttributeNode(value = "items", subgraph = "items"),
+                    subgraphs = @NamedSubgraph(name = "items", attributeNodes = @NamedAttributeNode("product")))
+                public class Order {
+                    @Id @GeneratedValue private Long id;
+                    @Enumerated(EnumType.STRING) private OrderStatus status;
+
+                    @ManyToOne(fetch = FetchType.LAZY) private Customer customer;
+                    @OneToMany(mappedBy = "order") private List<OrderItem> items = new ArrayList<>();
+                }
+
+                public interface OrderRepository extends JpaRepository<Order, Long> {
+                    List<Order> findByStatus(OrderStatus status);                  // list screen: orders only
+
+                    @EntityGraph("Order.itemsWithProduct")                         // named graph
+                    List<Order> findWithItemsByStatus(OrderStatus status);
+
+                    @EntityGraph(attributePaths = {"customer", "items.product"})   // ad-hoc graph
+                    Optional<Order> findDetailedById(Long id);
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>findByStatus</code> has no graph, so the mapping applies: one SELECT on <code>orders</code>; <code>customer</code> and <code>items</code> stay lazy and would each trigger extra queries if touched (the N+1 risk).</li>
+                  <li><code>findWithItemsByStatus</code> uses the named graph: Hibernate joins <code>order_item</code> and, through the subgraph, <code>product</code> into the same SELECT, so items and their products arrive fully initialised. The <code>WithItems</code> part of the method name is ignored by the query derivation — anything between <code>find</code> and <code>By</code> is just descriptive.</li>
+                  <li><code>findDetailedById</code> declares the graph inline: <code>"customer"</code> adds a join for the to-one, <code>"items.product"</code> fetches the collection and each item's product.</li>
+                  <li>Spring Data applies these as a <b>fetch graph</b> by default (<code>EntityGraphType.FETCH</code>): listed attributes are loaded eagerly, unlisted ones are treated as lazy. <code>type = EntityGraphType.LOAD</code> instead keeps the mapped fetch type for unlisted attributes.</li>
+                </ol>
+              </div>
+              <script type="text/plain" class="code" data-lang="java">
+                // Programmatic graph with plain JPA (Jakarta Persistence 3.x hint names)
+                EntityGraph<Order> graph = em.createEntityGraph(Order.class);
+                graph.addAttributeNodes("customer");
+                graph.addSubgraph("items").addAttributeNodes("product");
+
+                Order order = em.find(Order.class, 42L, Map.of("jakarta.persistence.fetchgraph", graph));
+
+                List<Order> open = em.createQuery("select o from Order o where o.status = :s", Order.class)
+                        .setParameter("s", OrderStatus.OPEN)
+                        .setHint("jakarta.persistence.fetchgraph", graph)
+                        .getResultList();
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>createEntityGraph</code> builds the same plan in code — useful when the fields to fetch are decided at runtime (e.g. an <code>?expand=customer,items</code> API parameter).</li>
+                  <li><code>addSubgraph("items")</code> returns a subgraph for <code>OrderItem</code>, on which <code>product</code> is added — equivalent to the dotted path <code>items.product</code>.</li>
+                  <li>The hint <code>jakarta.persistence.fetchgraph</code> applies fetch-graph semantics (<code>jakarta.persistence.loadgraph</code> would give load-graph semantics). Older code uses the <code>javax.persistence.*</code> names; since Jakarta Persistence 3.0 those are legacy — use the <code>jakarta.*</code> ones.</li>
+                  <li>The same graph works for <code>find</code> and for JPQL queries, so one fetch plan can be reused.</li>
+                </ol>
+              </div>
+              <div class="note">Limits are the same as <code>JOIN FETCH</code>: fetching two <code>List</code> (bag) collections at once throws <code>MultipleBagFetchException</code>; fetching a collection and paginating makes Hibernate paginate in memory (warning <code>HHH90003004</code>); and each joined collection multiplies the result rows. Use graphs mainly for to-one associations and at most one collection, and fall back to <code>@BatchSize</code> or a second query for the rest.</div>
             </div>
           </details>
         </section>

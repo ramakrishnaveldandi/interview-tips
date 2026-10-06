@@ -405,6 +405,104 @@
               </div>
             </div>
           </details>
+          <details class="qa" data-level="hard" data-tag="interview">
+            <summary>Design the database schema for an e-Tendering platform with Tenders, Bids and Vendors.</summary>
+            <div class="answer">
+              <p>Start from the business rules, because they become constraints: a buyer publishes a <b>tender</b> with a closing deadline and documents; registered <b>vendors</b> submit <b>bids</b> with line items until the deadline; <b>one bid per vendor per tender</b>; finally one bid is <b>awarded</b>. Then model the entities, relationships and the rules the database itself should enforce.</p>
+              <ul>
+                <li><b>Entities</b>: <code>vendor</code>, <code>tender</code>, <code>tender_document</code> (1:N), <code>bid</code> (N:1 tender, N:1 vendor — effectively the N:M between them), <code>bid_item</code> (1:N), plus <code>tender_status_history</code> for an audit trail.</li>
+                <li><b>Integrity in the DB</b>: foreign keys, <code>UNIQUE (tender_id, vendor_id)</code>, <code>CHECK</code> constraints on status values and amounts, <code>NUMERIC</code> (never floating point) for money.</li>
+                <li><b>Concurrency</b>: a <code>version</code> column for optimistic locking when several officers edit the same tender.</li>
+                <li><b>Workflow rules in the service layer</b>: allowed status transitions (DRAFT → PUBLISHED → CLOSED → AWARDED, or CANCELLED), "no bids after <code>closes_at</code>", "bid amounts hidden until opening" — they involve time and roles, so the application owns them, with the DB constraints as a backstop.</li>
+              </ul>
+              <script type="text/plain" class="code" data-lang="sql">
+                -- PostgreSQL syntax
+                CREATE TABLE vendor (
+                    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                    name            VARCHAR(200) NOT NULL,
+                    registration_no VARCHAR(50)  NOT NULL UNIQUE,
+                    status          VARCHAR(20)  NOT NULL DEFAULT 'PENDING'
+                                    CHECK (status IN ('PENDING', 'APPROVED', 'SUSPENDED')),
+                    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
+                );
+
+                CREATE TABLE tender (
+                    id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                    reference_no VARCHAR(50)  NOT NULL UNIQUE,
+                    title        VARCHAR(300) NOT NULL,
+                    description  TEXT,
+                    status       VARCHAR(20)  NOT NULL DEFAULT 'DRAFT'
+                                 CHECK (status IN ('DRAFT', 'PUBLISHED', 'CLOSED', 'AWARDED', 'CANCELLED')),
+                    published_at TIMESTAMPTZ,
+                    closes_at    TIMESTAMPTZ  NOT NULL,
+                    created_by   VARCHAR(100) NOT NULL,
+                    version      BIGINT       NOT NULL DEFAULT 0,          -- optimistic locking (@Version)
+                    created_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                    CHECK (published_at IS NULL OR published_at < closes_at)
+                );
+                CREATE INDEX idx_tender_status_closes ON tender (status, closes_at);
+
+                CREATE TABLE tender_document (
+                    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                    tender_id   BIGINT       NOT NULL REFERENCES tender (id) ON DELETE CASCADE,
+                    file_name   VARCHAR(255) NOT NULL,
+                    storage_key VARCHAR(500) NOT NULL,                     -- object-storage key, not the file bytes
+                    sha256      CHAR(64)     NOT NULL,
+                    uploaded_at TIMESTAMPTZ  NOT NULL DEFAULT now()
+                );
+                CREATE INDEX idx_tender_document_tender ON tender_document (tender_id);
+
+                CREATE TABLE bid (
+                    id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                    tender_id    BIGINT        NOT NULL REFERENCES tender (id),
+                    vendor_id    BIGINT        NOT NULL REFERENCES vendor (id),
+                    total_amount NUMERIC(15,2) NOT NULL CHECK (total_amount >= 0),
+                    status       VARCHAR(20)   NOT NULL DEFAULT 'SUBMITTED'
+                                 CHECK (status IN ('SUBMITTED', 'WITHDRAWN', 'DISQUALIFIED', 'AWARDED')),
+                    submitted_at TIMESTAMPTZ   NOT NULL DEFAULT now(),
+                    version      BIGINT        NOT NULL DEFAULT 0,
+                    CONSTRAINT uq_bid_tender_vendor UNIQUE (tender_id, vendor_id)
+                );
+                CREATE INDEX idx_bid_vendor ON bid (vendor_id);
+                -- at most one awarded bid per tender (partial unique index)
+                CREATE UNIQUE INDEX uq_bid_one_award ON bid (tender_id) WHERE status = 'AWARDED';
+
+                CREATE TABLE bid_item (
+                    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                    bid_id      BIGINT        NOT NULL REFERENCES bid (id) ON DELETE CASCADE,
+                    line_no     INT           NOT NULL,
+                    description VARCHAR(500)  NOT NULL,
+                    quantity    NUMERIC(12,3) NOT NULL CHECK (quantity > 0),
+                    unit_price  NUMERIC(15,2) NOT NULL CHECK (unit_price >= 0),
+                    CONSTRAINT uq_bid_item_line UNIQUE (bid_id, line_no)
+                );
+
+                CREATE TABLE tender_status_history (
+                    id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                    tender_id  BIGINT       NOT NULL REFERENCES tender (id),
+                    old_status VARCHAR(20),
+                    new_status VARCHAR(20)  NOT NULL,
+                    changed_by VARCHAR(100) NOT NULL,
+                    changed_at TIMESTAMPTZ  NOT NULL DEFAULT now()
+                );
+                CREATE INDEX idx_tender_history_tender ON tender_status_history (tender_id, changed_at);
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><b>Surrogate keys</b> (<code>GENERATED ALWAYS AS IDENTITY</code>) identify rows; the business identifiers <code>registration_no</code> and <code>reference_no</code> get their own <code>UNIQUE</code> constraints so duplicates are impossible.</li>
+                  <li><code>UNIQUE (tender_id, vendor_id)</code> enforces "one bid per vendor per tender" even if two submissions race each other — the second INSERT fails with a unique violation. Its index also serves "all bids of a tender" lookups through the leftmost column, so no separate <code>bid(tender_id)</code> index is needed; <code>idx_bid_vendor</code> covers "my bids" for a vendor.</li>
+                  <li>PostgreSQL does <b>not</b> index foreign-key columns automatically, hence the explicit indexes on <code>tender_document(tender_id)</code> etc. (<code>bid_item</code>'s FK is covered by its <code>(bid_id, line_no)</code> unique index). <code>tender(status, closes_at)</code> serves the frequent "published tenders closing soon" query: equality on <code>status</code>, range on <code>closes_at</code>.</li>
+                  <li>The partial unique index <code>uq_bid_one_award</code> only contains rows whose status is <code>AWARDED</code>, so a tender can have many bids but at most one awarded bid.</li>
+                  <li><code>ON DELETE CASCADE</code> is used only for pure child data (documents, bid lines). Bids are never cascaded away from a tender — in procurement you cancel, you don't delete; the status-history table keeps the audit trail.</li>
+                  <li>Money and quantities use <code>NUMERIC</code>, which is exact; <code>total_amount</code> is stored for fast ranking but must equal the sum of <code>quantity * unit_price</code> — compute it in the service when the bid is saved.</li>
+                </ol>
+              </div>
+              <p>On the JPA side: <code>Tender</code> has <code>@OneToMany(mappedBy = "tender") List&lt;Bid&gt; bids</code>; <code>Bid</code> holds <code>@ManyToOne(fetch = LAZY) Tender tender</code> and <code>@ManyToOne(fetch = LAZY) Vendor vendor</code> (the owning sides, i.e. the FK columns); <code>Vendor</code> usually needs no bids collection at all — query bids by vendor instead. Map <code>status</code> with <code>@Enumerated(EnumType.STRING)</code> and <code>version</code> with <code>@Version</code>. Mirror the unique key with <code>@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"tender_id", "vendor_id"}))</code> so schema-generation tools know it, and translate the resulting <code>DataIntegrityViolationException</code> into a <code>409 Conflict</code>.</p>
+              <div class="note">MySQL 8 differences: use <code>BIGINT AUTO_INCREMENT</code> instead of identity columns and <code>DATETIME(6)</code>/<code>TIMESTAMP</code> instead of <code>TIMESTAMPTZ</code> (store UTC); <code>CHECK</code> constraints are enforced from 8.0.16; InnoDB creates indexes on FK columns automatically; and there are no partial indexes — enforce "one awarded bid" in the service (lock the tender row with <code>SELECT ... FOR UPDATE</code> while awarding) or with a generated column such as <code>awarded_tender_id = IF(status = 'AWARDED', tender_id, NULL)</code> plus a unique index on it (NULLs don't collide).</div>
+              <div class="tip">Scaling notes worth mentioning: store documents in object storage (S3/Blob) with only the key and checksum in the DB; keep bid amounts sealed (encrypted or access-controlled) until the opening time; and move bids of long-closed tenders to archive tables if the hot tables grow too large.</div>
+            </div>
+          </details>
         </section>
 
         <section class="qa-group">

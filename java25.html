@@ -210,6 +210,54 @@
               <p>Other joiners: <code>Joiner.anySuccessfulResultOrThrow()</code> (race replicas), <code>Joiner.awaitAll()</code>.</p>
             </div>
           </details>
+          <details class="qa" data-level="medium">
+            <summary>Parallel streams vs virtual threads — what is the difference and when do you use each?</summary>
+            <div class="answer">
+              <p>They solve opposite problems. <b>Parallel streams</b> (Java 8) split one <b>CPU-bound</b> computation across cores. <b>Virtual threads</b> (final in Java 21, JEP 444) let you run a huge number of <b>I/O-bound</b> tasks that spend most of their time waiting.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th></th><th>Parallel stream</th><th>Virtual threads</th></tr></thead>
+                <tbody>
+                  <tr><td>Goal</td><td>Finish one big computation faster (data parallelism)</td><td>Handle many concurrent tasks (throughput)</td></tr>
+                  <tr><td>Threads</td><td><code>ForkJoinPool.commonPool()</code>: cores − 1 workers + the calling thread</td><td>One cheap virtual thread per task, mounted on ~#cores carrier threads</td></tr>
+                  <tr><td>Blocking (I/O, <code>sleep</code>)</td><td>Blocks a scarce pool worker — stalls every parallel stream in the JVM</td><td>Unmounts from the carrier; the carrier runs other virtual threads</td></tr>
+                  <tr><td>Best for</td><td>Large in-memory data, expensive per-element CPU work, no shared state</td><td>Blocking calls: HTTP, JDBC, files, message brokers</td></tr>
+                  <tr><td>Programming model</td><td>Declarative pipeline, splits the data</td><td>Plain imperative blocking code, one task per thread</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java">
+                static String fetch(int id) {                 // simulates a 100 ms blocking I/O call
+                    try { Thread.sleep(100); } catch (InterruptedException e) { throw new RuntimeException(e); }
+                    return "item-" + id;
+                }
+
+                // CPU-bound: count primes up to 2 million -> parallel stream
+                long primes = LongStream.rangeClosed(2, 2_000_000).parallel().filter(Main::isPrime).count();
+                System.out.println("primes = " + primes);     // => primes = 148933
+
+                // I/O-bound: 10,000 blocking calls -> virtual threads
+                try (var exec = Executors.newVirtualThreadPerTaskExecutor()) {
+                    List<Future<String>> fs = IntStream.range(0, 10_000)
+                        .mapToObj(i -> exec.submit(() -> fetch(i))).toList();
+                    System.out.println("fetched = " + fs.size() + ", first = " + fs.get(0).get());
+                }
+                // => fetched = 10000, first = item-0       (measured: ~0.3 s in total on 8 cores)
+
+                // Anti-pattern: blocking I/O in a parallel stream
+                int n = IntStream.range(0, 100).parallel().mapToObj(Main::fetch).toList().size();
+                // measured: ~1.3 s for only 100 calls on 8 cores
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>Prime counting is pure CPU work. The parallel stream splits the range into chunks, each core tests its chunk, and the counts are combined — close to a cores-times speed-up. Virtual threads would not help here because there are still only as many carriers as cores.</li>
+                  <li>Each <code>fetch</code> just waits. With virtual threads every call gets its own thread; when it sleeps, it unmounts and the carrier picks up another one. All 10,000 waits overlap, so the whole batch takes roughly one wait (~100 ms) plus scheduling overhead, not 10,000 × 100 ms.</li>
+                  <li>The parallel stream version only has the common pool: 7 workers + the main thread = 8 threads on an 8-core machine. 100 calls ÷ 8 threads ≈ 13 rounds × 100 ms ≈ 1.3 s, and while it runs, every other parallel stream (and <code>CompletableFuture</code> default async task) in the JVM is starved.</li>
+                  <li>Exact timings depend on the machine; the shape of the result (virtual threads ≈ one wait, parallel stream ≈ calls ÷ pool size × wait) does not.</li>
+                </ol>
+              </div>
+              <div class="tip">Rule of thumb: <b>CPU-bound → parallel streams / a fixed-size pool; I/O-bound → virtual threads.</b> Need a concurrency limit for I/O inside a stream? Use <code>Gatherers.mapConcurrent(n, fn)</code> (Java 24), which runs the calls on virtual threads, caps them at <code>n</code> and keeps the input order.</div>
+            </div>
+          </details>
         </section>
 
         <section class="qa-group">
@@ -521,6 +569,69 @@
                   <li><code>StableValue.of()</code> creates an empty holder; the field is <code>final</code> but its content is set later, at most once.</li>
                   <li><code>orElseSet(supplier)</code> returns the value if set; otherwise it runs the supplier once, stores the result and returns it. This is thread-safe, so concurrent first calls still create only one <code>Logger</code>.</li>
                   <li>Once set, the JIT can treat the value as a constant, like a <code>static final</code> field. You get lazy initialization without double-checked locking or <code>volatile</code>.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+          <details class="qa" data-level="hard" data-tag="coding">
+            <summary>How do Stream Gatherers differ from existing intermediate operations? Explain the four parts of a <code>Gatherer</code>.</summary>
+            <div class="answer">
+              <p>The built-in intermediate operations (<code>filter</code>, <code>map</code>, <code>flatMap</code>, <code>distinct</code>, <code>sorted</code>, <code>limit</code>, <code>takeWhile</code>…) are a fixed set. Anything else that needs <b>state across elements</b> — windows, running totals, "only keep values larger than all previous ones", batching — used to require collecting into a list first or abusing external mutable state. <code>Stream.gather(Gatherer)</code> (final in Java 24, JEP 485) lets you write such operations yourself and keep the stream lazy.</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Part</th><th>Type</th><th>Role</th></tr></thead>
+                <tbody>
+                  <tr><td><b>Initializer</b></td><td><code>Supplier&lt;A&gt;</code></td><td>Creates the private mutable state for one stream evaluation (optional)</td></tr>
+                  <tr><td><b>Integrator</b></td><td><code>(state, element, downstream) -&gt; boolean</code></td><td>Called per element; may push 0..n results; returns <code>false</code> to stop early (short-circuit)</td></tr>
+                  <tr><td><b>Combiner</b></td><td><code>BinaryOperator&lt;A&gt;</code></td><td>Merges two states so the gatherer can run in parallel (optional — without it the stage runs sequentially)</td></tr>
+                  <tr><td><b>Finisher</b></td><td><code>(state, downstream) -&gt; void</code></td><td>Called at the end; can push leftover state (optional)</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="java">
+                // Built-ins (java.util.stream.Gatherers)
+                Stream.of(1, 2, 3, 4, 5).gather(Gatherers.fold(() -> 0, Integer::sum)).toList();   // => [15]
+                Stream.of(1, 2, 3, 4, 5).gather(Gatherers.scan(() -> 0, Integer::sum)).toList();   // => [1, 3, 6, 10, 15]
+
+                // 1. Stateful: keep only values larger than everything seen before
+                Gatherer<Integer, int[], Integer> increasing = Gatherer.ofSequential(
+                    () -> new int[]{Integer.MIN_VALUE},               // initializer
+                    (state, element, downstream) -> {                 // integrator
+                        if (element > state[0]) {
+                            state[0] = element;
+                            return downstream.push(element);
+                        }
+                        return true;                                  // skip, keep consuming
+                    });
+                Stream.of(1, 5, 3, 7, 2, 9).gather(increasing).toList();   // => [1, 5, 7, 9]
+
+                // 2. Stateless + short-circuit: stop at the first element over 10
+                Gatherer<Integer, ?, Integer> untilOver10 =
+                    Gatherer.<Integer, Integer>of((_, e, down) -> e <= 10 && down.push(e));
+                Stream.of(3, 8, 12, 4).gather(untilOver10).toList();       // => [3, 8]
+
+                // 3. Finisher: batches of N, flushing the last partial batch
+                static <T> Gatherer<T, List<T>, List<T>> batch(int size) {
+                    return Gatherer.ofSequential(
+                        ArrayList::new,
+                        (buf, item, down) -> {
+                            buf.add(item);
+                            if (buf.size() < size) return true;
+                            List<T> full = List.copyOf(buf);
+                            buf.clear();
+                            return down.push(full);
+                        },
+                        (buf, down) -> { if (!buf.isEmpty()) down.push(List.copyOf(buf)); });   // finisher
+                }
+                Stream.of("a", "b", "c", "d", "e").gather(batch(2)).toList();  // => [[a, b], [c, d], [e]]
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>fold</code> is like <code>reduce</code> but is an intermediate op: it emits a single element (<code>[15]</code>) into the stream, so you can keep chaining. <code>scan</code> emits the running state after <b>each</b> element — 1, 3, 6, 10, 15 — and does not emit the initial 0.</li>
+                  <li><code>increasing</code> needs to remember the maximum so far, which no <code>filter</code> lambda can do safely. The initializer creates a fresh <code>int[]</code> per stream run; the integrator pushes 1, 5, 7, 9 and swallows 3 and 2 by returning <code>true</code> without pushing.</li>
+                  <li><code>ofSequential</code> means "no combiner", so this stage always runs sequentially even in a parallel stream. <code>Gatherer.of(integrator)</code> is for stateless gatherers and is parallel-capable; the 4-argument <code>Gatherer.of(initializer, integrator, combiner, finisher)</code> is needed for a stateful gatherer that can run in parallel.</li>
+                  <li><code>untilOver10</code> returns <code>false</code> at 12, telling the stream to stop pulling — that is how a gatherer short-circuits, so the trailing 4 is never seen (like <code>takeWhile</code>). The <code>_</code> unnamed parameter (Java 22) marks the unused state.</li>
+                  <li><code>batch(2)</code> pushes a list every 2 elements. When the source runs out, <code>"e"</code> is still in the buffer; the <b>finisher</b> pushes it as the last batch. Without a finisher it would be lost.</li>
+                  <li><code>downstream.push</code> returns <code>false</code> if later stages want no more elements (e.g. a following <code>limit</code>), and the integrator passes that back so the whole pipeline stops early.</li>
                 </ol>
               </div>
             </div>
