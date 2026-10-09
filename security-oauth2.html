@@ -939,6 +939,84 @@
               <div class="note">Never expose <code>/actuator/env</code>, <code>/heapdump</code> or <code>/loggers</code> publicly — they can leak secrets or allow runtime changes.</div>
             </div>
           </details>
+          <details class="qa" data-level="medium" data-tag="interview">
+            <summary>You discover passwords are accidentally stored in plain text. What would you do?</summary>
+            <div class="answer">
+              <p>Treat it as a <b>security incident</b>, not just a bug: plain-text passwords may already have leaked through backups, logs, replicas or exports, and users reuse passwords on other sites.</p>
+              <ol>
+                <li><b>Contain</b>: inform your lead/security team immediately; restrict access to the table, backups and any logs or exports containing passwords.</li>
+                <li><b>Fix the code</b>: hash new passwords with a slow adaptive algorithm (BCrypt/Argon2) via Spring Security's <code>PasswordEncoder</code> — never encrypt and never use MD5/SHA-256 alone.</li>
+                <li><b>Migrate existing data</b>: hash every stored plain-text password in place (you have the plain text, so you can hash it directly), then verify no plain text remains.</li>
+                <li><b>Clean up copies</b>: logs, backups, analytics exports, caches — wherever the plain text may live.</li>
+                <li><b>Assess exposure</b>: if there's any chance the data was accessed, follow the incident/disclosure process — force password resets, notify users as policy and law require.</li>
+                <li><b>Prevent recurrence</b>: code review checklist, a static-analysis rule, and tests that assert stored passwords are hashes.</li>
+              </ol>
+              <script type="text/plain" class="code" data-lang="java">
+                @Bean
+                PasswordEncoder passwordEncoder() {
+                    return PasswordEncoderFactories.createDelegatingPasswordEncoder();   // stores "{bcrypt}$2a$10$..."
+                }
+
+                // One-off migration: hash every remaining plain-text password
+                @Transactional
+                public void hashPlainTextPasswords() {
+                    userRepository.findAll().forEach(user -> {
+                        String stored = user.getPassword();
+                        if (!stored.startsWith("{")) {                    // no {id} prefix → still plain text
+                            user.setPassword(passwordEncoder.encode(stored));
+                        }
+                    });
+                }
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>createDelegatingPasswordEncoder()</code> hashes with BCrypt and prefixes the result with <code>{bcrypt}</code>, so the stored value records which algorithm produced it; <code>matches()</code> reads that prefix when users log in.</li>
+                  <li>Because the plain text is still in the table, the migration can hash it directly — no user action needed. Values without a <code>{…}</code> prefix are treated as not yet migrated.</li>
+                  <li>Running it inside <code>@Transactional</code> makes JPA dirty checking write the hashed values on commit. For millions of users, process in batches (paging) instead of <code>findAll()</code>.</li>
+                  <li>After this, login keeps working: users type the same password, and <code>matches()</code> compares it against the new BCrypt hash.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview">
+            <summary>Your application suddenly starts returning many <code>401 Unauthorized</code> errors. What would you investigate?</summary>
+            <div class="answer">
+              <p>A 401 means the request is <b>not authenticated</b> (missing, invalid or expired credentials) — unlike 403, where the user is known but not allowed. A sudden spike usually has a single cause that changed for everyone:</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Check</th><th>Typical cause</th></tr></thead>
+                <tbody>
+                  <tr><td>Recent deployments / config changes</td><td>Changed <code>issuer-uri</code>, audience, JWT secret or public-key settings; new security rules</td></tr>
+                  <tr><td>Signing keys</td><td>The identity provider <b>rotated its keys</b> and the service can't fetch the new JWKS (network/firewall) or caches the old one</td></tr>
+                  <tr><td>Token expiry &amp; refresh</td><td>Access tokens expire and the frontend's refresh flow is broken; token lifetime was shortened</td></tr>
+                  <tr><td>Clock skew</td><td>Server clocks drifted, so valid tokens look expired or "not yet valid"</td></tr>
+                  <tr><td>Identity provider</td><td>Keycloak / Okta / Entra ID outage or certificate problem</td></tr>
+                  <tr><td>Clients</td><td>One client stopped sending the <code>Authorization</code> header (proxy stripping it, CORS preflight issue, expired API key or client secret)</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="bash">
+                # Decode a failing token's payload (no verification) to check iss, aud and exp
+                echo "$TOKEN" | jq -R 'split(".")[1] | gsub("-";"+") | gsub("_";"/") | @base64d | fromjson | {iss, aud, exp, iat}'
+                date +%s                                   # compare exp with the server's current time
+
+                # Can the service reach the identity provider's signing keys?
+                curl -s https://idp.example.com/realms/app/protocol/openid-connect/certs | jq '.keys[].kid'
+
+                # Turn on security debug logs temporarily to see why authentication fails
+                # logging.level.org.springframework.security=DEBUG
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>A JWT's middle part is Base64URL-encoded JSON; the <code>jq</code> filter takes that part, converts <code>-</code>/<code>_</code> to <code>+</code>/<code>/</code>, decodes it (jq 1.7+ accepts the missing <code>=</code> padding) and parses the claims. If <code>exp</code> is below the current epoch seconds, the token really is expired; a wrong <code>iss</code>/<code>aud</code> means a configuration mismatch.</li>
+                  <li>The resource server validates signatures with the keys from the provider's JWKS endpoint. If the token header's <code>kid</code> isn't in that list, or the endpoint is unreachable, every token fails with 401.</li>
+                  <li>Spring Security's DEBUG logs name the exact reason (e.g. "Jwt expired at …", "The iss claim is not valid"), which turns guessing into a one-line diagnosis — switch it back off afterwards.</li>
+                </ol>
+              </div>
+              <div class="tip">Look at <b>who</b> gets the 401s: all users → a server-side or IdP cause; one client or app version → that client's token handling.</div>
+            </div>
+          </details>
         </section>
 
         <section class="qa-group">
@@ -967,7 +1045,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>A01 Broken Access Control — what is IDOR and how do you fix it in Spring?</summary>
             <div class="answer">
               <p>Users can act outside their permissions: view other users' data by changing an ID (<b>IDOR</b>), call admin endpoints, elevate privileges, or make the server fetch internal URLs (<b>SSRF</b>, now part of A01).</p>
@@ -1490,7 +1568,7 @@
             </div>
           </details>
 
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>API4 — how do you protect an API from unrestricted resource consumption?</summary>
             <div class="answer">
               <ul>

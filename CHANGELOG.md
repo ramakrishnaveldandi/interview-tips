@@ -3,6 +3,13 @@
 Bump `"version"` in `version.json` and add an entry here whenever you publish a change.
 The live site's footer shows this version plus the exact commit that is deployed.
 
+## 1.11.0 — 2026-10-10
+- Imported 9thoct.zip (12 screenshots: 20 scenario-based interview questions + an OOP concepts carousel).
+  9 new 🎯 Interview questions: API returning 500s, works locally but fails in production (Spring Boot);
+  source vs target record-count mismatch (Database); plain-text passwords, sudden 401 spike (Security);
+  critical bug before release, teammate not delivering, unknown task, new technology (Behavioral — new
+  "Learning & problem-solving" section). 7 existing questions tagged 🎯 Interview; OOP slides already covered.
+
 ## 1.10.0 — 2026-10-06
 - Imported new_attachments.zip (core-java, interview and java-version-differences Q&A files, 130 questions):
   60 new questions added to the matching pages, duplicates merged instead of repeated, 27 existing questions tagged 🎯 Interview.

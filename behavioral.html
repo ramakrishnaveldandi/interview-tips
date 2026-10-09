@@ -251,6 +251,26 @@
               </ol>
             </div>
           </details>
+          <details class="qa" data-level="medium" data-tag="interview">
+            <summary>A critical bug is found just before a release. What would you do?</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> risk-based judgement and transparency — not heroics, and not hiding the bug to hit the date.</p>
+              <ol>
+                <li><b>Assess severity and impact</b>: who is affected, how often, is there data loss, a security or financial risk, a workaround?</li>
+                <li><b>Reproduce and find the root cause</b> quickly; estimate how big and risky the fix is.</li>
+                <li><b>Inform stakeholders immediately</b> (lead, product owner, QA) with the facts and the options.</li>
+                <li><b>Decide by risk</b>:
+                  <ul>
+                    <li>Small, well-understood fix → fix, re-test the affected area, release.</li>
+                    <li>Bug is in a new feature → release with that feature <b>switched off</b> behind a feature flag.</li>
+                    <li>Large or risky fix → <b>postpone</b> the release (or the affected part) rather than ship a known critical defect.</li>
+                  </ul>
+                </li>
+                <li><b>Afterwards</b>: add a regression test and ask why testing didn't catch it earlier.</li>
+              </ol>
+              <div class="tip"><b>Sample:</b> "Two hours before a release, QA found that refunds were being calculated twice for partial cancellations. I reproduced it, found the cause in a new discount rule, and told the product owner. The fix was small but touched payment logic, so we released on time with the new discount feature disabled by its flag, fixed it the next day with extra tests, and enabled it after a successful re-test."</div>
+            </div>
+          </details>
         </section>
 
         <!-- ================================================= PERFORMANCE, SCALE & DESIGN -->
@@ -547,6 +567,54 @@
                 <li>You own work end to end — from problem to delivery to support.</li>
               </ul>
               <div class="tip">End by linking to their needs: "From the job description, you need someone who can stabilise the payments platform — that's exactly what I did at …"</div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium" data-tag="interview">
+            <summary>A teammate is not completing their part of the work. What would you do?</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> empathy first, then responsibility for the team's outcome — not complaining to the manager on day one, and not silently doing their work for them forever.</p>
+              <ol>
+                <li><b>Talk to them privately and early</b>, assuming good intent: "I noticed the API part is still open — is something blocking you?" Often there's a hidden blocker (unclear requirement, dependency, unfamiliar technology, personal issue, overload).</li>
+                <li><b>Offer concrete help</b>: pair programming, clarifying the requirement, splitting the task, sharing an example.</li>
+                <li><b>Make progress visible</b>: agree on smaller milestones and bring blockers to stand-up so the whole team can help.</li>
+                <li><b>Escalate if it keeps risking the deadline</b>: inform the lead with facts about the impact (not blame), so priorities or assignments can be adjusted in time.</li>
+              </ol>
+              <div class="tip"><b>Sample:</b> "A colleague's integration task kept slipping. In a quick one-to-one I learned he was stuck on the partner's SOAP authentication. We paired for an hour, I shared a working example from another project, and we split the remaining work into two smaller tickets. He finished it in two days. If it had still been blocked, I would have told our lead so we could re-plan."</div>
+            </div>
+          </details>
+        </section>
+
+        <section class="qa-group">
+          <h2>Learning &amp; problem-solving</h2>
+          <p class="group-intro">Questions about how you handle the unknown — interviewers want to see a structured approach and the judgement to ask for help at the right time.</p>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>You are assigned a task and don't know how to solve it. What would you do?</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> independence <i>and</i> the judgement to ask for help before it becomes a delay.</p>
+              <ol>
+                <li><b>Understand the requirement</b>: restate it, confirm the expected outcome and acceptance criteria with the person who assigned it.</li>
+                <li><b>Break it down</b> into smaller parts; often only one piece is truly unknown.</li>
+                <li><b>Research</b>: how the existing codebase solves similar problems, official documentation, reliable sources.</li>
+                <li><b>Try a small spike</b> or prototype for the unknown part.</li>
+                <li><b>Time-box it</b>: if you're still stuck after a reasonable effort (say half a day), ask a <b>focused</b> question — what you tried, what happened, what you think the options are.</li>
+                <li>Afterwards, <b>document what you learned</b> so the next person doesn't start from zero.</li>
+              </ol>
+              <div class="tip">Avoid both extremes in your answer: "I'd ask my senior immediately" sounds dependent, and "I'd figure it out myself no matter how long it takes" risks the deadline.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="easy" data-tag="interview">
+            <summary>You are asked to work with a technology you have never used. What would you do?</summary>
+            <div class="answer">
+              <ol>
+                <li><b>Learn the fundamentals fast</b> from the official documentation and getting-started guides — focused on what the task needs, not everything.</li>
+                <li><b>Study how the project already uses it</b>: existing code, configuration and team conventions.</li>
+                <li><b>Build a small proof of concept</b> outside the main codebase to validate your understanding.</li>
+                <li><b>Implement step by step</b>, with tests, and ask for an early code review from someone experienced.</li>
+                <li><b>Be transparent</b> about the learning curve when estimating the work.</li>
+              </ol>
+              <div class="tip"><b>Sample:</b> "I had never used Kafka when I was asked to build an event consumer. I spent a day on the official docs and the Spring for Apache Kafka guide, read how our other services configured consumers, and built a small Testcontainers-based prototype. I then implemented the consumer with idempotency handling and got an early review from a senior colleague. It went live the next sprint."</div>
             </div>
           </details>
         </section>

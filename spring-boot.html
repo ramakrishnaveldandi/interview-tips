@@ -1958,6 +1958,76 @@
               <div class="note">Resilience4j's <code>@TimeLimiter</code> only works on asynchronous return types (<code>CompletableFuture</code>, reactive types); for a blocking SOAP call the socket timeouts above are what actually bound the wait. Virtual threads (<code>spring.threads.virtual.enabled=true</code>) stop blocked calls from exhausting platform threads, but they do not make SAP faster or protect it from overload — you still need timeouts, a bulkhead and a circuit breaker.</div>
             </div>
           </details>
+          <details class="qa" data-level="medium" data-tag="interview">
+            <summary>An API suddenly starts returning <code>500 Internal Server Error</code>. What would you do?</summary>
+            <div class="answer">
+              <p><b>What they're looking for:</b> a calm, evidence-driven process — limit the impact first, then find the root cause, then prevent it from happening again. Don't start guessing at code changes.</p>
+              <ol>
+                <li><b>Assess impact</b>: all requests or some? One endpoint, one instance, one region, one customer? Since when? Check dashboards (error rate, latency) and alerts.</li>
+                <li><b>Check what changed</b>: a deployment, a config/feature-flag change, a database migration, a dependency's new version, a certificate or secret that expired. If a deploy lines up with the start, <b>roll back first</b> and investigate afterwards.</li>
+                <li><b>Read the logs</b> for the failing requests — the stack trace and the root-cause exception (search by trace/correlation ID). A 500 is just "an unhandled exception"; the logs say which one.</li>
+                <li><b>Check dependencies</b>: database (connection pool exhausted? <code>/actuator/health</code>), downstream APIs (timeouts, 5xx), message broker, disk space, memory/GC.</li>
+                <li><b>Reproduce</b> with the same request (payload, headers, user) in a lower environment, then <b>fix</b>, add a regression test, deploy, and <b>monitor</b> the error rate.</li>
+                <li><b>Prevent</b>: map known failures to proper status codes (400/404/409/503 instead of 500), add alerts, and write a short blameless post-mortem.</li>
+              </ol>
+              <script type="text/plain" class="code" data-lang="bash">
+                # Is the app and its dependencies healthy?
+                curl -s https://orders.example.com/actuator/health | jq
+                #  {"status":"DOWN","components":{"db":{"status":"DOWN","details":{"error":"...Connection is not available, request timed out after 30000ms"}}}}
+
+                # Find the real exception behind the 500s (Kubernetes example)
+                kubectl logs deploy/orders-service --since=30m | grep -A 20 "ERROR"
+
+                # Did something just change?
+                kubectl rollout history deploy/orders-service
+                kubectl rollout undo deploy/orders-service        # roll back if the timing matches a deploy
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>/actuator/health</code> aggregates the health of the app's dependencies; a <code>DOWN</code> database component with a HikariCP "connection is not available" message points straight at an exhausted connection pool or an unreachable DB.</li>
+                  <li>Grepping recent logs for <code>ERROR</code> with 20 lines of context shows the stack trace and the "Caused by:" root exception that Spring turned into the 500.</li>
+                  <li><code>rollout history</code> shows whether a new version went out just before the errors began; <code>rollout undo</code> restores the previous version in seconds, stopping customer impact while you debug.</li>
+                </ol>
+              </div>
+              <div class="tip">Say "mitigate first, then investigate" — rolling back or failing over quickly is usually more valuable than finding the bug while users are affected.</div>
+            </div>
+          </details>
+
+          <details class="qa" data-level="medium" data-tag="interview">
+            <summary>Your code works fine locally but fails in production. What would you do?</summary>
+            <div class="answer">
+              <p>"Works on my machine" almost always means <b>the environments differ</b>. Get the exact production error from the logs first, then compare the environments systematically:</p>
+              <div class="table-wrap"><table>
+                <thead><tr><th>Check</th><th>Typical cause</th></tr></thead>
+                <tbody>
+                  <tr><td>Configuration &amp; profiles</td><td>A property set only in <code>application-dev.yml</code>; wrong <code>SPRING_PROFILES_ACTIVE</code>; missing environment variable or secret</td></tr>
+                  <tr><td>Data</td><td>Production has nulls, special characters, much larger volumes or old records your test data doesn't</td></tr>
+                  <tr><td>Versions</td><td>Different JDK, library version (dependency resolved differently), database or OS version</td></tr>
+                  <tr><td>Network &amp; permissions</td><td>Firewall rules, TLS certificates, proxy settings, IAM roles, file-system permissions</td></tr>
+                  <tr><td>Paths &amp; OS</td><td>Hard-coded Windows paths, case-sensitive file names on Linux, timezone/locale (<code>TZ</code>, default charset)</td></tr>
+                  <tr><td>Scale &amp; concurrency</td><td>Race conditions and pool exhaustion that only appear with many users or several instances</td></tr>
+                </tbody>
+              </table></div>
+              <script type="text/plain" class="code" data-lang="bash">
+                # Which profiles and property values is production really using? (secure this endpoint!)
+                curl -s https://orders.example.com/actuator/env/payment.gateway.url | jq '.property'
+                curl -s https://orders.example.com/actuator/info | jq '.build, .git'   # exact version deployed
+
+                # Compare dependency versions between builds
+                ./mvnw dependency:tree -Dincludes=com.fasterxml.jackson.core
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li><code>/actuator/env/&lt;key&gt;</code> shows the value Spring actually resolved and <b>which source</b> it came from (profile file, environment variable…), so you can see when production picks up a different value than you expect.</li>
+                  <li><code>/actuator/info</code> with build and git info confirms that the version you're debugging locally is the one that's deployed.</li>
+                  <li><code>dependency:tree</code> reveals when transitive dependencies resolve to a different version than you think — a common cause of <code>NoSuchMethodError</code> in production only.</li>
+                </ol>
+              </div>
+              <p><b>Prevent it:</b> build one immutable artifact/container image and promote it through environments, keep environments as similar as possible (same JDK, same DB engine — Testcontainers locally), externalise config, and validate configuration at startup so a missing value fails the deployment instead of the first request.</p>
+            </div>
+          </details>
         </section>
 
         <section class="qa-group">

@@ -171,7 +171,7 @@
               <div class="tip">Ask whether ties count — <code>DENSE_RANK</code> treats equal salaries as one rank, which is usually what's expected.</div>
             </div>
           </details>
-          <details class="qa" data-level="medium" data-tag="coding" data-complexity="O(n log n) sort or O(n) hash aggregate for GROUP BY / ROW_NUMBER">
+          <details class="qa" data-level="medium" data-tag="interview coding" data-complexity="O(n log n) sort or O(n) hash aggregate for GROUP BY / ROW_NUMBER">
             <summary>How do you find and delete duplicate rows?</summary>
             <div class="answer">
               <script type="text/plain" class="code" data-lang="sql">
@@ -255,6 +255,52 @@
                   <li>Running total: the frame <code>ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> sums from the first row to the current one: amounts 100, 50, 30 → 100, 150, 180.</li>
                   <li>Writing <code>ROWS</code> explicitly avoids the default <code>RANGE</code> frame, which would add up all rows with the same <code>order_date</code> together.</li>
                   <li><code>AVG(salary) OVER (PARTITION BY dept_id)</code> with no <code>ORDER BY</code> uses the whole partition, so every employee row shows its department's average.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
+          <details class="qa" data-level="medium" data-tag="interview coding" data-complexity="O(n + m) with hash joins, or O(n log n) with sort-merge joins, on the business key">
+            <summary>The source table has 1 lakh (100,000) records but the target has only 99,000. How do you find out what went wrong?</summary>
+            <div class="answer">
+              <p>This is a data-reconciliation question (common in ETL, migration and integration roles). Don't guess — <b>find exactly which 1,000 rows are missing</b>, then look for what they have in common.</p>
+              <ol>
+                <li><b>Confirm the counts</b> on the same scope (same date range, same snapshot) — a load may simply still be running.</li>
+                <li><b>Find the missing rows by business key</b> with an anti-join.</li>
+                <li><b>Look for a pattern</b> in the missing rows: nulls in a required column, a specific date or status, special characters, duplicate keys.</li>
+                <li><b>Check the pipeline</b>: <code>WHERE</code> filters, <code>INNER JOIN</code>s that drop rows without a match, deduplication logic, type conversions that failed, rejected/error tables and job logs, unique constraints that silently skipped rows (<code>INSERT IGNORE</code>, <code>ON CONFLICT DO NOTHING</code>).</li>
+                <li><b>Fix and re-load</b> the missing rows, then add an automated count/checksum check after every load.</li>
+              </ol>
+              <script type="text/plain" class="code" data-lang="sql">
+                -- 1. Which source rows never reached the target? (anti-join on the business key)
+                SELECT s.*
+                FROM   source_orders s
+                LEFT JOIN target_orders t ON t.order_no = s.order_no
+                WHERE  t.order_no IS NULL;
+
+                -- Same thing with set operators (PostgreSQL: EXCEPT; MySQL 8.0.31+ also supports EXCEPT)
+                SELECT order_no FROM source_orders
+                EXCEPT
+                SELECT order_no FROM target_orders;
+
+                -- 2. Do the missing rows share something? e.g. group them by a suspicious column
+                SELECT s.status, COUNT(*) AS missing
+                FROM   source_orders s
+                LEFT JOIN target_orders t ON t.order_no = s.order_no
+                WHERE  t.order_no IS NULL
+                GROUP  BY s.status
+                ORDER  BY missing DESC;
+
+                -- 3. Were rows collapsed because the key isn't unique in the source?
+                SELECT order_no, COUNT(*) FROM source_orders GROUP BY order_no HAVING COUNT(*) > 1;
+              </script>
+              <div class="explain">
+                <h4>🧠 How this works</h4>
+                <ol>
+                  <li>The <code>LEFT JOIN … WHERE t.order_no IS NULL</code> keeps every source row and only those with <b>no matching</b> target row survive the filter — exactly the missing ones.</li>
+                  <li><code>EXCEPT</code> returns keys present in the first query but not the second; it is shorter to write but returns only the selected columns.</li>
+                  <li>Grouping the missing rows by a column (status, date, region) usually exposes the cause immediately — e.g. all 1,000 are <code>CANCELLED</code>, so a pipeline filter or an inner join to a lookup table is dropping them.</li>
+                  <li>The duplicate check explains the other common cause: if 1,000 source keys appear twice, a dedup step or a unique constraint in the target collapses them, so 100,000 rows become 99,000 distinct keys.</li>
+                  <li>With an index (or hash join) on <code>order_no</code>, each query is roughly linear in the table sizes.</li>
                 </ol>
               </div>
             </div>
@@ -676,7 +722,7 @@
               </ul>
             </div>
           </details>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>Optimistic vs pessimistic locking?</summary>
             <div class="answer">
               <div class="table-wrap"><table>
@@ -714,7 +760,7 @@
 
         <section class="qa-group">
           <h2>Performance &amp; Scaling</h2>
-          <details class="qa" data-level="medium">
+          <details class="qa" data-level="medium" data-tag="interview">
             <summary>A query is slow in production. How do you tune it?</summary>
             <div class="answer">
               <ol>
